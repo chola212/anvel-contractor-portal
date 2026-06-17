@@ -18,6 +18,12 @@ export const primaryNavigation: NavigationItem[] = [
     allowedRoles: allRoles,
   },
   {
+    label: "My Profile",
+    description: "Contractor profile details",
+    href: "/profile",
+    allowedRoles: ["contractor"],
+  },
+  {
     label: "Contractors",
     description: "Profiles and onboarding status",
     href: "/contractors",

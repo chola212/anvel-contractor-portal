@@ -62,3 +62,15 @@ supabase/migrations/
 ```
 
 Read `supabase/README.md` before applying any SQL to Supabase.
+
+## Current Development Phase
+
+Phase 6 adds the first contractor profile module:
+
+- internal contractor list for `admin` and `operations`;
+- read-only contractor detail page;
+- contractor-only `My Profile` page;
+- Supabase-backed data loading through existing RLS policies.
+
+Profile editing, sensitive bank-data workflows, and audit logging for profile
+changes are intentionally left for later phases.
