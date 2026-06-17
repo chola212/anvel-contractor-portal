@@ -93,7 +93,7 @@ function createSupabaseClient() {
   });
 }
 
-async function signIn(email, password) {
+async function signIn(email, password, label) {
   const supabase = createSupabaseClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -101,10 +101,47 @@ async function signIn(email, password) {
   });
 
   if (error || !data.user) {
-    throw new Error(`Could not sign in as ${email}: ${error?.message}`);
+    if (error?.message === "Invalid login credentials") {
+      throw new Error(
+        [
+          `Could not sign in as ${label} (${email}).`,
+          "Supabase returned: Invalid login credentials.",
+          "Check the fake user's password in Authentication > Users,",
+          `then rerun with PHASE5_${label.toUpperCase()}_PASSWORD set to the matching value.`,
+        ].join(" "),
+      );
+    }
+
+    throw new Error(`Could not sign in as ${label} (${email}): ${error?.message}`);
   }
 
   return { supabase, user: data.user };
+}
+
+async function readRequiredProfile(adminClient, email, expectedRole) {
+  const { data, error } = await adminClient
+    .from("profiles")
+    .select("id,email,full_name,role,is_active")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Could not read profile for ${email}: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error(
+      `Missing public.profiles row for ${email}. Create the fake profile before running Phase 5.`,
+    );
+  }
+
+  if (data.role !== expectedRole || !data.is_active) {
+    throw new Error(
+      `Profile for ${email} must be active with role '${expectedRole}'. Current role: '${data.role}', active: ${data.is_active}.`,
+    );
+  }
+
+  return data;
 }
 
 async function writeRow(client, table, payload, options) {
@@ -549,8 +586,22 @@ function printResults(results) {
   );
 }
 
-const admin = await signIn(adminEmail, adminPassword);
-const contractor = await signIn(contractorEmail, contractorPassword);
+const admin = await signIn(adminEmail, adminPassword, "admin");
+const contractorProfile = await readRequiredProfile(
+  admin.supabase,
+  contractorEmail,
+  "contractor",
+);
+
+console.log(
+  `Found active contractor profile: ${contractorProfile.email} (${contractorProfile.id})`,
+);
+
+const contractor = await signIn(
+  contractorEmail,
+  contractorPassword,
+  "contractor",
+);
 const context = await seedFakeData(admin.supabase, contractor.user);
 const results = await runChecks(admin.supabase, contractor.supabase, context);
 
