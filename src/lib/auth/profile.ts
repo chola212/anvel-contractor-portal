@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 import type { Profile } from "./roles";
+import type { Role } from "./roles";
 
 export async function getCurrentUser() {
   const supabase = await createClient();
@@ -44,6 +45,16 @@ export async function requireCurrentProfile() {
 
   if (!profile) {
     redirect("/account-required");
+  }
+
+  return profile;
+}
+
+export async function requireRole(allowedRoles: Role[]) {
+  const profile = await requireCurrentProfile();
+
+  if (!allowedRoles.includes(profile.role)) {
+    redirect("/");
   }
 
   return profile;

@@ -1,11 +1,28 @@
-import { ModulePlaceholder } from "@/components/layout/module-placeholder";
+import { ContractorList } from "@/components/contractors/contractor-list";
+import { requireRole } from "@/lib/auth/profile";
+import { getContractorsForStaff } from "@/lib/contractors/queries";
 
-export default function ContractorsPage() {
+export default async function ContractorsPage() {
+  await requireRole(["admin", "operations"]);
+  const contractors = await getContractorsForStaff();
+
   return (
-    <ModulePlaceholder
-      title="Contractors"
-      description="Contractor profile and onboarding workflows will be added after authentication, roles, and database security are in place."
-      nextPhase="Phase 5"
-    />
+    <div className="mx-auto flex max-w-7xl flex-col gap-6">
+      <section className="border-b border-neutral-200 pb-5">
+        <p className="text-sm font-medium uppercase text-teal-700">
+          ANVEL Contractor Portal
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
+          Contractors
+        </h1>
+        <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
+          Read-only contractor profile overview for internal users. This page
+          uses Supabase RLS and does not expose public registration or candidate
+          data.
+        </p>
+      </section>
+
+      <ContractorList contractors={contractors} />
+    </div>
   );
 }
