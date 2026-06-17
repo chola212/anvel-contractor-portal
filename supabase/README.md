@@ -8,6 +8,7 @@ Apply migrations to a development or staging Supabase project first. Use fake da
 
 ```text
 migrations/202606160001_initial_schema_and_rls.sql
+migrations/202606170001_contractor_document_storage.sql
 ```
 
 This migration creates:
@@ -21,6 +22,15 @@ This migration creates:
 - common indexes;
 - Row Level Security on every business table;
 - starter RLS policies for `admin`, `operations`, and `contractor`.
+
+The Phase 8 storage migration creates the private `contractor-documents`
+Supabase Storage bucket and starter storage policies:
+
+- admins can manage files in the bucket;
+- contractors can read and insert files only under their own contractor path;
+- operations do not receive file download access by default;
+- only PDF files are allowed;
+- the bucket is not public.
 
 ## How to apply in Supabase SQL Editor
 
@@ -60,6 +70,20 @@ order by tablename;
 ```
 
 Expected result: every business table should have `rowsecurity = true`.
+
+Check the document storage bucket after applying the Phase 8 migration:
+
+```sql
+select id, name, public, file_size_limit, allowed_mime_types
+from storage.buckets
+where id = 'contractor-documents';
+```
+
+Expected result:
+
+- `public` is `false`;
+- `file_size_limit` is `10485760`;
+- `allowed_mime_types` contains `application/pdf`.
 
 ## Development auth test users
 
@@ -141,4 +165,6 @@ Checklist:
 - Do not expose the Supabase service role key in browser code.
 - Contractors must only access their own records.
 - Sensitive document buckets must be private when storage is added.
+- Operations can review document metadata, but file download access is not
+  enabled for operations by default.
 - Real contractor data belongs only in production after security review.

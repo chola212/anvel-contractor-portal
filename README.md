@@ -82,3 +82,12 @@ Phase 7 adds read-only project and assignment views:
 - assigned projects on contractor profile pages;
 - contractor-visible assigned project list on `My Profile`;
 - no project editing, assignment editing, or rate editing yet.
+
+Phase 8 starts the documents module:
+
+- read-only document metadata view for staff and contractors;
+- contractors can only see their own document metadata through existing RLS;
+- operations can see metadata but not file names or downloads in the UI;
+- private `contractor-documents` storage bucket migration is prepared;
+- upload, review, and signed download actions are intentionally left for the
+  next approved step.
