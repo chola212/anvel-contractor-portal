@@ -81,6 +81,60 @@ values
 
 The login flow will reject access to the protected portal shell when a signed-in user does not have an active profile row.
 
+## Phase 5 RLS verification
+
+Run this only against the development Supabase project with fake users and fake data.
+
+Required fake users:
+
+```text
+admin.test@anvel.local
+contractor.test@anvel.local
+```
+
+The verification script:
+
+- signs in with the fake admin and contractor users;
+- seeds fake contractor, project, document, timesheet, invoice, and payment rows;
+- verifies the admin can see both fake contractors;
+- verifies the contractor can see only their own records;
+- verifies the contractor cannot read audit logs.
+
+Run from the project root:
+
+```powershell
+$env:PHASE5_TEST_PASSWORD="your-fake-test-password"
+npm.cmd run test:phase5:rls
+```
+
+If the fake users have different passwords:
+
+```powershell
+$env:PHASE5_ADMIN_PASSWORD="admin-fake-password"
+$env:PHASE5_CONTRACTOR_PASSWORD="contractor-fake-password"
+npm.cmd run test:phase5:rls
+```
+
+If the script says `Invalid login credentials` for one fake user, reset that fake user's password in Supabase Authentication and rerun the script with the matching environment variable.
+
+Expected result:
+
+```text
+Phase 5 RLS verification passed with fake development data.
+```
+
+Checklist:
+
+- admin can read both fake contractor rows;
+- contractor can read only their own contractor row;
+- contractor can read only their assigned project;
+- contractor can read only their own document metadata;
+- contractor can read only their own timesheet and entries;
+- contractor can read only their own payment statement, invoice, and payment status;
+- contractor cannot read audit logs;
+- no service role key is used;
+- no real contractor data is inserted.
+
 ## Security notes
 
 - Do not commit `.env.local`.
