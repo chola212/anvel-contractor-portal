@@ -74,3 +74,11 @@ Phase 6 adds the first contractor profile module:
 
 Profile editing, sensitive bank-data workflows, and audit logging for profile
 changes are intentionally left for later phases.
+
+Phase 7 adds read-only project and assignment views:
+
+- internal project list and project detail pages for `admin` and `operations`;
+- assigned contractors on project detail pages;
+- assigned projects on contractor profile pages;
+- contractor-visible assigned project list on `My Profile`;
+- no project editing, assignment editing, or rate editing yet.

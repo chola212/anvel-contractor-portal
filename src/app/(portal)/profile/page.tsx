@@ -1,10 +1,15 @@
 import { ContractorProfilePanel } from "@/components/contractors/contractor-profile-panel";
+import { AssignmentList } from "@/components/projects/assignment-list";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { getAssignmentsForContractor } from "@/lib/projects/queries";
 
 export default async function ProfilePage() {
   const profile = await requireRole(["contractor"]);
   const contractor = await getContractorByProfileId(profile.id);
+  const assignments = contractor
+    ? await getAssignmentsForContractor(contractor.id)
+    : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -22,7 +27,15 @@ export default async function ProfilePage() {
       </section>
 
       {contractor ? (
-        <ContractorProfilePanel contractor={contractor} showSensitiveDetails />
+        <>
+          <ContractorProfilePanel contractor={contractor} showSensitiveDetails />
+          <AssignmentList
+            assignments={assignments}
+            context="contractor"
+            showHourlyRate
+            showSalesRate={false}
+          />
+        </>
       ) : (
         <section className="rounded-md border border-neutral-200 bg-white p-5">
           <h2 className="text-base font-semibold text-neutral-950">

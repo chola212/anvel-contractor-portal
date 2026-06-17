@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ContractorProfilePanel } from "@/components/contractors/contractor-profile-panel";
+import { AssignmentList } from "@/components/projects/assignment-list";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorById } from "@/lib/contractors/queries";
+import { getAssignmentsForContractor } from "@/lib/projects/queries";
 
 type ContractorDetailPageProps = {
   params: Promise<{
@@ -21,6 +23,8 @@ export default async function ContractorDetailPage({
   if (!contractor) {
     notFound();
   }
+
+  const assignments = await getAssignmentsForContractor(contractor.id);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -43,6 +47,12 @@ export default async function ContractorDetailPage({
       <ContractorProfilePanel
         contractor={contractor}
         showSensitiveDetails={profile.role === "admin"}
+      />
+      <AssignmentList
+        assignments={assignments}
+        context="contractor"
+        showHourlyRate={profile.role === "admin"}
+        showSalesRate={profile.role === "admin"}
       />
     </div>
   );
