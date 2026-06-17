@@ -160,6 +160,28 @@ async function writeRows(client, table, payload) {
   }
 }
 
+async function writeAuditLogIfMissing(client, payload) {
+  const { data, error: selectError } = await client
+    .from("audit_logs")
+    .select("id")
+    .eq("id", payload.id)
+    .maybeSingle();
+
+  if (selectError) {
+    throw new Error(`Could not check audit_logs: ${selectError.message}`);
+  }
+
+  if (data) {
+    return;
+  }
+
+  const { error: insertError } = await client.from("audit_logs").insert(payload);
+
+  if (insertError) {
+    throw new Error(`Could not insert audit_logs: ${insertError.message}`);
+  }
+}
+
 async function seedFakeData(adminClient, contractorUser) {
   await writeRow(
     adminClient,
@@ -381,7 +403,7 @@ async function seedFakeData(adminClient, contractorUser) {
     },
   ]);
 
-  await writeRow(adminClient, "audit_logs", {
+  await writeAuditLogIfMissing(adminClient, {
     id: seedIds.auditLog,
     actor_profile_id: null,
     action: "phase5_rls_verification",
