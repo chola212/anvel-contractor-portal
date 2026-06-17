@@ -34,8 +34,8 @@ export default function Home() {
             </h1>
             <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
               Base application shell for the private ANVEL contractor portal.
-              Business data, authentication, and database-backed workflows are
-              intentionally left for later approved phases.
+              Authentication, protected routes, and profile role loading are
+              now connected to Supabase.
             </p>
           </div>
           <div className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
@@ -48,19 +48,19 @@ export default function Home() {
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Current phase</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Base application shell
+            Authentication foundation
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Data source</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Not connected to tables yet
+            Supabase profiles table
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Access model</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Roles planned, not enforced yet
+            Role-aware navigation active
           </p>
         </div>
       </section>
