@@ -23,9 +23,6 @@ export function TopBar({ items }: TopBarProps) {
             Internal contractor operations
           </p>
         </div>
-        <div className="shrink-0 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600">
-          Phase 1 shell
-        </div>
       </div>
       <nav
         aria-label="Mobile navigation"
