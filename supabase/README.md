@@ -61,6 +61,26 @@ order by tablename;
 
 Expected result: every business table should have `rowsecurity = true`.
 
+## Development auth test users
+
+Create test users only in the development Supabase project:
+
+1. Open `Authentication`.
+2. Create a fake admin user and a fake contractor user.
+3. Copy each user's Auth UUID.
+4. Insert matching rows into `public.profiles`.
+
+Example:
+
+```sql
+insert into public.profiles (id, email, full_name, role, is_active)
+values
+  ('replace-with-auth-user-id', 'admin.test@example.com', 'Admin Test User', 'admin', true),
+  ('replace-with-auth-user-id', 'contractor.test@example.com', 'Contractor Test User', 'contractor', true);
+```
+
+The login flow will reject access to the protected portal shell when a signed-in user does not have an active profile row.
+
 ## Security notes
 
 - Do not commit `.env.local`.

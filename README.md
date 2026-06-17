@@ -36,6 +36,23 @@ http://127.0.0.1:3000/api/health/supabase
 
 This verifies that the Supabase client can initialize. It does not create database tables or authenticate a user.
 
+## Local Login Testing
+
+Authentication is invite-only. Do not add public registration.
+
+For development testing, create fake users in Supabase Auth, then add matching rows in the `profiles` table. The `id` must match the Supabase Auth user ID.
+
+Example profile rows:
+
+```sql
+insert into public.profiles (id, email, full_name, role, is_active)
+values
+  ('auth-user-id-here', 'admin.test@example.com', 'Admin Test User', 'admin', true),
+  ('auth-user-id-here', 'contractor.test@example.com', 'Contractor Test User', 'contractor', true);
+```
+
+Use only fake users and fake data in the development Supabase project.
+
 ## Database Migrations
 
 Migration files live in:
