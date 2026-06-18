@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DetailField } from "@/components/contractors/detail-field";
 import { TimesheetEntryForm } from "@/components/timesheets/timesheet-entry-form";
 import { TimesheetEntryList } from "@/components/timesheets/timesheet-entry-list";
+import { TimesheetReviewForm } from "@/components/timesheets/timesheet-review-form";
 import { TimesheetStatusBadge } from "@/components/timesheets/timesheet-status-badge";
 import { TimesheetSubmitForm } from "@/components/timesheets/timesheet-submit-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
@@ -78,6 +79,13 @@ export default async function TimesheetDetailPage({
             entryCount={timesheet.entry_count}
           />
         </>
+      ) : null}
+
+      {profile.role === "admin" ? (
+        <TimesheetReviewForm
+          timesheetId={timesheet.id}
+          status={timesheet.status}
+        />
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">

@@ -51,6 +51,15 @@ const entryIdSchema = z.object({
   entryId: z.string().uuid("Entry is missing."),
 });
 
+const rejectTimesheetSchema = z.object({
+  timesheetId: z.string().uuid("Timesheet is missing."),
+  rejectionReason: z
+    .string()
+    .trim()
+    .min(5, "Enter a correction reason.")
+    .max(600, "Keep the correction reason under 600 characters."),
+});
+
 export type TimesheetActionState = {
   message: string | null;
   status: "idle" | "success" | "error";
@@ -61,12 +70,82 @@ type AssignmentForCheck = {
   id: string;
 };
 
+type AuditAction =
+  | "timesheet_approved"
+  | "timesheet_rejected"
+  | "timesheet_reopened";
+
 function initialErrorState(message: string): TimesheetActionState {
   return {
     message,
     status: "error",
     fieldErrors: {},
   };
+}
+
+async function getAdminReviewTimesheet(
+  timesheetId: string,
+  allowedStatuses: TimesheetRecord["status"][],
+) {
+  const profile = await requireRole(["admin"]);
+  const supabase = await createClient();
+  const { data: timesheet, error } = await supabase
+    .from("timesheets")
+    .select(
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
+    )
+    .eq("id", timesheetId)
+    .maybeSingle<TimesheetRecord>();
+
+  if (error || !timesheet) {
+    return {
+      profile,
+      supabase,
+      timesheet: null,
+      state: initialErrorState("This timesheet could not be found."),
+    };
+  }
+
+  if (!allowedStatuses.includes(timesheet.status)) {
+    return {
+      profile,
+      supabase,
+      timesheet,
+      state: initialErrorState(
+        `This timesheet cannot be reviewed while it is ${timesheet.status}.`,
+      ),
+    };
+  }
+
+  return {
+    profile,
+    supabase,
+    timesheet,
+    state: null,
+  };
+}
+
+async function recordTimesheetAuditLog(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  actorProfileId: string,
+  action: AuditAction,
+  timesheet: TimesheetRecord,
+  nextStatus: TimesheetRecord["status"],
+) {
+  const { error } = await supabase.from("audit_logs").insert({
+    actor_profile_id: actorProfileId,
+    action,
+    entity_type: "timesheet",
+    entity_id: timesheet.id,
+    metadata: {
+      from_status: timesheet.status,
+      to_status: nextStatus,
+    },
+  });
+
+  if (error) {
+    throw new Error(`Could not record audit log: ${error.message}`);
+  }
 }
 
 function parseWorkDate(value: string) {
@@ -108,6 +187,229 @@ async function requireContractor() {
     profile,
     contractor,
     state: null,
+  };
+}
+
+export async function approveTimesheetAction(
+  _previousState: TimesheetActionState,
+  formData: FormData,
+): Promise<TimesheetActionState> {
+  const parsed = timesheetIdSchema.safeParse({
+    timesheetId: formData.get("timesheetId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Timesheet is missing.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { profile, supabase, timesheet, state } = await getAdminReviewTimesheet(
+    parsed.data.timesheetId,
+    ["submitted"],
+  );
+
+  if (!timesheet) {
+    return state;
+  }
+
+  const { error } = await supabase
+    .from("timesheets")
+    .update({
+      status: "approved",
+      approved_by: profile.id,
+      approved_at: new Date().toISOString(),
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null,
+    })
+    .eq("id", timesheet.id);
+
+  if (error) {
+    return {
+      message: `Could not approve the timesheet: ${error.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  try {
+    await recordTimesheetAuditLog(
+      supabase,
+      profile.id,
+      "timesheet_approved",
+      timesheet,
+      "approved",
+    );
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Timesheet approved, but the audit log could not be recorded.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/timesheets/${timesheet.id}`);
+  revalidatePath("/timesheets");
+
+  return {
+    message: "Timesheet approved.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function rejectTimesheetAction(
+  _previousState: TimesheetActionState,
+  formData: FormData,
+): Promise<TimesheetActionState> {
+  const parsed = rejectTimesheetSchema.safeParse({
+    timesheetId: formData.get("timesheetId"),
+    rejectionReason: formData.get("rejectionReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the rejection details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { profile, supabase, timesheet, state } = await getAdminReviewTimesheet(
+    parsed.data.timesheetId,
+    ["submitted"],
+  );
+
+  if (!timesheet) {
+    return state;
+  }
+
+  const { error } = await supabase
+    .from("timesheets")
+    .update({
+      status: "rejected",
+      rejected_by: profile.id,
+      rejected_at: new Date().toISOString(),
+      rejection_reason: parsed.data.rejectionReason,
+      approved_by: null,
+      approved_at: null,
+    })
+    .eq("id", timesheet.id);
+
+  if (error) {
+    return {
+      message: `Could not reject the timesheet: ${error.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  try {
+    await recordTimesheetAuditLog(
+      supabase,
+      profile.id,
+      "timesheet_rejected",
+      timesheet,
+      "rejected",
+    );
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Timesheet rejected, but the audit log could not be recorded.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/timesheets/${timesheet.id}`);
+  revalidatePath("/timesheets");
+
+  return {
+    message: "Timesheet rejected for correction.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function reopenTimesheetAction(
+  _previousState: TimesheetActionState,
+  formData: FormData,
+): Promise<TimesheetActionState> {
+  const parsed = timesheetIdSchema.safeParse({
+    timesheetId: formData.get("timesheetId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Timesheet is missing.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { profile, supabase, timesheet, state } = await getAdminReviewTimesheet(
+    parsed.data.timesheetId,
+    ["approved", "rejected"],
+  );
+
+  if (!timesheet) {
+    return state;
+  }
+
+  const { error } = await supabase
+    .from("timesheets")
+    .update({
+      status: "reopened",
+      approved_by: null,
+      approved_at: null,
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null,
+    })
+    .eq("id", timesheet.id);
+
+  if (error) {
+    return {
+      message: `Could not reopen the timesheet: ${error.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  try {
+    await recordTimesheetAuditLog(
+      supabase,
+      profile.id,
+      "timesheet_reopened",
+      timesheet,
+      "reopened",
+    );
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Timesheet reopened, but the audit log could not be recorded.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/timesheets/${timesheet.id}`);
+  revalidatePath("/timesheets");
+
+  return {
+    message: "Timesheet reopened for correction.",
+    status: "success",
+    fieldErrors: {},
   };
 }
 

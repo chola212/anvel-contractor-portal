@@ -103,5 +103,7 @@ Phase 9 starts the timesheets module:
 - contractors can add or remove daily worked-day entries while a timesheet is
   draft, rejected, or reopened;
 - contractors can submit timesheets for review;
-- approval, rejection, reopening, and payment calculation actions are
-  intentionally left for later approved steps.
+- admin can approve submitted timesheets;
+- admin can reject submitted timesheets with a correction reason;
+- admin can reopen approved or rejected timesheets for contractor correction;
+- payment calculation actions are intentionally left for later approved steps.
