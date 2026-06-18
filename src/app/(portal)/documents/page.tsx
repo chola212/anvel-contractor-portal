@@ -62,6 +62,7 @@ export default async function DocumentsPage() {
         documents={documents}
         mode={isContractor ? "contractor" : "staff"}
         showFileName={profile.role === "admin" || profile.role === "contractor"}
+        canDownload={profile.role === "admin" || profile.role === "contractor"}
       />
     </div>
   );

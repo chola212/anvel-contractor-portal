@@ -12,12 +12,14 @@ type DocumentListProps = {
   documents: ContractorDocument[];
   mode: "staff" | "contractor";
   showFileName: boolean;
+  canDownload: boolean;
 };
 
 export function DocumentList({
   documents,
   mode,
   showFileName,
+  canDownload,
 }: DocumentListProps) {
   if (documents.length === 0) {
     return (
@@ -41,8 +43,8 @@ export function DocumentList({
           Contractor documents
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Metadata only. Signed download and review actions are intentionally
-          left for a later approved step.
+          Signed downloads use short-lived private links. Review actions are
+          intentionally left for a later approved step.
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -111,7 +113,16 @@ export function DocumentList({
                   {formatDate(document.expiry_date)}
                 </td>
                 <td className="px-5 py-4 align-top text-neutral-700">
-                  Signed download not enabled yet
+                  {canDownload ? (
+                    <Link
+                      href={`/documents/${document.id}/download`}
+                      className="font-medium text-teal-800 hover:text-teal-950"
+                    >
+                      Download PDF
+                    </Link>
+                  ) : (
+                    "Download not enabled for this role"
+                  )}
                 </td>
               </tr>
             ))}
