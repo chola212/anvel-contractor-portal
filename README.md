@@ -89,5 +89,6 @@ Phase 8 starts the documents module:
 - contractors can only see their own document metadata through existing RLS;
 - operations can see metadata but not file names or downloads in the UI;
 - private `contractor-documents` storage bucket migration is prepared;
-- upload, review, and signed download actions are intentionally left for the
-  next approved step.
+- contractor PDF upload writes to private storage and creates metadata;
+- review and signed download actions are intentionally left for the next
+  approved step.

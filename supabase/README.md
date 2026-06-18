@@ -153,6 +153,8 @@ Checklist:
 - contractor can read only their own contractor row;
 - contractor can read only their assigned project;
 - contractor can read only their own document metadata;
+- contractor can upload PDF files only under their own private storage path;
+- contractor cannot upload or download files under another contractor path;
 - contractor can read only their own timesheet and entries;
 - contractor can read only their own payment statement, invoice, and payment status;
 - contractor cannot read audit logs;

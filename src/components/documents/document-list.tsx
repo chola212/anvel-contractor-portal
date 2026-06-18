@@ -41,8 +41,8 @@ export function DocumentList({
           Contractor documents
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Metadata only. File download and upload actions are intentionally
-          disabled until private storage policies are applied.
+          Metadata only. Signed download and review actions are intentionally
+          left for a later approved step.
         </p>
       </div>
       <div className="overflow-x-auto">
