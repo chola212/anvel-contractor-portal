@@ -99,5 +99,9 @@ Phase 9 starts the timesheets module:
 - read-only timesheet detail page with daily hours entries;
 - contractors only receive their own timesheets through existing RLS;
 - no task description is required for daily entries;
-- timesheet entry, submission, approval, rejection, and reopening actions are
+- contractors can start draft monthly timesheets for assigned projects;
+- contractors can add or remove daily worked-day entries while a timesheet is
+  draft, rejected, or reopened;
+- contractors can submit timesheets for review;
+- approval, rejection, reopening, and payment calculation actions are
   intentionally left for later approved steps.

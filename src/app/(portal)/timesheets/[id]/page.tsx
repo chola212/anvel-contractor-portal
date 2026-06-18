@@ -2,9 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DetailField } from "@/components/contractors/detail-field";
+import { TimesheetEntryForm } from "@/components/timesheets/timesheet-entry-form";
 import { TimesheetEntryList } from "@/components/timesheets/timesheet-entry-list";
 import { TimesheetStatusBadge } from "@/components/timesheets/timesheet-status-badge";
+import { TimesheetSubmitForm } from "@/components/timesheets/timesheet-submit-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
+import { getContractorByProfileId } from "@/lib/contractors/queries";
 import {
   formatDateTime,
   formatHours,
@@ -21,13 +24,21 @@ type TimesheetDetailPageProps = {
 export default async function TimesheetDetailPage({
   params,
 }: TimesheetDetailPageProps) {
-  await requireCurrentProfile();
+  const profile = await requireCurrentProfile();
   const { id } = await params;
   const timesheet = await getTimesheetById(id);
 
   if (!timesheet) {
     notFound();
   }
+
+  const contractor =
+    profile.role === "contractor"
+      ? await getContractorByProfileId(profile.id)
+      : null;
+  const isEditableByContractor =
+    contractor?.id === timesheet.contractor_id &&
+    ["draft", "rejected", "reopened"].includes(timesheet.status);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -47,13 +58,27 @@ export default async function TimesheetDetailPage({
               {formatTimesheetMonth(timesheet.year, timesheet.month)}
             </h1>
             <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-              Read-only monthly timesheet detail. Contractors record only days
-              actually worked, with no mandatory task description.
+              Monthly timesheet detail. Contractors record only days actually
+              worked, with no mandatory task description.
             </p>
           </div>
           <TimesheetStatusBadge status={timesheet.status} />
         </div>
       </section>
+
+      {isEditableByContractor ? (
+        <>
+          <TimesheetEntryForm
+            timesheetId={timesheet.id}
+            year={timesheet.year}
+            month={timesheet.month}
+          />
+          <TimesheetSubmitForm
+            timesheetId={timesheet.id}
+            entryCount={timesheet.entry_count}
+          />
+        </>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">
         <div className="rounded-md border border-neutral-200 bg-white p-5">
@@ -106,7 +131,11 @@ export default async function TimesheetDetailPage({
         </dl>
       </section>
 
-      <TimesheetEntryList entries={timesheet.entries} />
+      <TimesheetEntryList
+        entries={timesheet.entries}
+        timesheetId={timesheet.id}
+        editable={isEditableByContractor}
+      />
     </div>
   );
 }

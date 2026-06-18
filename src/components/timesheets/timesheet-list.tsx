@@ -36,8 +36,8 @@ export function TimesheetList({ timesheets, mode }: TimesheetListProps) {
           Monthly timesheets
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Read-only monthly overview. Submission and approval actions are left
-          for a later approved step.
+          Monthly overview. Contractors can work on draft or reopened
+          timesheets; approval actions are left for a later approved step.
         </p>
       </div>
       <div className="overflow-x-auto">

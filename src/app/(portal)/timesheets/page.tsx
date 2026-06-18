@@ -1,6 +1,8 @@
+import { StartTimesheetForm } from "@/components/timesheets/start-timesheet-form";
 import { TimesheetList } from "@/components/timesheets/timesheet-list";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { getAssignmentsForContractor } from "@/lib/projects/queries";
 import {
   getTimesheetsForContractor,
   getTimesheetsForStaff,
@@ -18,6 +20,12 @@ export default async function TimesheetsPage() {
       : isContractor
         ? []
         : await getTimesheetsForStaff();
+  const assignments =
+    isContractor && contractor
+      ? (await getAssignmentsForContractor(contractor.id)).filter((assignment) =>
+          ["planned", "active"].includes(assignment.status),
+        )
+      : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -29,9 +37,9 @@ export default async function TimesheetsPage() {
           Timesheets
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Monthly timesheet overview with daily hours entries. This phase is
-          read-only: entry, submission, approval, and reopening actions are
-          intentionally left for later approved steps.
+          Monthly timesheet overview with daily hours entries. Contractors can
+          start draft timesheets, add worked days, and submit them for review.
+          Approval and reopening actions are left for later approved steps.
         </p>
       </section>
 
@@ -47,10 +55,13 @@ export default async function TimesheetsPage() {
           </p>
         </section>
       ) : (
-        <TimesheetList
-          timesheets={timesheets}
-          mode={isContractor ? "contractor" : "staff"}
-        />
+        <>
+          {isContractor ? <StartTimesheetForm assignments={assignments} /> : null}
+          <TimesheetList
+            timesheets={timesheets}
+            mode={isContractor ? "contractor" : "staff"}
+          />
+        </>
       )}
     </div>
   );
