@@ -90,5 +90,5 @@ Phase 8 starts the documents module:
 - operations can see metadata but not file names or downloads in the UI;
 - private `contractor-documents` storage bucket migration is prepared;
 - contractor PDF upload writes to private storage and creates metadata;
-- review and signed download actions are intentionally left for the next
-  approved step.
+- admin and contractors can use short-lived signed PDF download links;
+- review actions are intentionally left for the next approved step.
