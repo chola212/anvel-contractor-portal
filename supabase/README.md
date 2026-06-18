@@ -10,6 +10,7 @@ Apply migrations to a development or staging Supabase project first. Use fake da
 migrations/202606160001_initial_schema_and_rls.sql
 migrations/202606170001_contractor_document_storage.sql
 migrations/202606180001_payment_statement_unique_timesheet.sql
+migrations/202606180002_contractor_invoice_storage.sql
 ```
 
 This migration creates:
@@ -35,6 +36,15 @@ Supabase Storage bucket and starter storage policies:
 
 The Phase 10 payment statement migration adds a unique index so one approved
 timesheet cannot accidentally receive more than one internal payment statement.
+
+The Phase 11 invoice storage migration creates the private
+`contractor-invoices` Supabase Storage bucket and starter storage policies:
+
+- admins can manage files in the bucket;
+- contractors can read and insert files only under their own contractor path;
+- operations do not receive file download access by default;
+- only PDF files are allowed;
+- the bucket is not public.
 
 ## How to apply in Supabase SQL Editor
 
@@ -100,6 +110,20 @@ where schemaname = 'public'
 ```
 
 Expected result: one row named `payment_statements_timesheet_id_unique`.
+
+Check the invoice storage bucket after applying the Phase 11 migration:
+
+```sql
+select id, name, public, file_size_limit, allowed_mime_types
+from storage.buckets
+where id = 'contractor-invoices';
+```
+
+Expected result:
+
+- `public` is `false`;
+- `file_size_limit` is `10485760`;
+- `allowed_mime_types` contains `application/pdf`.
 
 ## Development auth test users
 
