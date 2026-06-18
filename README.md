@@ -127,3 +127,14 @@ Phase 11 starts the invoice module:
 - operations can see invoice metadata but not file names or download links;
 - invoice review, correction handling, and payment status are intentionally left
   for later approved steps.
+
+Phase 12 starts accountant exports:
+
+- `admin` and `operations` can open the `Exports` page;
+- contractors cannot access the export screen or CSV route;
+- the accountant CSV includes supplier, invoice, VAT, project and manual payment
+  status fields;
+- the export can be filtered by invoice month and invoice status;
+- bank details, private file paths and signed document links are deliberately
+  excluded from the CSV;
+- no new database migration is required for this phase.
