@@ -116,3 +116,14 @@ Phase 10 starts the payment statement / invoice draft module:
   VAT pending accountant review;
 - the statement is visible to permitted users through existing RLS;
 - this is not a legal invoice, self-billing, or payment confirmation.
+
+Phase 11 starts the invoice module:
+
+- contractors can upload the official invoice PDF against a generated payment
+  statement;
+- invoice PDFs are stored in the private `contractor-invoices` Supabase Storage
+  bucket;
+- admin and contractors can use short-lived signed invoice download links;
+- operations can see invoice metadata but not file names or download links;
+- invoice review, correction handling, and payment status are intentionally left
+  for later approved steps.
