@@ -46,6 +46,11 @@ The Phase 11 invoice storage migration creates the private
 - only PDF files are allowed;
 - the bucket is not public.
 
+Phase 12 accountant exports do not add a migration. The export reads existing
+invoice, payment statement, project, contractor and payment rows through the
+current RLS policies. It deliberately excludes bank details, private storage
+paths and signed download links.
+
 ## How to apply in Supabase SQL Editor
 
 1. Open the development Supabase project.
