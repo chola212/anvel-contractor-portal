@@ -138,3 +138,12 @@ Phase 12 starts accountant exports:
 - bank details, private file paths and signed document links are deliberately
   excluded from the CSV;
 - no new database migration is required for this phase.
+
+Phase 13 starts deployment readiness:
+
+- deployment readiness is documented in `05_DEPLOYMENT_READINESS_CHECKLIST.md`;
+- production must use a separate EU Supabase project;
+- development/staging may use fake data only;
+- production must not use fake Phase 5 or Phase 11 test records;
+- Vercel, Supabase and Cloudflare checks must pass before real contractor data
+  is added.
