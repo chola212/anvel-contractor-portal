@@ -106,4 +106,13 @@ Phase 9 starts the timesheets module:
 - admin can approve submitted timesheets;
 - admin can reject submitted timesheets with a correction reason;
 - admin can reopen approved or rejected timesheets for contractor correction;
-- payment calculation actions are intentionally left for later approved steps.
+
+Phase 10 starts the payment statement / invoice draft module:
+
+- admin can generate one internal payment statement from an approved timesheet;
+- statement totals are calculated from approved hours and the assigned hourly rate;
+- VAT treatment is read from the contractor profile;
+- Cyprus VAT uses 19%; reverse-charge and accountant-review treatments show zero
+  VAT pending accountant review;
+- the statement is visible to permitted users through existing RLS;
+- this is not a legal invoice, self-billing, or payment confirmation.
