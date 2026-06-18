@@ -92,3 +92,12 @@ Phase 8 starts the documents module:
 - contractor PDF upload writes to private storage and creates metadata;
 - admin and contractors can use short-lived signed PDF download links;
 - review actions are intentionally left for the next approved step.
+
+Phase 9 starts the timesheets module:
+
+- read-only monthly timesheet list for staff and contractors;
+- read-only timesheet detail page with daily hours entries;
+- contractors only receive their own timesheets through existing RLS;
+- no task description is required for daily entries;
+- timesheet entry, submission, approval, rejection, and reopening actions are
+  intentionally left for later approved steps.
