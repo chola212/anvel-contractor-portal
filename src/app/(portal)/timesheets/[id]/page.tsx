@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DetailField } from "@/components/contractors/detail-field";
+import { PaymentStatementPanel } from "@/components/payment-statements/payment-statement-panel";
 import { TimesheetEntryForm } from "@/components/timesheets/timesheet-entry-form";
 import { TimesheetEntryList } from "@/components/timesheets/timesheet-entry-list";
 import { TimesheetReviewForm } from "@/components/timesheets/timesheet-review-form";
@@ -9,6 +10,7 @@ import { TimesheetStatusBadge } from "@/components/timesheets/timesheet-status-b
 import { TimesheetSubmitForm } from "@/components/timesheets/timesheet-submit-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { getPaymentStatementForTimesheet } from "@/lib/payment-statements/queries";
 import {
   formatDateTime,
   formatHours,
@@ -40,6 +42,7 @@ export default async function TimesheetDetailPage({
   const isEditableByContractor =
     contractor?.id === timesheet.contractor_id &&
     ["draft", "rejected", "reopened"].includes(timesheet.status);
+  const paymentStatement = await getPaymentStatementForTimesheet(timesheet.id);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -87,6 +90,13 @@ export default async function TimesheetDetailPage({
           status={timesheet.status}
         />
       ) : null}
+
+      <PaymentStatementPanel
+        statement={paymentStatement}
+        timesheetId={timesheet.id}
+        timesheetStatus={timesheet.status}
+        canGenerate={profile.role === "admin" && !paymentStatement}
+      />
 
       <section className="grid gap-4 md:grid-cols-4">
         <div className="rounded-md border border-neutral-200 bg-white p-5">

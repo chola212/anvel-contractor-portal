@@ -9,6 +9,7 @@ Apply migrations to a development or staging Supabase project first. Use fake da
 ```text
 migrations/202606160001_initial_schema_and_rls.sql
 migrations/202606170001_contractor_document_storage.sql
+migrations/202606180001_payment_statement_unique_timesheet.sql
 ```
 
 This migration creates:
@@ -31,6 +32,9 @@ Supabase Storage bucket and starter storage policies:
 - operations do not receive file download access by default;
 - only PDF files are allowed;
 - the bucket is not public.
+
+The Phase 10 payment statement migration adds a unique index so one approved
+timesheet cannot accidentally receive more than one internal payment statement.
 
 ## How to apply in Supabase SQL Editor
 
@@ -84,6 +88,18 @@ Expected result:
 - `public` is `false`;
 - `file_size_limit` is `10485760`;
 - `allowed_mime_types` contains `application/pdf`.
+
+Check the Phase 10 payment statement uniqueness index:
+
+```sql
+select indexname
+from pg_indexes
+where schemaname = 'public'
+  and tablename = 'payment_statements'
+  and indexname = 'payment_statements_timesheet_id_unique';
+```
+
+Expected result: one row named `payment_statements_timesheet_id_unique`.
 
 ## Development auth test users
 
