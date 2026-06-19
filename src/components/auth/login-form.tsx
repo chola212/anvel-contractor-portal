@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -54,12 +55,20 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       </div>
 
       <div className="space-y-2">
-        <label
-          htmlFor="password"
-          className="block text-sm font-medium text-neutral-800"
-        >
-          Password
-        </label>
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor="password"
+            className="block text-sm font-medium text-neutral-800"
+          >
+            Password
+          </label>
+          <Link
+            href="/forgot-password"
+            className="text-sm font-medium text-teal-800 hover:text-teal-900"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <input
           id="password"
           name="password"

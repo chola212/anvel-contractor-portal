@@ -53,6 +53,38 @@ values
 
 Use only fake users and fake data in the development Supabase project.
 
+## Password Reset Flow
+
+Users can request a password reset from:
+
+```text
+/forgot-password
+```
+
+The Supabase recovery email redirects users to:
+
+```text
+/reset-password
+```
+
+For production, add these URLs in the production Supabase project under
+Authentication URL configuration:
+
+```text
+https://portal.anvelconsulting.com
+https://portal.anvelconsulting.com/reset-password
+```
+
+For local development, use the local app URL shown by Next.js, for example:
+
+```text
+http://localhost:3000/reset-password
+http://localhost:3001/reset-password
+```
+
+Password reset uses Supabase Auth only. Do not use or expose the service-role
+key for this flow.
+
 ## Database Migrations
 
 Migration files live in:
