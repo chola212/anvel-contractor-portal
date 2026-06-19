@@ -2,7 +2,13 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { createProxyClient } from "@/lib/supabase/proxy";
 
-const publicPaths = ["/login", "/account-required", "/api/health/supabase"];
+const publicPaths = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/account-required",
+  "/api/health/supabase",
+];
 
 function isPublicPath(pathname: string) {
   return publicPaths.some(
