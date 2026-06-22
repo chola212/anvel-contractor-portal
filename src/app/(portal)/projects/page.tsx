@@ -1,9 +1,10 @@
+import { ProjectCreateForm } from "@/components/projects/project-create-form";
 import { ProjectList } from "@/components/projects/project-list";
 import { requireRole } from "@/lib/auth/profile";
 import { getProjectsForStaff } from "@/lib/projects/queries";
 
 export default async function ProjectsPage() {
-  await requireRole(["admin", "operations"]);
+  const profile = await requireRole(["admin", "operations"]);
   const projects = await getProjectsForStaff();
 
   return (
@@ -16,10 +17,13 @@ export default async function ProjectsPage() {
           Projects
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Read-only project records and contractor assignment overview for
-          internal users. Client labels must stay generic in development.
+          Project records and contractor assignment overview for internal users.
+          Client labels should stay generic unless a real label is operationally
+          required.
         </p>
       </section>
+
+      {profile.role === "admin" ? <ProjectCreateForm /> : null}
 
       <ProjectList projects={projects} />
     </div>

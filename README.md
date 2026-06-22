@@ -113,6 +113,7 @@ Phase 7 adds read-only project and assignment views:
 - assigned contractors on project detail pages;
 - assigned projects on contractor profile pages;
 - contractor-visible assigned project list on `My Profile`;
+- admin-only project creation from the Projects page;
 - no project editing, assignment editing, or rate editing yet.
 
 Phase 8 starts the documents module:

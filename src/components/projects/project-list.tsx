@@ -28,8 +28,7 @@ export function ProjectList({ projects }: ProjectListProps) {
       <div className="border-b border-neutral-200 px-5 py-4">
         <h2 className="text-base font-semibold text-neutral-950">Project records</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Read-only project view. Assignment editing is intentionally left for a
-          later approved step.
+          Assignment editing is intentionally left for a later approved step.
         </p>
       </div>
       <div className="overflow-x-auto">
