@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ContractorAuditHistory } from "@/components/contractors/contractor-audit-history";
 import { ContractorProfilePanel } from "@/components/contractors/contractor-profile-panel";
 import { ContractorUpdateForm } from "@/components/contractors/contractor-update-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
 import { requireRole } from "@/lib/auth/profile";
+import { getContractorAuditLogs } from "@/lib/audit/queries";
 import { getContractorById } from "@/lib/contractors/queries";
 import { getAssignmentsForContractor } from "@/lib/projects/queries";
 
@@ -26,6 +28,8 @@ export default async function ContractorDetailPage({
   }
 
   const assignments = await getAssignmentsForContractor(contractor.id);
+  const auditLogs =
+    profile.role === "admin" ? await getContractorAuditLogs(contractor.id) : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -51,6 +55,9 @@ export default async function ContractorDetailPage({
       />
       {profile.role === "admin" ? (
         <ContractorUpdateForm contractor={contractor} />
+      ) : null}
+      {profile.role === "admin" ? (
+        <ContractorAuditHistory logs={auditLogs} />
       ) : null}
       <AssignmentList
         assignments={assignments}
