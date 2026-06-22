@@ -38,7 +38,7 @@ export function AssignmentList({
           Project assignments
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Read-only assignment view. Rate editing is not part of this phase.
+          Existing assignments. Rate editing is not part of this phase.
         </p>
       </div>
       <div className="overflow-x-auto">
