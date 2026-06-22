@@ -118,7 +118,8 @@ Phase 7 adds read-only project and assignment views:
 - admin-only project creation from the Projects page;
 - admin-only contractor assignment from project detail pages;
 - admin-only assignment status and end-date updates;
-- no project editing or rate editing yet.
+- admin-only assignment rate updates;
+- no project editing yet.
 
 Phase 8 starts the documents module:
 

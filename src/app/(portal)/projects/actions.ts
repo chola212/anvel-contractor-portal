@@ -22,6 +22,20 @@ const optionalDate = z
     message: "Enter a valid date.",
   });
 
+const optionalRate = z
+  .string()
+  .trim()
+  .transform((value) => (value.length > 0 ? Number(value) : null))
+  .refine((value) => value === null || !Number.isNaN(value), {
+    message: "Enter a valid sales rate.",
+  })
+  .refine((value) => value === null || value >= 0, {
+    message: "Sales rate cannot be negative.",
+  })
+  .refine((value) => value === null || value <= 10000, {
+    message: "Sales rate is too high for this portal.",
+  });
+
 const createProjectSchema = z
   .object({
     name: z
@@ -55,19 +69,7 @@ const createAssignmentSchema = z
       .number()
       .gt(0, "Hourly rate must be greater than zero.")
       .max(10000, "Hourly rate is too high for this portal."),
-    salesRate: z
-      .string()
-      .trim()
-      .transform((value) => (value.length > 0 ? Number(value) : null))
-      .refine((value) => value === null || !Number.isNaN(value), {
-        message: "Enter a valid sales rate.",
-      })
-      .refine((value) => value === null || value >= 0, {
-        message: "Sales rate cannot be negative.",
-      })
-      .refine((value) => value === null || value <= 10000, {
-        message: "Sales rate is too high for this portal.",
-      }),
+    salesRate: optionalRate,
     startDate: optionalDate,
     endDate: optionalDate,
     status: z.enum(["planned", "active", "paused", "closed"], {
@@ -87,6 +89,11 @@ const updateAssignmentSchema = z.object({
   assignmentId: z.string().uuid("Assignment is missing."),
   projectId: z.string().uuid("Project is missing."),
   contractorId: z.string().uuid("Contractor is missing."),
+  hourlyRate: z.coerce
+    .number()
+    .gt(0, "Hourly rate must be greater than zero.")
+    .max(10000, "Hourly rate is too high for this portal."),
+  salesRate: optionalRate,
   status: z.enum(["planned", "active", "paused", "closed"], {
     message: "Select a valid status.",
   }),
@@ -249,6 +256,8 @@ export async function updateAssignmentStatusAction(
     assignmentId: formData.get("assignmentId"),
     projectId: formData.get("projectId"),
     contractorId: formData.get("contractorId"),
+    hourlyRate: formData.get("hourlyRate"),
+    salesRate: formData.get("salesRate"),
     status: formData.get("status"),
     endDate: formData.get("endDate"),
   });
@@ -264,12 +273,14 @@ export async function updateAssignmentStatusAction(
   const supabase = await createClient();
   const { data: currentAssignment, error: loadError } = await supabase
     .from("contractor_projects")
-    .select("id,contractor_id,project_id,status,end_date")
+    .select("id,contractor_id,project_id,hourly_rate,sales_rate,status,end_date")
     .eq("id", parsed.data.assignmentId)
     .maybeSingle<{
       id: string;
       contractor_id: string;
       project_id: string;
+      hourly_rate: number | string;
+      sales_rate: number | string | null;
       status: string;
       end_date: string | null;
     }>();
@@ -296,6 +307,8 @@ export async function updateAssignmentStatusAction(
   const { error: updateError } = await supabase
     .from("contractor_projects")
     .update({
+      hourly_rate: parsed.data.hourlyRate,
+      sales_rate: parsed.data.salesRate,
       status: parsed.data.status,
       end_date: parsed.data.endDate,
     })
@@ -305,7 +318,7 @@ export async function updateAssignmentStatusAction(
     return {
       message:
         updateError.code === "23514"
-          ? "Assignment status or end date does not match the database rules."
+          ? "Assignment rates, status or end date do not match the database rules."
           : `Could not update the assignment: ${updateError.message}`,
       status: "error",
       fieldErrors: {},
@@ -320,6 +333,10 @@ export async function updateAssignmentStatusAction(
     metadata: {
       from_status: currentAssignment.status,
       to_status: parsed.data.status,
+      from_hourly_rate: currentAssignment.hourly_rate,
+      to_hourly_rate: parsed.data.hourlyRate,
+      from_sales_rate: currentAssignment.sales_rate,
+      to_sales_rate: parsed.data.salesRate,
       from_end_date: currentAssignment.end_date,
       to_end_date: parsed.data.endDate,
     },

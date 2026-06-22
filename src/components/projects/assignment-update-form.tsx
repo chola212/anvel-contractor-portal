@@ -28,6 +28,30 @@ function SubmitButton() {
   );
 }
 
+function FieldError({ errors }: { errors: string[] | undefined }) {
+  if (!errors) {
+    return null;
+  }
+
+  return (
+    <>
+      {errors.map((error) => (
+        <p key={error} className="text-xs text-red-700">
+          {error}
+        </p>
+      ))}
+    </>
+  );
+}
+
+function rateInputValue(value: number | string | null) {
+  if (value === null) {
+    return "";
+  }
+
+  return String(value);
+}
+
 export function AssignmentUpdateForm({
   assignment,
 }: AssignmentUpdateFormProps) {
@@ -54,8 +78,52 @@ export function AssignmentUpdateForm({
       <input type="hidden" name="projectId" value={assignment.project_id} />
       <input type="hidden" name="contractorId" value={assignment.contractor_id} />
 
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-        <label className="sr-only" htmlFor={`status-${assignment.id}`}>
+      <div>
+        <label
+          htmlFor={`hourly-rate-${assignment.id}`}
+          className="mb-1 block text-xs font-medium text-neutral-600"
+        >
+          Hourly rate EUR
+        </label>
+        <input
+          id={`hourly-rate-${assignment.id}`}
+          name="hourlyRate"
+          type="number"
+          min="0.01"
+          max="10000"
+          step="0.01"
+          required
+          defaultValue={rateInputValue(assignment.hourly_rate)}
+          className="w-full rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+        />
+        <FieldError errors={state.fieldErrors.hourlyRate} />
+      </div>
+
+      <div>
+        <label
+          htmlFor={`sales-rate-${assignment.id}`}
+          className="mb-1 block text-xs font-medium text-neutral-600"
+        >
+          Sales rate EUR
+        </label>
+        <input
+          id={`sales-rate-${assignment.id}`}
+          name="salesRate"
+          type="number"
+          min="0"
+          max="10000"
+          step="0.01"
+          defaultValue={rateInputValue(assignment.sales_rate)}
+          className="w-full rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+        />
+        <FieldError errors={state.fieldErrors.salesRate} />
+      </div>
+
+      <div>
+        <label
+          htmlFor={`status-${assignment.id}`}
+          className="mb-1 block text-xs font-medium text-neutral-600"
+        >
           Assignment status
         </label>
         <select
@@ -69,7 +137,7 @@ export function AssignmentUpdateForm({
           <option value="paused">Paused</option>
           <option value="closed">Closed</option>
         </select>
-        <SubmitButton />
+        <FieldError errors={state.fieldErrors.status} />
       </div>
 
       <div>
@@ -86,6 +154,11 @@ export function AssignmentUpdateForm({
           defaultValue={assignment.end_date ?? ""}
           className="w-full rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
         />
+        <FieldError errors={state.fieldErrors.endDate} />
+      </div>
+
+      <div className="flex justify-end">
+        <SubmitButton />
       </div>
 
       {state.message ? (
