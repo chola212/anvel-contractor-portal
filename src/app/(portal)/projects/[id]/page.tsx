@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DetailField } from "@/components/contractors/detail-field";
+import { AssignmentCreateForm } from "@/components/projects/assignment-create-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { requireRole } from "@/lib/auth/profile";
+import { getContractorsForStaff } from "@/lib/contractors/queries";
 import { formatDate } from "@/lib/projects/format";
 import {
   getAssignmentsForProject,
@@ -27,6 +29,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   }
 
   const assignments = await getAssignmentsForProject(project.id);
+  const contractors =
+    profile.role === "admin" ? await getContractorsForStaff() : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -74,6 +78,18 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           />
         </dl>
       </section>
+
+      {profile.role === "admin" ? (
+        <AssignmentCreateForm
+          projectId={project.id}
+          contractors={contractors.map((contractor) => ({
+            id: contractor.id,
+            legal_name: contractor.legal_name,
+            email: contractor.email,
+            status: contractor.status,
+          }))}
+        />
+      ) : null}
 
       <AssignmentList
         assignments={assignments}
