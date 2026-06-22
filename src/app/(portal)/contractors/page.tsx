@@ -1,10 +1,19 @@
+import { ContractorCreateForm } from "@/components/contractors/contractor-create-form";
 import { ContractorList } from "@/components/contractors/contractor-list";
 import { requireRole } from "@/lib/auth/profile";
-import { getContractorsForStaff } from "@/lib/contractors/queries";
+import {
+  getAvailableContractorProfiles,
+  getContractorsForStaff,
+} from "@/lib/contractors/queries";
 
 export default async function ContractorsPage() {
-  await requireRole(["admin", "operations"]);
-  const contractors = await getContractorsForStaff();
+  const profile = await requireRole(["admin", "operations"]);
+  const [contractors, availableProfiles] = await Promise.all([
+    getContractorsForStaff(),
+    profile.role === "admin"
+      ? getAvailableContractorProfiles()
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -16,11 +25,15 @@ export default async function ContractorsPage() {
           Contractors
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Read-only contractor profile overview for internal users. This page
-          uses Supabase RLS and does not expose public registration or candidate
-          data.
+          Contractor profile overview for internal users. Admins can link
+          invite-only contractor login profiles to business profiles without
+          public registration or candidate data.
         </p>
       </section>
+
+      {profile.role === "admin" ? (
+        <ContractorCreateForm profiles={availableProfiles} />
+      ) : null}
 
       <ContractorList contractors={contractors} />
     </div>
