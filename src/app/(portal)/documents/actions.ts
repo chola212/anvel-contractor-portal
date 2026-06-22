@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import type { SupplierType } from "@/lib/contractors/types";
+import type { DocumentStatus } from "@/lib/documents/types";
 import { createClient } from "@/lib/supabase/server";
 
 const maxDocumentSizeBytes = 10 * 1024 * 1024;
@@ -15,12 +16,34 @@ const uploadSchema = z.object({
   documentRequirementId: z.string().uuid("Select a document requirement."),
 });
 
+const reviewSchema = z.object({
+  documentId: z.string().uuid("Select a valid document."),
+  status: z.enum(["uploaded", "approved", "rejected", "expired"], {
+    message: "Select a valid document review status.",
+  }),
+  reviewComment: z
+    .string()
+    .trim()
+    .max(500, "Keep the review comment under 500 characters.")
+    .transform((value) => (value.length > 0 ? value : null)),
+});
+
 export type DocumentUploadState = {
   message: string | null;
   status: "idle" | "success" | "error";
   fieldErrors: {
     documentRequirementId?: string[];
     file?: string[];
+  };
+};
+
+export type DocumentReviewState = {
+  message: string | null;
+  status: "idle" | "success" | "error";
+  fieldErrors: {
+    documentId?: string[];
+    status?: string[];
+    reviewComment?: string[];
   };
 };
 
@@ -190,6 +213,98 @@ export async function uploadContractorDocumentAction(
 
   return {
     message: "Document uploaded for review.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function reviewContractorDocumentAction(
+  _previousState: DocumentReviewState,
+  formData: FormData,
+): Promise<DocumentReviewState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = reviewSchema.safeParse({
+    documentId: formData.get("documentId"),
+    status: formData.get("status"),
+    reviewComment: formData.get("reviewComment"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the document review details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  if (parsed.data.status === "rejected" && !parsed.data.reviewComment) {
+    return {
+      message: "Rejected documents need a review comment.",
+      status: "error",
+      fieldErrors: {
+        reviewComment: ["Enter the rejection reason."],
+      },
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: document, error: documentError } = await supabase
+    .from("contractor_documents")
+    .select("id,status")
+    .eq("id", parsed.data.documentId)
+    .maybeSingle<{ id: string; status: DocumentStatus }>();
+
+  if (documentError || !document) {
+    return {
+      message: "Select an existing document before saving a review.",
+      status: "error",
+      fieldErrors: {
+        documentId: ["Select an existing document."],
+      },
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("contractor_documents")
+    .update({
+      status: parsed.data.status,
+      reviewed_by: profile.id,
+      reviewed_at: new Date().toISOString(),
+      review_comment: parsed.data.reviewComment,
+    })
+    .eq("id", document.id);
+
+  if (updateError) {
+    return {
+      message: `Could not update the document review: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "contractor_document_review_updated",
+    entity_type: "contractor_document",
+    entity_id: document.id,
+    metadata: {
+      from_status: document.status,
+      to_status: parsed.data.status,
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Document review saved, but audit logging failed: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath("/documents");
+
+  return {
+    message: "Document review saved.",
     status: "success",
     fieldErrors: {},
   };

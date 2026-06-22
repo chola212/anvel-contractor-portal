@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DocumentReviewForm } from "@/components/documents/document-review-form";
 import { DocumentStatusBadge } from "@/components/documents/document-status-badge";
 import {
   formatDate,
@@ -13,6 +14,7 @@ type DocumentListProps = {
   mode: "staff" | "contractor";
   showFileName: boolean;
   canDownload: boolean;
+  canReview: boolean;
 };
 
 export function DocumentList({
@@ -20,6 +22,7 @@ export function DocumentList({
   mode,
   showFileName,
   canDownload,
+  canReview,
 }: DocumentListProps) {
   if (documents.length === 0) {
     return (
@@ -43,8 +46,8 @@ export function DocumentList({
           Contractor documents
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Signed downloads use short-lived private links. Review actions are
-          intentionally left for a later approved step.
+          Signed downloads use short-lived private links. Admins can record
+          review status without exposing public document URLs.
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -71,6 +74,11 @@ export function DocumentList({
               <th scope="col" className="px-5 py-3 font-medium">
                 Access
               </th>
+              {canReview ? (
+                <th scope="col" className="px-5 py-3 font-medium">
+                  Review
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 bg-white">
@@ -108,6 +116,11 @@ export function DocumentList({
                 </td>
                 <td className="px-5 py-4 align-top">
                   <DocumentStatusBadge status={document.status} />
+                  {document.review_comment ? (
+                    <p className="mt-2 max-w-48 text-xs leading-5 text-neutral-600">
+                      {document.review_comment}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="px-5 py-4 align-top text-neutral-700">
                   {formatDate(document.expiry_date)}
@@ -124,6 +137,11 @@ export function DocumentList({
                     "Download not enabled for this role"
                   )}
                 </td>
+                {canReview ? (
+                  <td className="px-5 py-4 align-top">
+                    <DocumentReviewForm document={document} />
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

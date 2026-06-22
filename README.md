@@ -128,7 +128,7 @@ Phase 8 starts the documents module:
 - private `contractor-documents` storage bucket migration is prepared;
 - contractor PDF upload writes to private storage and creates metadata;
 - admin and contractors can use short-lived signed PDF download links;
-- review actions are intentionally left for the next approved step.
+- admin can record document review status and review comments.
 
 Phase 9 starts the timesheets module:
 
