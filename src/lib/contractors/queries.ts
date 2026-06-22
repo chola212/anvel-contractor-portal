@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 
-import type { ContractorRecord } from "./types";
+import type { AvailableContractorProfile, ContractorRecord } from "./types";
 
 const contractorColumns = `
   id,
@@ -68,4 +68,44 @@ export async function getContractorByProfileId(profileId: string) {
   }
 
   return data;
+}
+
+export async function getAvailableContractorProfiles() {
+  const supabase = await createClient();
+  const [profilesResult, contractorsResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id,email,full_name")
+      .eq("role", "contractor")
+      .eq("is_active", true)
+      .order("email", { ascending: true })
+      .returns<AvailableContractorProfile[]>(),
+    supabase
+      .from("contractors")
+      .select("profile_id")
+      .not("profile_id", "is", null)
+      .returns<{ profile_id: string | null }[]>(),
+  ]);
+
+  if (profilesResult.error) {
+    throw new Error(
+      `Could not load contractor profiles: ${profilesResult.error.message}`,
+    );
+  }
+
+  if (contractorsResult.error) {
+    throw new Error(
+      `Could not load linked contractors: ${contractorsResult.error.message}`,
+    );
+  }
+
+  const linkedProfileIds = new Set(
+    contractorsResult.data
+      .map((contractor) => contractor.profile_id)
+      .filter((profileId): profileId is string => Boolean(profileId)),
+  );
+
+  return profilesResult.data.filter(
+    (profile) => !linkedProfileIds.has(profile.id),
+  );
 }
