@@ -48,6 +48,12 @@ const createContractorSchema = z.object({
   }),
 });
 
+const updateContractorSchema = createContractorSchema
+  .omit({ profileId: true })
+  .extend({
+    contractorId: z.string().uuid("Contractor is missing."),
+  });
+
 export type ContractorCreateState = {
   message: string | null;
   status: "idle" | "success" | "error";
@@ -165,4 +171,149 @@ export async function createContractorAction(
 
   revalidatePath("/contractors");
   redirect(`/contractors/${contractor.id}`);
+}
+
+export async function updateContractorAction(
+  _previousState: ContractorCreateState,
+  formData: FormData,
+): Promise<ContractorCreateState> {
+  const profile = await requireRole(["admin"]);
+
+  const parsed = updateContractorSchema.safeParse({
+    contractorId: formData.get("contractorId"),
+    legalName: formData.get("legalName"),
+    tradingName: formData.get("tradingName"),
+    phone: formData.get("phone"),
+    country: formData.get("country"),
+    supplierType: formData.get("supplierType"),
+    companyRegistrationNumber: formData.get("companyRegistrationNumber"),
+    vatNumber: formData.get("vatNumber"),
+    taxNumber: formData.get("taxNumber"),
+    fiscalAddress: formData.get("fiscalAddress"),
+    vatTreatment: formData.get("vatTreatment"),
+    status: formData.get("status"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the contractor details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: currentContractor, error: loadError } = await supabase
+    .from("contractors")
+    .select(
+      [
+        "id",
+        "legal_name",
+        "trading_name",
+        "phone",
+        "country",
+        "supplier_type",
+        "company_registration_number",
+        "vat_number",
+        "tax_number",
+        "fiscal_address",
+        "vat_treatment",
+        "status",
+      ].join(","),
+    )
+    .eq("id", parsed.data.contractorId)
+    .maybeSingle<{
+      id: string;
+      legal_name: string;
+      trading_name: string | null;
+      phone: string | null;
+      country: string | null;
+      supplier_type: string | null;
+      company_registration_number: string | null;
+      vat_number: string | null;
+      tax_number: string | null;
+      fiscal_address: string | null;
+      vat_treatment: string | null;
+      status: string;
+    }>();
+
+  if (loadError || !currentContractor) {
+    return {
+      message: "This contractor could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const nextContractor = {
+    legal_name: parsed.data.legalName,
+    trading_name: parsed.data.tradingName,
+    phone: parsed.data.phone,
+    country: parsed.data.country,
+    supplier_type: parsed.data.supplierType,
+    company_registration_number: parsed.data.companyRegistrationNumber,
+    vat_number: parsed.data.vatNumber,
+    tax_number: parsed.data.taxNumber,
+    fiscal_address: parsed.data.fiscalAddress,
+    vat_treatment: parsed.data.vatTreatment,
+    status: parsed.data.status,
+  };
+
+  const { error: updateError } = await supabase
+    .from("contractors")
+    .update(nextContractor)
+    .eq("id", currentContractor.id);
+
+  if (updateError) {
+    return {
+      message:
+        updateError.code === "23514"
+          ? "Contractor details do not match the database rules."
+          : `Could not update the contractor: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "contractor_profile_updated",
+    entity_type: "contractor",
+    entity_id: currentContractor.id,
+    metadata: {
+      before: {
+        legal_name: currentContractor.legal_name,
+        trading_name: currentContractor.trading_name,
+        phone: currentContractor.phone,
+        country: currentContractor.country,
+        supplier_type: currentContractor.supplier_type,
+        company_registration_number:
+          currentContractor.company_registration_number,
+        vat_number: currentContractor.vat_number,
+        tax_number: currentContractor.tax_number,
+        fiscal_address: currentContractor.fiscal_address,
+        vat_treatment: currentContractor.vat_treatment,
+        status: currentContractor.status,
+      },
+      after: nextContractor,
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Contractor updated, but the audit log could not be recorded: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/contractors/${currentContractor.id}`);
+  revalidatePath("/contractors");
+  revalidatePath("/profile");
+
+  return {
+    message: "Contractor updated.",
+    status: "success",
+    fieldErrors: {},
+  };
 }

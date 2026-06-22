@@ -103,11 +103,12 @@ Phase 6 adds the first contractor profile module:
 - admin-only contractor creation by linking an existing invite-only contractor
   login profile;
 - read-only contractor detail page;
+- admin-only non-bank contractor profile updates;
 - contractor-only `My Profile` page;
 - Supabase-backed data loading through existing RLS policies.
 
-Auth user creation, public registration, profile editing, sensitive bank-data
-workflows, and profile change history are intentionally left for later phases.
+Auth user creation, public registration, bank-data editing workflows, and
+profile change history are intentionally left for later phases.
 
 Phase 7 adds read-only project and assignment views:
 
