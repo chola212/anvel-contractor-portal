@@ -162,8 +162,8 @@ Phase 11 starts the invoice module:
   bucket;
 - admin and contractors can use short-lived signed invoice download links;
 - operations can see invoice metadata but not file names or download links;
-- invoice review, correction handling, and payment status are intentionally left
-  for later approved steps.
+- admin can record invoice review status and correction comments;
+- payment status is tracked separately in the manual Payments module.
 
 Phase 12 starts accountant exports:
 

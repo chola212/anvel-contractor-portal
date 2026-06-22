@@ -35,9 +35,8 @@ export default async function InvoicesPage() {
           Invoices
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Official contractor invoice upload and metadata tracking. Review,
-          correction and payment decisions are intentionally left for later
-          approved steps.
+          Official contractor invoice upload and metadata tracking. Admins can
+          record manual review status before payment tracking.
         </p>
       </section>
 
@@ -62,6 +61,7 @@ export default async function InvoicesPage() {
             mode={isContractor ? "contractor" : "staff"}
             showFileName={profile.role === "admin" || profile.role === "contractor"}
             canDownload={profile.role === "admin" || profile.role === "contractor"}
+            canReview={profile.role === "admin"}
           />
         </>
       )}

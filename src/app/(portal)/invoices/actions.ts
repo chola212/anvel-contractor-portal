@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import type { InvoiceStatus } from "@/lib/invoices/types";
 import { createClient } from "@/lib/supabase/server";
 
 const invoiceBucket = "contractor-invoices";
@@ -22,6 +23,21 @@ const uploadInvoiceSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid invoice date."),
 });
 
+const reviewInvoiceSchema = z.object({
+  invoiceId: z.string().uuid("Select a valid invoice."),
+  status: z.enum(
+    ["uploaded", "checked", "correction_required", "approved_for_payment", "on_hold"],
+    {
+      message: "Select a valid invoice review status.",
+    },
+  ),
+  reviewComment: z
+    .string()
+    .trim()
+    .max(500, "Keep the review comment under 500 characters.")
+    .transform((value) => (value.length > 0 ? value : null)),
+});
+
 export type InvoiceUploadState = {
   message: string | null;
   status: "idle" | "success" | "error";
@@ -30,6 +46,16 @@ export type InvoiceUploadState = {
     invoiceNumber?: string[];
     invoiceDate?: string[];
     file?: string[];
+  };
+};
+
+export type InvoiceReviewState = {
+  message: string | null;
+  status: "idle" | "success" | "error";
+  fieldErrors: {
+    invoiceId?: string[];
+    status?: string[];
+    reviewComment?: string[];
   };
 };
 
@@ -237,6 +263,103 @@ export async function uploadContractorInvoiceAction(
 
   return {
     message: "Invoice uploaded for review.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function reviewInvoiceAction(
+  _previousState: InvoiceReviewState,
+  formData: FormData,
+): Promise<InvoiceReviewState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = reviewInvoiceSchema.safeParse({
+    invoiceId: formData.get("invoiceId"),
+    status: formData.get("status"),
+    reviewComment: formData.get("reviewComment"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the invoice review details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  if (
+    parsed.data.status === "correction_required" &&
+    !parsed.data.reviewComment
+  ) {
+    return {
+      message: "Correction required needs a reason for the contractor.",
+      status: "error",
+      fieldErrors: {
+        reviewComment: ["Enter the correction reason."],
+      },
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices")
+    .select("id,status")
+    .eq("id", parsed.data.invoiceId)
+    .maybeSingle<{ id: string; status: InvoiceStatus }>();
+
+  if (invoiceError || !invoice) {
+    return {
+      message: "Select an existing invoice before saving a review.",
+      status: "error",
+      fieldErrors: {
+        invoiceId: ["Select an existing invoice."],
+      },
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("invoices")
+    .update({
+      status: parsed.data.status,
+      reviewed_by: profile.id,
+      reviewed_at: new Date().toISOString(),
+      review_comment: parsed.data.reviewComment,
+    })
+    .eq("id", invoice.id);
+
+  if (updateError) {
+    return {
+      message: `Could not update the invoice review: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "invoice_review_updated",
+    entity_type: "invoice",
+    entity_id: invoice.id,
+    metadata: {
+      from_status: invoice.status,
+      to_status: parsed.data.status,
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Invoice review saved, but audit logging failed: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath("/payments");
+  revalidatePath("/exports");
+
+  return {
+    message: "Invoice review saved.",
     status: "success",
     fieldErrors: {},
   };
