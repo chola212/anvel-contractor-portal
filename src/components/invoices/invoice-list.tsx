@@ -7,6 +7,7 @@ import {
 } from "@/lib/invoices/format";
 import type { ContractorInvoice } from "@/lib/invoices/types";
 
+import { InvoiceReviewForm } from "./invoice-review-form";
 import { InvoiceStatusBadge } from "./invoice-status-badge";
 
 type InvoiceListProps = {
@@ -14,6 +15,7 @@ type InvoiceListProps = {
   mode: "staff" | "contractor";
   showFileName: boolean;
   canDownload: boolean;
+  canReview: boolean;
 };
 
 export function InvoiceList({
@@ -21,6 +23,7 @@ export function InvoiceList({
   mode,
   showFileName,
   canDownload,
+  canReview,
 }: InvoiceListProps) {
   if (invoices.length === 0) {
     return (
@@ -43,8 +46,8 @@ export function InvoiceList({
           Official invoices
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Uploaded contractor invoice metadata. Review, correction and payment
-          actions are left for later approved steps.
+          Uploaded contractor invoice metadata. Admins can record manual review
+          status without issuing invoices or triggering payment.
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -71,6 +74,11 @@ export function InvoiceList({
               <th scope="col" className="px-5 py-3 font-medium">
                 File
               </th>
+              {canReview ? (
+                <th scope="col" className="px-5 py-3 font-medium">
+                  Admin review
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 bg-white">
@@ -116,6 +124,11 @@ export function InvoiceList({
                 </td>
                 <td className="px-5 py-4 align-top">
                   <InvoiceStatusBadge status={invoice.status} />
+                  {invoice.review_comment ? (
+                    <p className="mt-2 max-w-xs text-xs leading-5 text-neutral-600">
+                      {invoice.review_comment}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="px-5 py-4 align-top text-neutral-700">
                   <p>{showFileName ? invoice.file_name : "Hidden for this role"}</p>
@@ -132,6 +145,11 @@ export function InvoiceList({
                     </p>
                   )}
                 </td>
+                {canReview ? (
+                  <td className="px-5 py-4 align-top">
+                    <InvoiceReviewForm invoice={invoice} />
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
