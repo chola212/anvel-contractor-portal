@@ -36,9 +36,8 @@ export default async function DocumentsPage() {
           Documents
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Private contractor document metadata and PDF upload. Review actions
-          and signed downloads are added only after upload behaviour is tested
-          with fake development files.
+          Private contractor document metadata, PDF upload, signed downloads,
+          and admin review for fake development files.
         </p>
       </section>
 
@@ -63,6 +62,7 @@ export default async function DocumentsPage() {
         mode={isContractor ? "contractor" : "staff"}
         showFileName={profile.role === "admin" || profile.role === "contractor"}
         canDownload={profile.role === "admin" || profile.role === "contractor"}
+        canReview={profile.role === "admin"}
       />
     </div>
   );
