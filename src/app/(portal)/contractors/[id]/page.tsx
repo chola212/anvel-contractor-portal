@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ContractorProfilePanel } from "@/components/contractors/contractor-profile-panel";
+import { ContractorUpdateForm } from "@/components/contractors/contractor-update-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorById } from "@/lib/contractors/queries";
@@ -39,8 +40,8 @@ export default async function ContractorDetailPage({
           {contractor.legal_name}
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Read-only contractor profile. Operations users see limited details;
-          sensitive editing is not part of this phase.
+          Contractor profile and assignment overview. Admins can edit
+          non-bank profile details; operations users see limited details.
         </p>
       </section>
 
@@ -48,6 +49,9 @@ export default async function ContractorDetailPage({
         contractor={contractor}
         showSensitiveDetails={profile.role === "admin"}
       />
+      {profile.role === "admin" ? (
+        <ContractorUpdateForm contractor={contractor} />
+      ) : null}
       <AssignmentList
         assignments={assignments}
         context="contractor"
