@@ -5,6 +5,7 @@ import { DetailField } from "@/components/contractors/detail-field";
 import { AssignmentCreateForm } from "@/components/projects/assignment-create-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
+import { ProjectUpdateForm } from "@/components/projects/project-update-form";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
 import { formatDate } from "@/lib/projects/format";
@@ -48,7 +49,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             </h1>
             <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
               Project detail and assigned contractor overview. Admins can manage
-              assignment status, end date and rates.
+              project details, assignments and rates.
             </p>
           </div>
           <ProjectStatusBadge status={project.status} />
@@ -78,6 +79,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           />
         </dl>
       </section>
+
+      {profile.role === "admin" ? <ProjectUpdateForm project={project} /> : null}
 
       {profile.role === "admin" ? (
         <AssignmentCreateForm
