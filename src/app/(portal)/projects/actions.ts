@@ -61,6 +61,10 @@ const createProjectSchema = z
     },
   );
 
+const updateProjectSchema = createProjectSchema.extend({
+  projectId: z.string().uuid("Project is missing."),
+});
+
 const createAssignmentSchema = z
   .object({
     projectId: z.string().uuid("Project is missing."),
@@ -159,6 +163,118 @@ export async function createProjectAction(
 
   revalidatePath("/projects");
   redirect(`/projects/${project.id}`);
+}
+
+export async function updateProjectAction(
+  _previousState: ProjectCreateState,
+  formData: FormData,
+): Promise<ProjectCreateState> {
+  const profile = await requireRole(["admin"]);
+
+  const parsed = updateProjectSchema.safeParse({
+    projectId: formData.get("projectId"),
+    name: formData.get("name"),
+    clientLabel: formData.get("clientLabel"),
+    country: formData.get("country"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    status: formData.get("status"),
+    adminNotes: formData.get("adminNotes"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the project details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: currentProject, error: loadError } = await supabase
+    .from("projects")
+    .select("id,name,client_label,country,start_date,end_date,status,admin_notes")
+    .eq("id", parsed.data.projectId)
+    .maybeSingle<{
+      id: string;
+      name: string;
+      client_label: string | null;
+      country: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      status: string;
+      admin_notes: string | null;
+    }>();
+
+  if (loadError || !currentProject) {
+    return {
+      message: "This project could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const nextProject = {
+    name: parsed.data.name,
+    client_label: parsed.data.clientLabel,
+    country: parsed.data.country,
+    start_date: parsed.data.startDate,
+    end_date: parsed.data.endDate,
+    status: parsed.data.status,
+    admin_notes: parsed.data.adminNotes,
+  };
+
+  const { error: updateError } = await supabase
+    .from("projects")
+    .update(nextProject)
+    .eq("id", currentProject.id);
+
+  if (updateError) {
+    return {
+      message:
+        updateError.code === "23514"
+          ? "Project dates or status do not match the database rules."
+          : `Could not update the project: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "project_updated",
+    entity_type: "project",
+    entity_id: currentProject.id,
+    metadata: {
+      before: {
+        name: currentProject.name,
+        client_label: currentProject.client_label,
+        country: currentProject.country,
+        start_date: currentProject.start_date,
+        end_date: currentProject.end_date,
+        status: currentProject.status,
+        admin_notes: currentProject.admin_notes,
+      },
+      after: nextProject,
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Project updated, but the audit log could not be recorded: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/projects/${currentProject.id}`);
+  revalidatePath("/projects");
+
+  return {
+    message: "Project updated.",
+    status: "success",
+    fieldErrors: {},
+  };
 }
 
 export async function createAssignmentAction(
