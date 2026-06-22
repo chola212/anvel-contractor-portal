@@ -184,3 +184,15 @@ Phase 13 starts deployment readiness:
 - production must not use fake Phase 5 or Phase 11 test records;
 - Vercel, Supabase and Cloudflare checks must pass before real contractor data
   is added.
+
+Phase 14 starts manual payment status tracking:
+
+- `admin`, `operations`, and contractors can open the `Payments` page;
+- contractors only see payment status for their own uploaded invoices through
+  existing RLS;
+- admin can record or update manual payment status, payment date, payment
+  reference, paid amount, and an internal note;
+- payment status updates also move invoice status to the matching manual review
+  state;
+- this does not process bank payments, collect payment cards, or enable
+  self-billing.
