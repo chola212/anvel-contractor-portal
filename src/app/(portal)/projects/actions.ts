@@ -83,6 +83,16 @@ const createAssignmentSchema = z
     },
   );
 
+const updateAssignmentSchema = z.object({
+  assignmentId: z.string().uuid("Assignment is missing."),
+  projectId: z.string().uuid("Project is missing."),
+  contractorId: z.string().uuid("Contractor is missing."),
+  status: z.enum(["planned", "active", "paused", "closed"], {
+    message: "Select a valid status.",
+  }),
+  endDate: optionalDate,
+});
+
 export type ProjectCreateState = {
   message: string | null;
   status: "idle" | "success" | "error";
@@ -224,6 +234,112 @@ export async function createAssignmentAction(
 
   return {
     message: "Assignment created.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function updateAssignmentStatusAction(
+  _previousState: ProjectCreateState,
+  formData: FormData,
+): Promise<ProjectCreateState> {
+  const profile = await requireRole(["admin"]);
+
+  const parsed = updateAssignmentSchema.safeParse({
+    assignmentId: formData.get("assignmentId"),
+    projectId: formData.get("projectId"),
+    contractorId: formData.get("contractorId"),
+    status: formData.get("status"),
+    endDate: formData.get("endDate"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the assignment update and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: currentAssignment, error: loadError } = await supabase
+    .from("contractor_projects")
+    .select("id,contractor_id,project_id,status,end_date")
+    .eq("id", parsed.data.assignmentId)
+    .maybeSingle<{
+      id: string;
+      contractor_id: string;
+      project_id: string;
+      status: string;
+      end_date: string | null;
+    }>();
+
+  if (loadError || !currentAssignment) {
+    return {
+      message: "This assignment could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  if (
+    currentAssignment.project_id !== parsed.data.projectId ||
+    currentAssignment.contractor_id !== parsed.data.contractorId
+  ) {
+    return {
+      message: "This assignment does not match the current project or contractor.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("contractor_projects")
+    .update({
+      status: parsed.data.status,
+      end_date: parsed.data.endDate,
+    })
+    .eq("id", parsed.data.assignmentId);
+
+  if (updateError) {
+    return {
+      message:
+        updateError.code === "23514"
+          ? "Assignment status or end date does not match the database rules."
+          : `Could not update the assignment: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "contractor_project_status_updated",
+    entity_type: "contractor_project",
+    entity_id: parsed.data.assignmentId,
+    metadata: {
+      from_status: currentAssignment.status,
+      to_status: parsed.data.status,
+      from_end_date: currentAssignment.end_date,
+      to_end_date: parsed.data.endDate,
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Assignment updated, but the audit log could not be recorded: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  revalidatePath(`/contractors/${parsed.data.contractorId}`);
+  revalidatePath("/projects");
+  revalidatePath("/contractors");
+
+  return {
+    message: "Assignment updated.",
     status: "success",
     fieldErrors: {},
   };
