@@ -4,12 +4,14 @@ import { formatCurrency, formatDate } from "@/lib/projects/format";
 import type { ProjectAssignment } from "@/lib/projects/types";
 
 import { ProjectStatusBadge } from "./project-status-badge";
+import { AssignmentUpdateForm } from "./assignment-update-form";
 
 type AssignmentListProps = {
   assignments: ProjectAssignment[];
   context: "contractor" | "project";
   showHourlyRate: boolean;
   showSalesRate: boolean;
+  showAssignmentControls?: boolean;
 };
 
 export function AssignmentList({
@@ -17,6 +19,7 @@ export function AssignmentList({
   context,
   showHourlyRate,
   showSalesRate,
+  showAssignmentControls = false,
 }: AssignmentListProps) {
   if (assignments.length === 0) {
     return (
@@ -60,6 +63,11 @@ export function AssignmentList({
               <th scope="col" className="px-5 py-3 font-medium">
                 Sales rate
               </th>
+              {showAssignmentControls ? (
+                <th scope="col" className="px-5 py-3 font-medium">
+                  Manage
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 bg-white">
@@ -105,6 +113,11 @@ export function AssignmentList({
                     ? formatCurrency(assignment.sales_rate, assignment.currency)
                     : "Hidden for this role"}
                 </td>
+                {showAssignmentControls ? (
+                  <td className="px-5 py-4 align-top">
+                    <AssignmentUpdateForm assignment={assignment} />
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

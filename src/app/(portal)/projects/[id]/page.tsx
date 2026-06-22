@@ -96,6 +96,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
         context="project"
         showHourlyRate={profile.role === "admin"}
         showSalesRate={profile.role === "admin"}
+        showAssignmentControls={profile.role === "admin"}
       />
     </div>
   );

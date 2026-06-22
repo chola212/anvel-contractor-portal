@@ -53,6 +53,7 @@ export default async function ContractorDetailPage({
         context="contractor"
         showHourlyRate={profile.role === "admin"}
         showSalesRate={profile.role === "admin"}
+        showAssignmentControls={profile.role === "admin"}
       />
     </div>
   );
