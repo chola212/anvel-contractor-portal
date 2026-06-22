@@ -47,8 +47,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
               {project.name}
             </h1>
             <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-              Project detail and assigned contractor overview. Assignment changes
-              are intentionally not included in this phase.
+              Project detail and assigned contractor overview. Admins can manage
+              assignment status, end date and rates.
             </p>
           </div>
           <ProjectStatusBadge status={project.status} />

@@ -41,7 +41,7 @@ export function AssignmentList({
           Project assignments
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Existing assignments. Rate editing is not part of this phase.
+          Existing assignments. Admins can update status, end date and rates.
         </p>
       </div>
       <div className="overflow-x-auto">
