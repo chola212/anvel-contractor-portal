@@ -214,3 +214,11 @@ Phase 27 adds admin-only contractor bank detail management:
 - contractors and operations cannot edit bank details;
 - this does not process bank payments, collect payment cards, or enable
   self-billing.
+
+Phase 28 refreshes production readiness documentation:
+
+- the deployment checklist now includes all required migrations through
+  contractor self-profile editing;
+- production smoke tests include contractor self-profile edits, admin-only bank
+  detail edits, and audit history checks;
+- no application code or database schema changes are introduced.

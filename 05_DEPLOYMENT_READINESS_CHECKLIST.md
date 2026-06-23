@@ -83,9 +83,19 @@ supabase/migrations/202606160001_initial_schema_and_rls.sql
 supabase/migrations/202606170001_contractor_document_storage.sql
 supabase/migrations/202606180001_payment_statement_unique_timesheet.sql
 supabase/migrations/202606180002_contractor_invoice_storage.sql
+supabase/migrations/202606230001_contractor_self_profile_update.sql
 ```
 
 Run the verification queries from `supabase/README.md` after applying them.
+
+Phase 27 admin bank detail editing does not require a migration because the
+bank columns already exist in the initial schema.
+
+Check:
+
+- `update_own_contractor_profile` exists after applying the Phase 26 migration;
+- contractor self-profile updates create audit log entries;
+- admin bank detail updates create masked-IBAN audit log entries.
 
 ## 5. Supabase Storage
 
@@ -115,9 +125,14 @@ Minimum production checks:
 - contractor can see only their own profile, projects, documents, timesheets,
   payment statements, invoices and payment status;
 - contractor cannot access another contractor's rows by changing URLs;
+- contractor can update only their own allowed non-bank profile fields through
+  the self-profile RPC;
+- contractor cannot update status, email, assignments, rates, or bank account
+  fields;
 - operations can see limited metadata only;
 - operations cannot download sensitive document or invoice files;
-- audit logs are not visible to contractors.
+- audit logs are not visible to contractors;
+- bank detail audit entries store masked IBAN values only.
 
 ## 7. Cloudflare
 
@@ -153,6 +168,11 @@ Check:
 - admin can open dashboard, contractors, projects, documents, timesheets,
   invoices and exports;
 - contractor account can sign in only after a matching active profile exists;
+- contractor can edit allowed legal and fiscal profile fields;
+- contractor cannot edit bank details;
+- admin can edit a contractor's bank account holder, IBAN, and SWIFT/BIC from
+  the dedicated bank details form;
+- profile and bank detail changes appear in admin-only audit history;
 - contractor cannot access `/exports`;
 - file downloads use signed links and are not public URLs.
 
@@ -167,12 +187,27 @@ Do not add real contractor data until all items below are complete:
 - Cloudflare HTTPS is working;
 - admin MFA is enabled where available;
 - no fake test records are present in production;
+- contractor self-profile updates have been tested through the production
+  Supabase project with a real invite-only contractor account;
+- admin-only bank detail editing has been tested with masked audit output;
 - backup and retention approach is understood;
 - at least one manual security review has been completed.
 
-## 10. What Phase 13 Does Not Do
+## 10. Current MVP Feature Readiness
 
-Phase 13 does not add:
+This checklist covers the reviewed MVP work through Phase 27:
+
+- invite-only authentication;
+- role-aware protected portal routes;
+- contractor profiles, projects, documents, timesheets, invoices, payments and
+  exports;
+- private document and invoice storage;
+- contractor self-profile editing for non-bank legal and fiscal fields;
+- admin-only bank detail editing with masked audit logs.
+
+## 11. What The MVP Does Not Do
+
+The current MVP does not add:
 
 - public registration;
 - automatic bank payments;
