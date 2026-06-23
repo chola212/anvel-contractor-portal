@@ -160,6 +160,9 @@ valid.
 
 After deployment, test with real production admin accounts only.
 
+Use `06_PRODUCTION_SMOKE_TEST_RUNBOOK.md` for the full step-by-step smoke test
+and record each result as `pass`, `fail`, or `blocked`.
+
 Check:
 
 - `/login` loads;
@@ -195,7 +198,7 @@ Do not add real contractor data until all items below are complete:
 
 ## 10. Current MVP Feature Readiness
 
-This checklist covers the reviewed MVP work through Phase 27:
+This checklist covers the reviewed MVP work through Phase 32:
 
 - invite-only authentication;
 - role-aware protected portal routes;
@@ -204,6 +207,7 @@ This checklist covers the reviewed MVP work through Phase 27:
 - private document and invoice storage;
 - contractor self-profile editing for non-bank legal and fiscal fields;
 - admin-only bank detail editing with masked audit logs.
+- production smoke-test runbook for final access and deployment checks.
 
 ## 11. What The MVP Does Not Do
 

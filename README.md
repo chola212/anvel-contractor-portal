@@ -248,3 +248,13 @@ Phase 31 refreshes stale operational copy:
   exists as a separate workflow;
 - no database, access control, payment automation or production settings are
   changed.
+
+Phase 32 adds the production smoke-test runbook:
+
+- `06_PRODUCTION_SMOKE_TEST_RUNBOOK.md` gives step-by-step pass/fail checks for
+  login, protected routes, role access, contractor isolation, profile edits,
+  files, timesheets, invoices, payments and accountant exports;
+- the deployment checklist now points to the runbook and reflects the current
+  MVP readiness scope;
+- no application code, database schema, RLS policy or production setting is
+  changed.
