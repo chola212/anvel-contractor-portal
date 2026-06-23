@@ -104,13 +104,15 @@ Phase 6 adds the first contractor profile module:
   login profile;
 - read-only contractor detail page;
 - admin-only non-bank contractor profile updates;
+- admin-only audited contractor bank detail updates;
 - admin-only contractor profile change history from audit logs;
 - contractor-only `My Profile` page;
 - contractor self-service non-bank legal and fiscal profile updates;
 - Supabase-backed data loading through existing RLS policies.
 
-Auth user creation, public registration, bank-data editing workflows, and
-bank-specific profile validation are intentionally left for later phases.
+Auth user creation, public registration, contractor self-service bank editing,
+automatic bank validation, and automatic payment workflows are intentionally
+left for later phases.
 
 Phase 7 adds read-only project and assignment views:
 
@@ -198,5 +200,17 @@ Phase 14 starts manual payment status tracking:
   reference, paid amount, and an internal note;
 - payment status updates also move invoice status to the matching manual review
   state;
+- this does not process bank payments, collect payment cards, or enable
+  self-billing.
+
+Phase 27 adds admin-only contractor bank detail management:
+
+- admins can update bank account holder, IBAN, and SWIFT/BIC from a dedicated
+  contractor detail form;
+- IBAN and SWIFT/BIC values are normalized and validated before saving;
+- bank currency remains EUR-only for the MVP;
+- updates write a `contractor_bank_details_updated` audit log entry with masked
+  IBAN values;
+- contractors and operations cannot edit bank details;
 - this does not process bank payments, collect payment cards, or enable
   self-billing.

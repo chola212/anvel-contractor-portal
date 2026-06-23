@@ -33,6 +33,10 @@ const fieldLabels: Record<string, string> = {
   tax_number: "Tax number",
   fiscal_address: "Fiscal address",
   vat_treatment: "VAT treatment",
+  bank_account_holder: "Bank account holder",
+  iban_mask: "IBAN",
+  swift_bic: "SWIFT/BIC",
+  bank_currency: "Bank currency",
   status: "Status",
 };
 
@@ -115,6 +119,10 @@ function actionLabel(action: string) {
     return "Contractor profile updated";
   }
 
+  if (action === "contractor_bank_details_updated") {
+    return "Bank details updated";
+  }
+
   return action.replaceAll("_", " ");
 }
 
@@ -141,7 +149,7 @@ export function ContractorAuditHistory({
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
           Admin-only audit history for contractor profile creation and
-          non-bank profile updates.
+          audited profile and bank detail updates.
         </p>
       </div>
 

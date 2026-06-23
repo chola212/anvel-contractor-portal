@@ -60,6 +60,10 @@ invoice, payment statement, project, contractor and payment rows through the
 current RLS policies. It deliberately excludes bank details, private storage
 paths and signed download links.
 
+Phase 27 admin bank detail editing does not add a migration. The contractor
+bank columns already exist in the initial schema. The application restricts
+bank detail edits to admins and writes masked-IBAN audit log entries.
+
 ## How to apply in Supabase SQL Editor
 
 1. Open the development Supabase project.

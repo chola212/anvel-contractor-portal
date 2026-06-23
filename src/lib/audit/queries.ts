@@ -21,6 +21,7 @@ export async function getContractorAuditLogs(contractorId: string) {
       "contractor_created",
       "contractor_profile_updated",
       "contractor_self_profile_updated",
+      "contractor_bank_details_updated",
     ])
     .order("created_at", { ascending: false })
     .limit(25)
