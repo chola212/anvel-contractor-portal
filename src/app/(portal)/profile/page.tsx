@@ -1,4 +1,5 @@
 import { ContractorProfilePanel } from "@/components/contractors/contractor-profile-panel";
+import { ContractorSelfUpdateForm } from "@/components/contractors/contractor-self-update-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
@@ -21,14 +22,15 @@ export default async function ProfilePage() {
           My Profile
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Read-only contractor profile linked to your signed-in account. Profile
-          updates will be added later with validation and audit logging.
+          Contractor profile linked to your signed-in account. You can update
+          non-bank legal and fiscal details with audit logging.
         </p>
       </section>
 
       {contractor ? (
         <>
           <ContractorProfilePanel contractor={contractor} showSensitiveDetails />
+          <ContractorSelfUpdateForm contractor={contractor} />
           <AssignmentList
             assignments={assignments}
             context="contractor"

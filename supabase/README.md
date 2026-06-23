@@ -11,6 +11,7 @@ migrations/202606160001_initial_schema_and_rls.sql
 migrations/202606170001_contractor_document_storage.sql
 migrations/202606180001_payment_statement_unique_timesheet.sql
 migrations/202606180002_contractor_invoice_storage.sql
+migrations/202606230001_contractor_self_profile_update.sql
 ```
 
 This migration creates:
@@ -45,6 +46,14 @@ The Phase 11 invoice storage migration creates the private
 - operations do not receive file download access by default;
 - only PDF files are allowed;
 - the bucket is not public.
+
+The Phase 26 contractor self-profile migration creates a security-definer RPC
+function for contractor self-service profile edits:
+
+- contractors can update only their own non-bank legal and fiscal fields;
+- contractor status, email, assignments, rates, and bank account fields are not
+  accepted by the function;
+- each update writes a `contractor_self_profile_updated` audit log entry.
 
 Phase 12 accountant exports do not add a migration. The export reads existing
 invoice, payment statement, project, contractor and payment rows through the
@@ -129,6 +138,16 @@ Expected result:
 - `public` is `false`;
 - `file_size_limit` is `10485760`;
 - `allowed_mime_types` contains `application/pdf`.
+
+Check the Phase 26 contractor self-profile update function:
+
+```sql
+select proname
+from pg_proc
+where proname = 'update_own_contractor_profile';
+```
+
+Expected result: one row named `update_own_contractor_profile`.
 
 ## Development auth test users
 

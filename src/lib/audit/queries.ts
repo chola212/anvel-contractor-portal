@@ -17,7 +17,11 @@ export async function getContractorAuditLogs(contractorId: string) {
     .select("id,actor_profile_id,action,entity_type,entity_id,metadata,created_at")
     .eq("entity_type", "contractor")
     .eq("entity_id", contractorId)
-    .in("action", ["contractor_created", "contractor_profile_updated"])
+    .in("action", [
+      "contractor_created",
+      "contractor_profile_updated",
+      "contractor_self_profile_updated",
+    ])
     .order("created_at", { ascending: false })
     .limit(25)
     .returns<AuditLogRow[]>();

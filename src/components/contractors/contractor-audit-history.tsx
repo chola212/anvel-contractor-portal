@@ -111,6 +111,10 @@ function actionLabel(action: string) {
     return "Profile updated";
   }
 
+  if (action === "contractor_self_profile_updated") {
+    return "Contractor profile updated";
+  }
+
   return action.replaceAll("_", " ");
 }
 
