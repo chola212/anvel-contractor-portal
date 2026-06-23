@@ -239,3 +239,12 @@ Phase 30 adds a role-aware dashboard overview:
   assignments, documents, timesheets, invoices and manual payment status;
 - dashboard copy now reflects the current operational MVP instead of the early
   authentication foundation.
+
+Phase 31 refreshes stale operational copy:
+
+- timesheet pages now describe the existing approval, rejection and reopening
+  flows instead of saying they are future work;
+- payment statement copy now reflects that official invoice upload already
+  exists as a separate workflow;
+- no database, access control, payment automation or production settings are
+  changed.
