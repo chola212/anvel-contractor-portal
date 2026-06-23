@@ -59,7 +59,8 @@ export function PaymentStatementPanel({
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
             This statement estimates what the contractor should invoice. The
-            contractor still uploads the official invoice in a later phase.
+            contractor uploads the official invoice separately from this
+            internal calculation.
           </p>
         </div>
         <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
