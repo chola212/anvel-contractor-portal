@@ -72,8 +72,9 @@ export function ContractorProfilePanel({
           Sensitive details
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Bank and fiscal details are read-only in this phase. Full editing will
-          be added only after a dedicated validation and audit flow.
+          Bank details are visible only to admins and edited through a
+          dedicated audit flow. Fiscal details remain part of the profile
+          workflow.
         </p>
         <dl className="mt-3">
           <DetailField

@@ -54,11 +54,55 @@ const updateContractorSchema = createContractorSchema
     contractorId: z.string().uuid("Contractor is missing."),
   });
 
+const bankText = z
+  .string()
+  .trim()
+  .transform((value) => (value.length > 0 ? value : null));
+
+const bankIban = z
+  .string()
+  .trim()
+  .transform((value) => {
+    const normalized = value.replace(/\s/g, "").toUpperCase();
+
+    return normalized.length > 0 ? normalized : null;
+  })
+  .refine((value) => value === null || /^[A-Z]{2}[A-Z0-9]{13,32}$/.test(value), {
+    message: "Enter a valid IBAN format, for example CY followed by bank digits.",
+  });
+
+const bankSwiftBic = z
+  .string()
+  .trim()
+  .transform((value) => {
+    const normalized = value.replace(/\s/g, "").toUpperCase();
+
+    return normalized.length > 0 ? normalized : null;
+  })
+  .refine((value) => value === null || /^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(value), {
+    message: "Enter an 8 or 11 character SWIFT/BIC code.",
+  });
+
+const updateContractorBankSchema = z.object({
+  contractorId: z.string().uuid("Contractor is missing."),
+  bankAccountHolder: bankText,
+  iban: bankIban,
+  swiftBic: bankSwiftBic,
+});
+
 export type ContractorCreateState = {
   message: string | null;
   status: "idle" | "success" | "error";
   fieldErrors: Record<string, string[] | undefined>;
 };
+
+function maskIbanForAudit(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  return `ending ${value.replace(/\s/g, "").slice(-4)}`;
+}
 
 export async function createContractorAction(
   _previousState: ContractorCreateState,
@@ -313,6 +357,123 @@ export async function updateContractorAction(
 
   return {
     message: "Contractor updated.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function updateContractorBankDetailsAction(
+  _previousState: ContractorCreateState,
+  formData: FormData,
+): Promise<ContractorCreateState> {
+  const profile = await requireRole(["admin"]);
+
+  const parsed = updateContractorBankSchema.safeParse({
+    contractorId: formData.get("contractorId"),
+    bankAccountHolder: formData.get("bankAccountHolder"),
+    iban: formData.get("iban"),
+    swiftBic: formData.get("swiftBic"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the bank details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  if (
+    (parsed.data.iban || parsed.data.swiftBic) &&
+    !parsed.data.bankAccountHolder
+  ) {
+    return {
+      message: "Bank details need an account holder.",
+      status: "error",
+      fieldErrors: {
+        bankAccountHolder: ["Enter the bank account holder."],
+      },
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: currentContractor, error: loadError } = await supabase
+    .from("contractors")
+    .select("id,bank_account_holder,iban,swift_bic,bank_currency")
+    .eq("id", parsed.data.contractorId)
+    .maybeSingle<{
+      id: string;
+      bank_account_holder: string | null;
+      iban: string | null;
+      swift_bic: string | null;
+      bank_currency: string;
+    }>();
+
+  if (loadError || !currentContractor) {
+    return {
+      message: "This contractor could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const nextBankDetails = {
+    bank_account_holder: parsed.data.bankAccountHolder,
+    iban: parsed.data.iban,
+    swift_bic: parsed.data.swiftBic,
+    bank_currency: "EUR",
+  };
+
+  const { error: updateError } = await supabase
+    .from("contractors")
+    .update(nextBankDetails)
+    .eq("id", currentContractor.id);
+
+  if (updateError) {
+    return {
+      message:
+        updateError.code === "23514"
+          ? "Bank details do not match the database rules."
+          : `Could not update the bank details: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "contractor_bank_details_updated",
+    entity_type: "contractor",
+    entity_id: currentContractor.id,
+    metadata: {
+      before: {
+        bank_account_holder: currentContractor.bank_account_holder,
+        iban_mask: maskIbanForAudit(currentContractor.iban),
+        swift_bic: currentContractor.swift_bic,
+        bank_currency: currentContractor.bank_currency,
+      },
+      after: {
+        bank_account_holder: nextBankDetails.bank_account_holder,
+        iban_mask: maskIbanForAudit(nextBankDetails.iban),
+        swift_bic: nextBankDetails.swift_bic,
+        bank_currency: nextBankDetails.bank_currency,
+      },
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Bank details updated, but the audit log could not be recorded: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/contractors/${currentContractor.id}`);
+  revalidatePath("/contractors");
+
+  return {
+    message: "Bank details updated.",
     status: "success",
     fieldErrors: {},
   };
