@@ -1,13 +1,15 @@
+import type { DashboardMetric } from "@/lib/dashboard/queries";
+
 type OperationalSectionProps = {
   title: string;
   description: string;
-  items: string[];
+  metrics: DashboardMetric[];
 };
 
 export function OperationalSection({
   title,
   description,
-  items,
+  metrics,
 }: OperationalSectionProps) {
   return (
     <section className="rounded-md border border-neutral-200 bg-white">
@@ -16,15 +18,22 @@ export function OperationalSection({
         <p className="mt-1 text-sm text-neutral-600">{description}</p>
       </div>
       <ul className="divide-y divide-neutral-200">
-        {items.map((item) => (
+        {metrics.map((metric) => (
           <li
-            key={item}
-            className="flex items-center justify-between gap-4 px-4 py-3"
+            key={metric.label}
+            className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
           >
-            <span className="text-sm font-medium text-neutral-800">{item}</span>
-            <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
-              Planned
-            </span>
+            <div>
+              <p className="text-sm font-medium text-neutral-900">
+                {metric.label}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-neutral-600">
+                {metric.description}
+              </p>
+            </div>
+            <p className="text-2xl font-semibold tabular-nums text-teal-700">
+              {metric.value}
+            </p>
           </li>
         ))}
       </ul>

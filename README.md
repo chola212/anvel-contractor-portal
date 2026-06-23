@@ -231,3 +231,11 @@ Phase 29 adds a read-only admin Settings overview:
   readiness checks;
 - no editable settings, public registration, payment automation or production
   control changes are introduced.
+
+Phase 30 adds a role-aware dashboard overview:
+
+- the dashboard now loads operational counts from Supabase through existing RLS;
+- static planned workflow badges are replaced with live metrics for contractors,
+  assignments, documents, timesheets, invoices and manual payment status;
+- dashboard copy now reflects the current operational MVP instead of the early
+  authentication foundation.
