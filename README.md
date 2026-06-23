@@ -222,3 +222,12 @@ Phase 28 refreshes production readiness documentation:
 - production smoke tests include contractor self-profile edits, admin-only bank
   detail edits, and audit history checks;
 - no application code or database schema changes are introduced.
+
+Phase 29 adds a read-only admin Settings overview:
+
+- admins can review the active Supabase project reference, Vercel environment,
+  and runtime mode;
+- the page documents the current access model, production boundaries and
+  readiness checks;
+- no editable settings, public registration, payment automation or production
+  control changes are introduced.
