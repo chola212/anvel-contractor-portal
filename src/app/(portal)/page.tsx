@@ -1,26 +1,17 @@
 import { OperationalSection } from "@/components/dashboard/operational-section";
-const operationalSections = [
-  {
-    title: "Contractor operations",
-    description:
-      "Core areas for managing accepted contractors after engagement approval.",
-    items: ["Contractor documents", "Project assignments", "Profile status"],
-  },
-  {
-    title: "Timesheet workflow",
-    description:
-      "Monthly hours submission and review without detailed task tracking.",
-    items: ["Submit monthly hours", "Pending timesheets", "Correction required"],
-  },
-  {
-    title: "Invoice and payment workflow",
-    description:
-      "Expected payment statements, official invoices, and manual payment status.",
-    items: ["Invoices awaiting review", "Payment status", "Accountant export"],
-  },
-];
+import { requireCurrentProfile } from "@/lib/auth/profile";
+import { getDashboardSections } from "@/lib/dashboard/queries";
 
-export default function Home() {
+const roleLabels = {
+  admin: "Admin",
+  operations: "Operations",
+  contractor: "Contractor",
+};
+
+export default async function Home() {
+  const profile = await requireCurrentProfile();
+  const operationalSections = await getDashboardSections();
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
       <section className="border-b border-neutral-200 pb-5">
@@ -33,34 +24,34 @@ export default function Home() {
               Contractor operations workspace
             </h1>
             <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-              Base application shell for the private ANVEL contractor portal.
-              Authentication, protected routes, and profile role loading are
-              now connected to Supabase.
+              Operational overview for contractor profiles, assignments,
+              documents, timesheets, invoices and manual payment status. Counts
+              are loaded through Supabase access rules for the signed-in user.
             </p>
           </div>
           <div className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-            Supabase client configured locally
+            Signed in as {roleLabels[profile.role]}
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-md border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Current phase</p>
+          <p className="text-sm font-medium text-neutral-500">Portal state</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Authentication foundation
+            Operational MVP
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Data source</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Supabase profiles table
+            Supabase with RLS
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Access model</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Role-aware navigation active
+            {roleLabels[profile.role]} view
           </p>
         </div>
       </section>
