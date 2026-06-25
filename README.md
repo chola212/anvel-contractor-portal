@@ -258,3 +258,13 @@ Phase 32 adds the production smoke-test runbook:
   MVP readiness scope;
 - no application code, database schema, RLS policy or production setting is
   changed.
+
+Phase 33 adds the production onboarding runbook:
+
+- `07_PRODUCTION_ONBOARDING_RUNBOOK.md` explains the approved handoff from
+  smoke-test records to the first real contractor onboarding;
+- it covers the production go/no-go gate, data minimisation, Auth/profile
+  linkage, contractor records, document rules, project assignment, timesheets,
+  invoices, payments, accountant export, audit review and deactivation;
+- no application code, database schema, RLS policy or production setting is
+  changed.
