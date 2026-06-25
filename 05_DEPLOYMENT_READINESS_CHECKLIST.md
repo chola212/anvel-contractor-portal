@@ -196,6 +196,9 @@ Do not add real contractor data until all items below are complete:
 - backup and retention approach is understood;
 - at least one manual security review has been completed.
 
+After these checks pass, use `07_PRODUCTION_ONBOARDING_RUNBOOK.md` for the
+first real contractor onboarding workflow.
+
 ## 10. Current MVP Feature Readiness
 
 This checklist covers the reviewed MVP work through Phase 32:
@@ -206,8 +209,10 @@ This checklist covers the reviewed MVP work through Phase 32:
   exports;
 - private document and invoice storage;
 - contractor self-profile editing for non-bank legal and fiscal fields;
-- admin-only bank detail editing with masked audit logs.
-- production smoke-test runbook for final access and deployment checks.
+- admin-only bank detail editing with masked audit logs;
+- production smoke-test runbook for final access and deployment checks;
+- controlled production onboarding runbook for the first real contractor after
+  business and security approval.
 
 ## 11. What The MVP Does Not Do
 
