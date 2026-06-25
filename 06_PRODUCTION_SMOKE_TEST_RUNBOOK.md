@@ -10,6 +10,38 @@ records. Record the result of each step as `pass`, `fail`, or `blocked`.
 Do not use fake development users in production. Do not paste service-role keys
 into the app, terminal, GitHub, or Vercel.
 
+## Smoke Test Result - 2026-06-25
+
+Status: **passed with controlled production smoke-test data**
+
+Tester: Andres
+
+Production checks completed:
+
+- public login page and protected-route behaviour;
+- admin navigation and production Settings check;
+- controlled contractor Auth/profile/contractor linkage;
+- contractor role isolation, including blocked export access;
+- contractor self-profile update with admin audit history;
+- admin bank detail update with masked IBAN audit history;
+- private document bucket and contractor document upload/download/review;
+- project creation and contractor assignment;
+- contractor timesheet creation, entry submission and admin approval;
+- payment statement calculation for 8.00 hours at EUR 30.00;
+- contractor invoice PDF upload and admin invoice review;
+- manual payment status update with smoke-test payment reference;
+- accountant export download and content check.
+
+Controlled production smoke-test records used:
+
+- contractor email: `contractor.prod.test@anvelconsulting.com`;
+- project: `Production Smoke Project`;
+- invoice number: `PROD-SMOKE-INV-001`;
+- payment reference: `PROD-SMOKE-PAY-001`.
+
+Do not add real contractor personal data until the business owner confirms the
+production security review and onboarding process are approved.
+
 ## 1. Before You Start
 
 Confirm:
