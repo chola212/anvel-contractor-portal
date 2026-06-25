@@ -89,7 +89,8 @@ Run these at least once per month.
 3. Confirm accountant export output still matches expected operational records.
 4. Confirm production Vercel and Supabase access is limited to the correct people.
 5. Confirm Cloudflare DNS still points the portal domain to Vercel.
-6. Record any operational issues, fixes, and manual data corrections.
+6. Complete the backup availability check in `10_PRODUCTION_BACKUP_RESTORE_DRILL.md`.
+7. Record any operational issues, fixes, and manual data corrections.
 
 ## Contractor Onboarding
 
@@ -149,6 +150,8 @@ If a production app deployment is broken:
 7. Open a follow-up issue or PR for the broken release.
 
 Do not roll back or delete database changes casually. Database corrections must be reviewed separately.
+
+For database backup or restore checks, use `10_PRODUCTION_BACKUP_RESTORE_DRILL.md`.
 
 ## Ready To Continue Criteria
 
