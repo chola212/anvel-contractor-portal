@@ -17,11 +17,11 @@ internal data protection review.
 
 ## Sign-Off Status
 
-- Status: Not signed off
-- Date:
-- Approved by:
-- Role or authority:
-- Notes:
+- Status: Signed off
+- Date: 2026-06-26
+- Approved by: Andres
+- Role or authority: Production owner / admin
+- Notes: Controlled production smoke test completed successfully with fake data only.
 
 ## Required Evidence
 
@@ -49,7 +49,7 @@ Confirm these before changing the status to signed off:
 
 Choose one:
 
-- [ ] Approved to onboard the first real contractor.
+- [x] Approved to onboard the first real contractor.
 - [ ] Keep controlled smoke-test/demo data only for now.
 - [ ] Blocked pending listed changes.
 
