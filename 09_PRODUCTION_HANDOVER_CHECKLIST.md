@@ -89,6 +89,8 @@ Weekly:
 - Review recent audit logs.
 - Run the anonymous route smoke test after production deployments:
   `$env:SMOKE_BASE_URL="https://portal.anvelconsulting.com"; npm run test:routes`.
+- Run the accessibility/mobile static QA check before UI-heavy releases:
+  `npm run test:a11y-mobile`.
 
 Monthly:
 
@@ -117,6 +119,6 @@ Pause real-data usage and investigate if any of these happen:
 These are not blockers for the controlled MVP, but they are sensible next improvements:
 
 - Full authenticated end-to-end smoke tests. A first anonymous route smoke test is available with `npm run test:routes`.
-- Accessibility and mobile layout pass.
+- Accessibility and mobile layout QA checklist is available in `13_ACCESSIBILITY_MOBILE_QA_CHECKLIST.md`; continue using it for future UI changes.
 - Admin reporting refinements.
 - More detailed accountant export formats if requested by finance.
