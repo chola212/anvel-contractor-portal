@@ -7,6 +7,7 @@ This checklist records the production state after the controlled smoke test and 
 - Production portal: `https://portal.anvelconsulting.com`
 - Production Supabase project ref: `rodduqyvlcltylzuheex`
 - Development Supabase project ref: `fpurrflqsgiuolkuhcjv`
+- Production closeout status is recorded in `15_PRODUCTION_CLOSEOUT_STATUS.md`.
 - Public registration remains unavailable.
 - Contractor, admin, and operations routes are role-aware.
 - Contractor profile, document, timesheet, invoice, payment statement, payment status, export, and settings workflows have been implemented.

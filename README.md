@@ -277,3 +277,13 @@ Phase 34 adds authenticated route smoke testing:
   contractor blocking from admin-only routes;
 - the test does not store passwords, service-role keys, cookies or real
   contractor data in the repository.
+
+Phase 35 records production closeout status:
+
+- `15_PRODUCTION_CLOSEOUT_STATUS.md` summarizes the implemented MVP scope,
+  explicit out-of-scope items, production safety rules, operating rhythm and
+  remaining optional improvements;
+- it is a documentation checkpoint after production smoke testing and handover
+  preparation;
+- no application code, database schema, RLS policy or production setting is
+  changed.
