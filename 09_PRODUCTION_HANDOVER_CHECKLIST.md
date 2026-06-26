@@ -87,6 +87,8 @@ Weekly:
 - Confirm Supabase production project is healthy.
 - Confirm storage buckets remain private.
 - Review recent audit logs.
+- Run the anonymous route smoke test after production deployments:
+  `$env:SMOKE_BASE_URL="https://portal.anvelconsulting.com"; npm run test:routes`.
 
 Monthly:
 
@@ -114,7 +116,7 @@ Pause real-data usage and investigate if any of these happen:
 
 These are not blockers for the controlled MVP, but they are sensible next improvements:
 
-- Automated end-to-end smoke tests.
+- Full authenticated end-to-end smoke tests. A first anonymous route smoke test is available with `npm run test:routes`.
 - Accessibility and mobile layout pass.
 - Admin reporting refinements.
 - More detailed accountant export formats if requested by finance.

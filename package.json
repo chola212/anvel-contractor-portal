@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:routes": "node scripts/route-smoke-test.mjs",
     "test:phase5:rls": "node scripts/phase5-rls-verify.mjs"
   },
   "dependencies": {
