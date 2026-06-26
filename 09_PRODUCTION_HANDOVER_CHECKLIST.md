@@ -19,6 +19,8 @@ This checklist records the production state after the controlled smoke test and 
 - Controlled production smoke-test data was used before real contractor data.
 - A controlled production demo run was completed on 25 Jun 2026 using fake data through document upload, timesheet approval, payment statement generation, invoice upload/review, manual payment status, and accountant export.
 - Controlled smoke-test/demo contractor Auth accounts have been disabled/banned after testing; records remain for audit history.
+- A controlled production onboarding rehearsal was completed by 26 Jun 2026 using a fake contractor account through Auth/profile creation, contractor record creation, project assignment, contractor sign-in, profile isolation, document upload/review, timesheet submission/approval, payment statement generation, invoice upload/review, manual payment status, and accountant export.
+- Controlled onboarding records remain fake production test data for audit and future release checks. They must not be treated as real contractor records.
 
 ## Before Real Contractor Data
 
@@ -46,8 +48,11 @@ Choose one option:
 
 Recommended: keep the controlled smoke-test account until the first real contractor onboarding is complete.
 Decision: controlled production smoke-test contractor was disabled/banned after successful smoke testing. Smoke-test records remain for audit history.
+Onboarding rehearsal decision: keep the controlled onboarding contractor and records until the first real contractor onboarding is complete, then decide whether to disable the Auth user or retain it for future release checks.
 
 ## First Real Contractor Onboarding
+
+The sequence below has been rehearsed with controlled fake production data. It is not complete for the first real contractor until an already selected and contractually accepted real contractor is onboarded.
 
 Use this order for the first real contractor:
 
