@@ -88,7 +88,9 @@ Use these files for ongoing operations:
 - `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md` for incident ownership;
 - `12_PRODUCTION_DATA_RETENTION_POLICY.md` for cleanup and export disposal;
 - `13_ACCESSIBILITY_MOBILE_QA_CHECKLIST.md` for UI quality checks;
-- `14_AUTHENTICATED_ROUTE_SMOKE_TEST_RUNBOOK.md` for cookie-based route checks.
+- `14_AUTHENTICATED_ROUTE_SMOKE_TEST_RUNBOOK.md` for cookie-based route checks;
+- `16_PRODUCTION_ACCEPTANCE_SIGN_OFF.md` for the final production acceptance
+  decision before real contractor data is entered.
 
 ## Remaining Optional Work
 
@@ -104,6 +106,7 @@ These are not blockers for the controlled MVP:
 Choose one:
 
 - start first real contractor onboarding using `07_PRODUCTION_ONBOARDING_RUNBOOK.md`
-  and `09_PRODUCTION_HANDOVER_CHECKLIST.md`;
+  and `09_PRODUCTION_HANDOVER_CHECKLIST.md` after recording acceptance in
+  `16_PRODUCTION_ACCEPTANCE_SIGN_OFF.md`;
 - keep operating only with controlled smoke-test records until production ownership
   and internal process sign-off are complete.

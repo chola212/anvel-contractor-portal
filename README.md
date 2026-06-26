@@ -287,3 +287,12 @@ Phase 35 records production closeout status:
   preparation;
 - no application code, database schema, RLS policy or production setting is
   changed.
+
+Phase 36 adds a production acceptance sign-off record:
+
+- `16_PRODUCTION_ACCEPTANCE_SIGN_OFF.md` provides a final human approval
+  checkpoint before real contractor personal data is entered;
+- it records required smoke-test evidence, production safety confirmations and
+  the go/no-go decision for first real contractor onboarding;
+- no application code, database schema, RLS policy or production setting is
+  changed.

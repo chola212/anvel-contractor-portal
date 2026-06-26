@@ -8,6 +8,9 @@ This checklist records the production state after the controlled smoke test and 
 - Production Supabase project ref: `rodduqyvlcltylzuheex`
 - Development Supabase project ref: `fpurrflqsgiuolkuhcjv`
 - Production closeout status is recorded in `15_PRODUCTION_CLOSEOUT_STATUS.md`.
+- Production acceptance sign-off should be recorded in
+  `16_PRODUCTION_ACCEPTANCE_SIGN_OFF.md` before real contractor personal data is
+  entered.
 - Public registration remains unavailable.
 - Contractor, admin, and operations routes are role-aware.
 - Contractor profile, document, timesheet, invoice, payment statement, payment status, export, and settings workflows have been implemented.
