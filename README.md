@@ -268,3 +268,12 @@ Phase 33 adds the production onboarding runbook:
   invoices, payments, accountant export, audit review and deactivation;
 - no application code, database schema, RLS policy or production setting is
   changed.
+
+Phase 34 adds authenticated route smoke testing:
+
+- `14_AUTHENTICATED_ROUTE_SMOKE_TEST_RUNBOOK.md` explains how to run controlled
+  admin and contractor route checks with temporary browser cookies;
+- `npm run test:routes:auth` verifies admin access, contractor access, and
+  contractor blocking from admin-only routes;
+- the test does not store passwords, service-role keys, cookies or real
+  contractor data in the repository.
