@@ -13,6 +13,8 @@ Use this only for the production deployment and production Supabase project.
 
 Do not put service-role keys in the application, browser, Vercel public variables, GitHub, local notes, or chat.
 
+For incident contacts, severity, and first-response checks, use `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
+
 ## Operating Rules
 
 - Production may contain real contractor data only after ANVEL approves the contractor and the data is needed for operations.
@@ -90,7 +92,8 @@ Run these at least once per month.
 4. Confirm production Vercel and Supabase access is limited to the correct people.
 5. Confirm Cloudflare DNS still points the portal domain to Vercel.
 6. Complete the backup availability check in `10_PRODUCTION_BACKUP_RESTORE_DRILL.md`.
-7. Record any operational issues, fixes, and manual data corrections.
+7. Review the monitoring and incident contact process in `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
+8. Record any operational issues, fixes, and manual data corrections.
 
 ## Contractor Onboarding
 
@@ -122,6 +125,8 @@ When a contractor should no longer have access:
 ## Incident Response
 
 Use this if something looks wrong in production.
+
+For severity, contacts, and escalation order, start with `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
 
 1. Stop adding or changing production records until the issue is understood.
 2. Record:

@@ -93,6 +93,7 @@ Monthly:
 - Review contractor assignments and rates.
 - Confirm export workflow still works.
 - Confirm backup and restore readiness with the Supabase project owner using `10_PRODUCTION_BACKUP_RESTORE_DRILL.md`.
+- Confirm incident contacts and first-response ownership using `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
 
 ## Stop Conditions
 
@@ -112,7 +113,6 @@ Pause real-data usage and investigate if any of these happen:
 These are not blockers for the controlled MVP, but they are sensible next improvements:
 
 - Automated end-to-end smoke tests.
-- Monitoring and incident contact procedure.
 - Formal data retention policy.
 - Accessibility and mobile layout pass.
 - Admin reporting refinements.
