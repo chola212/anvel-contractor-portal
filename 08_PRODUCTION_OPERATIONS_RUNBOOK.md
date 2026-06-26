@@ -15,6 +15,8 @@ Do not put service-role keys in the application, browser, Vercel public variable
 
 For incident contacts, severity, and first-response checks, use `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
 
+For retention, deletion, cleanup, and export disposal decisions, use `12_PRODUCTION_DATA_RETENTION_POLICY.md`.
+
 ## Operating Rules
 
 - Production may contain real contractor data only after ANVEL approves the contractor and the data is needed for operations.
@@ -91,9 +93,10 @@ Run these at least once per month.
 3. Confirm accountant export output still matches expected operational records.
 4. Confirm production Vercel and Supabase access is limited to the correct people.
 5. Confirm Cloudflare DNS still points the portal domain to Vercel.
-6. Complete the backup availability check in `10_PRODUCTION_BACKUP_RESTORE_DRILL.md`.
-7. Review the monitoring and incident contact process in `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
-8. Record any operational issues, fixes, and manual data corrections.
+6. Review retention, cleanup, and local export disposal using `12_PRODUCTION_DATA_RETENTION_POLICY.md`.
+7. Complete the backup availability check in `10_PRODUCTION_BACKUP_RESTORE_DRILL.md`.
+8. Review the monitoring and incident contact process in `11_PRODUCTION_MONITORING_AND_INCIDENT_CONTACTS.md`.
+9. Record any operational issues, fixes, and manual data corrections.
 
 ## Contractor Onboarding
 
@@ -120,7 +123,7 @@ When a contractor should no longer have access:
 2. Set the contractor record to inactive where appropriate.
 3. Disable or remove the Supabase Auth user.
 4. Keep audit logs and historical operational records.
-5. Do not delete production records unless there is an approved data-retention decision.
+5. Do not delete production records unless there is an approved data-retention decision using `12_PRODUCTION_DATA_RETENTION_POLICY.md`.
 
 ## Incident Response
 
@@ -139,7 +142,7 @@ For severity, contacts, and escalation order, start with `11_PRODUCTION_MONITORI
 4. Check Supabase audit logs and app audit history.
 5. Check Vercel deployment history for recent merges.
 6. If an environment variable was exposed or set incorrectly, rotate it and redeploy.
-7. If data needs correction, prepare reviewed SQL and run it only in the correct Supabase project.
+7. If data needs correction, prepare reviewed SQL and run it only in the correct Supabase project. Use `12_PRODUCTION_DATA_RETENTION_POLICY.md` for deletion or cleanup decisions.
 8. Record the fix and the verification result.
 
 ## Rollback
@@ -169,4 +172,5 @@ Production is considered operational when:
 - profile and bank-detail audit entries are visible;
 - timesheet, payment statement, invoice, payment, and export smoke flows pass;
 - Vercel production deployment is ready;
-- production Supabase environment variables are correct.
+- production Supabase environment variables are correct;
+- data retention and cleanup rules are documented.
