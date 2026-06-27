@@ -125,12 +125,21 @@ function wrapEmailHtml(title: string, body: string) {
 
 export function buildInviteEmail(contractorName: string, inviteLink: string) {
   return {
-    subject: "ANVEL Contractor Portal invitation",
+    subject: "Set your ANVEL Contractor Portal password",
     html: wrapEmailHtml(
       "Set your portal password",
       `
         <p>Hello ${contractorName},</p>
         <p>You have been invited to access the ANVEL Contractor Portal.</p>
+        <p style="margin: 24px 0 16px;">
+          <a href="${inviteLink}" style="display: inline-block; background: #115e59; color: #ffffff; padding: 11px 16px; border-radius: 6px; text-decoration: none; font-weight: 700;">
+            Set password and access portal
+          </a>
+        </p>
+        <p style="margin: 0 0 8px;">If the button does not work, copy and paste this secure link into your browser:</p>
+        <p style="margin: 0 0 24px; overflow-wrap: anywhere;">
+          <a href="${inviteLink}" style="color: #115e59; text-decoration: underline; word-break: break-all;">${inviteLink}</a>
+        </p>
         <p>This portal is used to:</p>
         <ul>
           <li>keep your contractor profile and company details up to date;</li>
@@ -139,18 +148,17 @@ export function buildInviteEmail(contractorName: string, inviteLink: string) {
           <li>receive self-billing invoices generated from approved timesheets;</li>
           <li>track payment status.</li>
         </ul>
-        <p>Use the secure link below to set your password and access the portal.</p>
-        <p style="margin: 24px 0;">
-          <a href="${inviteLink}" style="background: #115e59; color: #ffffff; padding: 11px 16px; border-radius: 6px; text-decoration: none; font-weight: 700;">
-            Set password
-          </a>
-        </p>
-        <p>If you were not expecting this invitation, please contact ANVEL operations.</p>
+        <p>Kind regards,<br />ANVEL Consulting</p>
       `,
     ),
     text: `Hello ${contractorName},
 
 You have been invited to access the ANVEL Contractor Portal.
+
+Set password and access portal:
+${inviteLink}
+
+If the link does not open, copy and paste the secure URL above into your browser.
 
 This portal is used to:
 - keep your contractor profile and company details up to date;
@@ -159,13 +167,8 @@ This portal is used to:
 - receive self-billing invoices generated from approved timesheets;
 - track payment status.
 
-Use the secure link below to set your password and access the portal:
-
-${inviteLink}
-
-If you were not expecting this invitation, please contact ANVEL operations.
-
-ERP Utilities Consulting Services Ltd.`,
+Kind regards,
+ANVEL Consulting`,
   };
 }
 

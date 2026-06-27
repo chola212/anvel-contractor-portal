@@ -529,10 +529,53 @@ assert.match(
   /<ul>[\s\S]*monthly timesheets[\s\S]*self-billing invoices[\s\S]*payment status/,
   "invitation email should explain the portal purpose in bullet points",
 );
+const inviteCtaIndex = inviteEmailSection.indexOf(
+  "Set password and access portal",
+);
+const inviteFallbackIndex = inviteEmailSection.indexOf(
+  '>${inviteLink}</a>',
+);
+const invitePurposeListIndex = inviteEmailSection.indexOf("<ul>");
+assert.ok(
+  inviteCtaIndex >= 0 && inviteCtaIndex < invitePurposeListIndex,
+  "invitation email HTML should place the primary CTA before the purpose list",
+);
+assert.ok(
+  inviteFallbackIndex >= 0 && inviteFallbackIndex < invitePurposeListIndex,
+  "invitation email HTML should place the raw fallback link before the purpose list",
+);
+assert.equal(
+  (inviteEmailSection.match(/background: #115e59/g) ?? []).length,
+  1,
+  "invitation email should include exactly one primary styled CTA",
+);
+const inviteTextStart = inviteEmailSection.indexOf("text: `Hello");
+const inviteTextLinkIndex = inviteEmailSection.indexOf(
+  "${inviteLink}",
+  inviteTextStart,
+);
+const inviteTextPurposeIndex = inviteEmailSection.indexOf(
+  "This portal is used to:",
+  inviteTextStart,
+);
+assert.ok(
+  inviteTextLinkIndex >= 0 && inviteTextLinkIndex < inviteTextPurposeIndex,
+  "invitation email text should place the secure link before the purpose list",
+);
 assert.doesNotMatch(
   resetEmailSection,
   /company details|monthly timesheets|self-billing invoices|payment status/,
   "password reset email should remain short without invitation-purpose bullets",
+);
+assert.ok(
+  resetEmailSection.indexOf('href="${resetLink}"') <
+    resetEmailSection.indexOf("If you did not request this"),
+  "password reset HTML should show its secure link near the top",
+);
+assert.ok(
+  resetEmailSection.indexOf("${resetLink}") <
+    resetEmailSection.indexOf("If you did not request this"),
+  "password reset text should show its secure link near the top",
 );
 assert.match(
   portalEmail,
