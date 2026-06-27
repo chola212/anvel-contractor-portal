@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
-import { sendContractorNotification } from "@/lib/email/notifications";
+import { sendAdminNotification, sendContractorNotification } from "@/lib/email/notifications";
+import { buildNotificationEmail, getPortalBaseUrl } from "@/lib/email/portal-email";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceStatus } from "@/lib/invoices/types";
 
@@ -87,6 +89,17 @@ const invoiceStatusByPaymentStatus: Record<
   on_hold: "on_hold",
 };
 
+function formatInvoiceMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, 1));
+
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export async function updatePaymentStatusAction(
   _previousState: PaymentActionState,
   formData: FormData,
@@ -132,13 +145,16 @@ export async function updatePaymentStatusAction(
   const supabase = await createClient();
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id,status,currency,contractor_id")
+    .select("id,status,currency,contractor_id,invoice_number,invoice_date,payment_statement_id")
     .eq("id", parsed.data.invoiceId)
     .maybeSingle<{
       id: string;
       status: InvoiceStatus;
       currency: string;
       contractor_id: string;
+      invoice_number: string;
+      invoice_date: string;
+      payment_statement_id: string | null;
     }>();
 
   if (invoiceError || !invoice) {
@@ -245,30 +261,65 @@ export async function updatePaymentStatusAction(
   }
 
   if (["paid", "on_hold"].includes(parsed.data.status)) {
-    const { data: contractor } = await supabase
-      .from("contractors")
-      .select("email")
-      .eq("id", invoice.contractor_id)
-      .maybeSingle<{ email: string }>();
+    const [{ data: contractor }, { data: statement }] = await Promise.all([
+      supabase
+        .from("contractors")
+        .select("legal_name,email")
+        .eq("id", invoice.contractor_id)
+        .maybeSingle<{ legal_name: string; email: string }>(),
+      invoice.payment_statement_id
+        ? supabase
+            .from("payment_statements")
+            .select("projects(name)")
+            .eq("id", invoice.payment_statement_id)
+            .maybeSingle<{ projects: { name: string }[] | { name: string } | null }>()
+        : Promise.resolve({ data: null }),
+    ]);
 
     if (contractor) {
+      const monthLabel = formatInvoiceMonth(invoice.invoice_date);
       await sendContractorNotification({
         to: contractor.email,
         subject:
           parsed.data.status === "paid"
-            ? "Payment marked as paid"
-            : "Payment put on hold",
+            ? `Payment marked paid - ${invoice.invoice_number} - ${monthLabel}`
+            : `Payment put on hold - ${invoice.invoice_number} - ${monthLabel}`,
         body:
           parsed.data.status === "paid"
-            ? "Your invoice payment has been marked as paid in the ANVEL Contractor Portal."
-            : "Your invoice payment has been put on hold while ANVEL reviews it.",
+            ? `Payment for invoice ${invoice.invoice_number} for ${monthLabel} has been marked as paid in the ANVEL Contractor Portal.`
+            : `Payment for invoice ${invoice.invoice_number} for ${monthLabel} has been put on hold while ANVEL reviews it.`,
       });
+
+      const requestHeaders = await headers();
+      const baseUrl = getPortalBaseUrl(requestHeaders.get("origin"));
+      const project = Array.isArray(statement?.projects)
+        ? (statement?.projects[0] ?? null)
+        : (statement?.projects ?? null);
+
+      await sendAdminNotification(
+        buildNotificationEmail(
+          parsed.data.status === "paid"
+            ? `Payment marked paid - ${invoice.invoice_number} - ${monthLabel}`
+            : `Payment put on hold - ${invoice.invoice_number} - ${monthLabel}`,
+          [
+            `Contractor: ${contractor.legal_name}`,
+            `Email: ${contractor.email}`,
+            `Invoice: ${invoice.invoice_number}`,
+            `Month: ${monthLabel}`,
+            `Project: ${project?.name ?? "Not set"}`,
+            `Status: ${parsed.data.status}`,
+            `Review link: ${baseUrl}/contractors/${invoice.contractor_id}/payments`,
+          ].join("\n"),
+        ),
+      );
     }
   }
 
   revalidatePath("/payments");
   revalidatePath("/invoices");
   revalidatePath("/exports");
+  revalidatePath(`/contractors/${invoice.contractor_id}/payments`);
+  revalidatePath(`/contractors/${invoice.contractor_id}/invoices`);
 
   return {
     message: "Payment status saved.",

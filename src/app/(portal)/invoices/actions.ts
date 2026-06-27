@@ -1,11 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
-import { sendContractorNotification } from "@/lib/email/notifications";
+import { sendAdminNotification, sendContractorNotification } from "@/lib/email/notifications";
+import {
+  buildInvoiceUploadedAdminEmail,
+  getPortalBaseUrl,
+} from "@/lib/email/portal-email";
 import type { InvoiceStatus } from "@/lib/invoices/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -125,6 +130,17 @@ function parseInvoiceDate(value: string) {
   }
 
   return date;
+}
+
+function formatInvoiceMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, 1));
+
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 export async function uploadContractorInvoiceAction(
@@ -263,8 +279,28 @@ export async function uploadContractorInvoiceAction(
     };
   }
 
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name")
+    .eq("id", statement.project_id)
+    .maybeSingle<{ name: string }>();
+
+  const requestHeaders = await headers();
+  const baseUrl = getPortalBaseUrl(requestHeaders.get("origin"));
+  await sendAdminNotification(
+    buildInvoiceUploadedAdminEmail({
+      contractorName: contractor.legal_name,
+      contractorEmail: contractor.email,
+      invoiceNumber: parsed.data.invoiceNumber,
+      monthLabel: formatInvoiceMonth(parsed.data.invoiceDate),
+      projectName: project?.name ?? null,
+      reviewLink: `${baseUrl}/contractors/${contractor.id}/invoices`,
+    }),
+  );
+
   revalidatePath("/invoices");
   revalidatePath("/timesheets");
+  revalidatePath(`/contractors/${contractor.id}/invoices`);
 
   return {
     message: "Invoice uploaded for review.",
@@ -308,9 +344,15 @@ export async function reviewInvoiceAction(
   const supabase = await createClient();
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id,status,contractor_id")
+    .select("id,status,contractor_id,invoice_number,invoice_date")
     .eq("id", parsed.data.invoiceId)
-    .maybeSingle<{ id: string; status: InvoiceStatus; contractor_id: string }>();
+    .maybeSingle<{
+      id: string;
+      status: InvoiceStatus;
+      contractor_id: string;
+      invoice_number: string;
+      invoice_date: string;
+    }>();
 
   if (invoiceError || !invoice) {
     return {
@@ -371,26 +413,29 @@ export async function reviewInvoiceAction(
       parsed.data.status,
     )
   ) {
+    const monthLabel = formatInvoiceMonth(invoice.invoice_date);
     await sendContractorNotification({
       to: contractor.email,
       subject:
         parsed.data.status === "approved_for_payment"
-          ? "Invoice approved for payment"
+          ? `Invoice approved for payment - ${invoice.invoice_number} - ${monthLabel}`
           : parsed.data.status === "on_hold"
-            ? "Invoice put on hold"
-            : "Invoice correction required",
+            ? `Invoice put on hold - ${invoice.invoice_number} - ${monthLabel}`
+            : `Invoice correction required - ${invoice.invoice_number} - ${monthLabel}`,
       body:
         parsed.data.status === "correction_required"
-          ? `Your invoice needs correction. Reason: ${parsed.data.reviewComment}`
+          ? `Your invoice ${invoice.invoice_number} for ${monthLabel} needs correction. Status: ${parsed.data.status}. Reason: ${parsed.data.reviewComment}`
           : parsed.data.status === "on_hold"
-            ? "Your invoice has been put on hold while ANVEL reviews it."
-            : "Your invoice has been approved for payment tracking.",
+            ? `Your invoice ${invoice.invoice_number} for ${monthLabel} has been put on hold while ANVEL reviews it.`
+            : `Your invoice ${invoice.invoice_number} for ${monthLabel} has been approved for payment tracking.`,
     });
   }
 
   revalidatePath("/invoices");
   revalidatePath("/payments");
   revalidatePath("/exports");
+  revalidatePath(`/contractors/${invoice.contractor_id}/invoices`);
+  revalidatePath(`/contractors/${invoice.contractor_id}/payments`);
 
   return {
     message: "Invoice review saved.",

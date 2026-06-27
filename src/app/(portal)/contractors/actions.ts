@@ -120,6 +120,39 @@ function maskIbanForAudit(value: string | null) {
   return `ending ${value.replace(/\s/g, "").slice(-4)}`;
 }
 
+async function findAuthUserByEmail(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  email: string,
+) {
+  const targetEmail = email.toLowerCase();
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await adminSupabase.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    });
+
+    if (error) {
+      throw new Error(`Could not check existing auth users: ${error.message}`);
+    }
+
+    const user = data.users.find(
+      (item) => item.email?.toLowerCase() === targetEmail,
+    );
+
+    if (user) {
+      return user;
+    }
+
+    if (data.users.length < 100) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
 export async function createContractorAction(
   _previousState: ContractorCreateState,
   formData: FormData,
@@ -177,20 +210,32 @@ export async function createContractorAction(
   const requestHeaders = await headers();
   const requestOrigin = requestHeaders.get("origin");
   const redirectTo = buildAuthCallbackUrl(requestOrigin);
+  const existingAuthUser = await findAuthUserByEmail(
+    adminSupabase,
+    parsed.data.email,
+  );
 
-  const inviteResult = await adminSupabase.auth.admin.generateLink({
-    type: "invite",
-    email: parsed.data.email,
-    options: {
-      data: {
-        full_name: parsed.data.fullName,
-        role: "contractor",
-      },
-      redirectTo,
-    },
-  });
+  const inviteResult = existingAuthUser
+    ? await adminSupabase.auth.admin.generateLink({
+        type: "recovery",
+        email: parsed.data.email,
+        options: {
+          redirectTo,
+        },
+      })
+    : await adminSupabase.auth.admin.generateLink({
+        type: "invite",
+        email: parsed.data.email,
+        options: {
+          data: {
+            full_name: parsed.data.fullName,
+            role: "contractor",
+          },
+          redirectTo,
+        },
+      });
 
-  const invitedUser = inviteResult.data.user;
+  const invitedUser = inviteResult.data.user ?? existingAuthUser;
 
   if (inviteResult.error || !invitedUser) {
     return {
@@ -202,10 +247,35 @@ export async function createContractorAction(
     };
   }
 
+  const { error: authUpdateError } = await adminSupabase.auth.admin.updateUserById(
+    invitedUser.id,
+    {
+      email: parsed.data.email,
+      user_metadata: {
+        full_name: parsed.data.fullName,
+        role: "contractor",
+      },
+    },
+  );
+
+  if (authUpdateError) {
+    if (!existingAuthUser) {
+      await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+    }
+
+    return {
+      message: `Could not update the contractor auth account: ${authUpdateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   const actionLink = inviteResult.data.properties?.action_link ?? null;
 
   if (!actionLink) {
-    await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+    if (!existingAuthUser) {
+      await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+    }
 
     return {
       message: "Could not prepare the contractor invitation email.",
@@ -214,48 +284,84 @@ export async function createContractorAction(
     };
   }
 
-  const { error: profileInsertError } = await supabase.from("profiles").insert({
-    id: invitedUser.id,
-    email: parsed.data.email,
-    full_name: parsed.data.fullName,
-    role: "contractor",
-    is_active: true,
-  });
+  const { error: profileUpsertError } = await supabase.from("profiles").upsert(
+    {
+      id: invitedUser.id,
+      email: parsed.data.email,
+      full_name: parsed.data.fullName,
+      role: "contractor",
+      is_active: true,
+    },
+    {
+      onConflict: "id",
+    },
+  );
 
-  if (profileInsertError) {
-    await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+  if (profileUpsertError) {
+    if (!existingAuthUser) {
+      await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+    }
 
     return {
-      message: `The account was invited, but the profile row could not be created: ${profileInsertError.message}`,
+      message: `The auth account exists, but the profile row could not be saved: ${profileUpsertError.message}`,
       status: "error",
       fieldErrors: {},
     };
   }
 
-  const { data: contractor, error } = await supabase
-    .from("contractors")
-    .insert({
-      profile_id: invitedUser.id,
-      legal_name: parsed.data.legalName,
-      trading_name: parsed.data.tradingName,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      country: parsed.data.country,
-      supplier_type: parsed.data.supplierType,
-      company_registration_number: parsed.data.companyRegistrationNumber,
-      vat_number: parsed.data.vatNumber,
-      tax_number: parsed.data.taxNumber,
-      fiscal_address: parsed.data.fiscalAddress,
-      vat_treatment: parsed.data.vatTreatment,
-      bank_currency: "EUR",
-      status: parsed.data.status,
-    })
-    .select("id")
-    .single<{ id: string }>();
+  const contractorPayload = {
+    profile_id: invitedUser.id,
+    legal_name: parsed.data.legalName,
+    trading_name: parsed.data.tradingName,
+    email: parsed.data.email,
+    phone: parsed.data.phone,
+    country: parsed.data.country,
+    supplier_type: parsed.data.supplierType,
+    company_registration_number: parsed.data.companyRegistrationNumber,
+    vat_number: parsed.data.vatNumber,
+    tax_number: parsed.data.taxNumber,
+    fiscal_address: parsed.data.fiscalAddress,
+    vat_treatment: parsed.data.vatTreatment,
+    bank_currency: "EUR",
+    status: parsed.data.status,
+  };
+
+  const { data: existingContractor, error: existingContractorError } =
+    await supabase
+      .from("contractors")
+      .select("id")
+      .or(`profile_id.eq.${invitedUser.id},email.eq.${parsed.data.email}`)
+      .maybeSingle<{ id: string }>();
+
+  if (existingContractorError) {
+    return {
+      message: `Could not check existing contractor records: ${existingContractorError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const contractorResult = existingContractor
+    ? await supabase
+        .from("contractors")
+        .update(contractorPayload)
+        .eq("id", existingContractor.id)
+        .select("id")
+        .single<{ id: string }>()
+    : await supabase
+        .from("contractors")
+        .insert(contractorPayload)
+        .select("id")
+        .single<{ id: string }>();
+
+  const contractor = contractorResult.data;
+  const error = contractorResult.error;
 
   if (error || !contractor) {
-    await supabase.from("profiles").delete().eq("id", invitedUser.id);
-    await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+    if (!existingAuthUser) {
+      await supabase.from("profiles").delete().eq("id", invitedUser.id);
+      await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+    }
 
     return {
       message:
@@ -270,8 +376,8 @@ export async function createContractorAction(
   }
 
   const { error: auditError } = await supabase.from("audit_logs").insert({
-      actor_profile_id: profile.id,
-      action: "contractor_created",
+    actor_profile_id: profile.id,
+    action: "contractor_created",
     entity_type: "contractor",
     entity_id: contractor.id,
     metadata: {
@@ -289,6 +395,10 @@ export async function createContractorAction(
     };
   }
 
+  revalidatePath("/");
+  revalidatePath("/contractors");
+  revalidatePath(`/contractors/${contractor.id}`);
+
   try {
     const email = buildInviteEmail(parsed.data.fullName, actionLink);
     await sendPortalEmail({
@@ -305,7 +415,6 @@ export async function createContractorAction(
     };
   }
 
-  revalidatePath("/contractors");
   redirect(`/contractors/${contractor.id}`);
 }
 

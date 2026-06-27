@@ -253,6 +253,14 @@ Resend/domain setup:
 - Redeploy Vercel after changing environment variables.
 - If email fails, check Vercel server logs for the exact Resend HTTP status and response body.
 
+Deliverability troubleshooting:
+
+- SPF, DKIM and DMARC must be valid for `anvelconsulting.com` in Cloudflare before production emails are trusted by Gmail or Outlook.
+- In Resend, the domain status should show verified, not pending. Pending usually means a DNS record is missing, copied incorrectly or still propagating.
+- Keep subjects simple and operational. Avoid words such as urgent, free, guaranteed or excessive punctuation.
+- Do not change the sender away from `ANVEL Consulting <contact@anvelconsulting.com>` without updating the code and verifying the domain again.
+- Test invite, reset, timesheet, document, invoice and payment emails with fake contractor data before using real contractor records.
+
 ## Production Test Data Reset
 
 Use this only when you intentionally want to clear the production test data

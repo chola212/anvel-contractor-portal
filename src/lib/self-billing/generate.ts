@@ -306,7 +306,12 @@ export async function generateSelfBillingInvoiceForTimesheet({
   let emailStatus: "sent" | "failed" = "failed";
 
   try {
-    const email = buildSelfBillingInvoiceEmail(contractor.legal_name, monthLabel);
+    const email = buildSelfBillingInvoiceEmail(
+      contractor.legal_name,
+      monthLabel,
+      invoiceNumber,
+      project.name,
+    );
     const result = await sendPortalEmail({
       to: contractor.email,
       ...email,

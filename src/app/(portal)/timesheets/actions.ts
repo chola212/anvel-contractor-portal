@@ -1,12 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
-import { sendContractorNotification } from "@/lib/email/notifications";
+import { sendAdminNotification, sendContractorNotification } from "@/lib/email/notifications";
+import {
+  buildTimesheetSubmittedAdminEmail,
+  getPortalBaseUrl,
+} from "@/lib/email/portal-email";
 import { generateSelfBillingInvoiceForTimesheet } from "@/lib/self-billing/generate";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -15,6 +20,7 @@ import {
   monthOverlapsAssignment,
 } from "@/lib/timesheets/assignment-periods";
 import type { TimesheetRecord } from "@/lib/timesheets/types";
+import { formatHours, formatTimesheetMonth } from "@/lib/timesheets/format";
 
 const editableStatuses = ["draft", "rejected", "reopened"] as const;
 
@@ -77,6 +83,13 @@ type AssignmentForCheck = {
   id: string;
   start_date: string | null;
   end_date: string | null;
+};
+
+type TimesheetNotificationContext = {
+  contractorName: string;
+  contractorEmail: string;
+  projectName: string | null;
+  totalHours: number;
 };
 
 type AuditAction =
@@ -217,6 +230,52 @@ async function loadContractorNotificationTarget(
     .maybeSingle<{ legal_name: string; email: string }>();
 
   return data;
+}
+
+async function loadTimesheetNotificationContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  timesheet: TimesheetRecord,
+) {
+  const [contractorResult, projectResult, entryResult] = await Promise.all([
+    supabase
+      .from("contractors")
+      .select("legal_name,email")
+      .eq("id", timesheet.contractor_id)
+      .maybeSingle<{ legal_name: string; email: string }>(),
+    supabase
+      .from("projects")
+      .select("name")
+      .eq("id", timesheet.project_id)
+      .maybeSingle<{ name: string }>(),
+    supabase
+      .from("timesheet_entries")
+      .select("hours")
+      .eq("timesheet_id", timesheet.id)
+      .returns<{ hours: number | string }[]>(),
+  ]);
+
+  if (!contractorResult.data) {
+    return null;
+  }
+
+  const totalHours = (entryResult.data ?? []).reduce(
+    (total, entry) => total + Number(entry.hours),
+    0,
+  );
+
+  return {
+    contractorName: contractorResult.data.legal_name,
+    contractorEmail: contractorResult.data.email,
+    projectName: projectResult.data?.name ?? null,
+    totalHours,
+  } satisfies TimesheetNotificationContext;
+}
+
+function isFutureTimesheetMonth(year: number, month: number, now = new Date()) {
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+
+  return year > currentYear || (year === currentYear && month > currentMonth);
 }
 
 function parseWorkDate(value: string) {
@@ -378,6 +437,10 @@ export async function approveTimesheetAction(
   revalidatePath("/invoices");
   revalidatePath("/payments");
   revalidatePath("/exports");
+  revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
+  revalidatePath(`/contractors/${timesheet.contractor_id}/invoices`);
+  revalidatePath(`/contractors/${timesheet.contractor_id}/payments`);
+  revalidatePath("/");
 
   const notificationTarget = await loadContractorNotificationTarget(
     supabase,
@@ -385,11 +448,12 @@ export async function approveTimesheetAction(
   );
 
   if (notificationTarget) {
+    const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
     await sendContractorNotification({
       to: notificationTarget.email,
-      subject: "Timesheet approved",
+      subject: `Timesheet approved - ${monthLabel}`,
       body:
-        "Your timesheet has been approved and a self-billing invoice has been generated from the approved hours.",
+        `Your timesheet for ${monthLabel} has been approved and a self-billing invoice has been generated from the approved hours.`,
     });
   }
 
@@ -467,6 +531,8 @@ export async function rejectTimesheetAction(
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+  revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
+  revalidatePath("/");
 
   const notificationTarget = await loadContractorNotificationTarget(
     supabase,
@@ -474,10 +540,11 @@ export async function rejectTimesheetAction(
   );
 
   if (notificationTarget) {
+    const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
     await sendContractorNotification({
       to: notificationTarget.email,
-      subject: "Timesheet correction required",
-      body: `Your submitted timesheet needs correction. Reason: ${parsed.data.rejectionReason}`,
+      subject: `Timesheet rejected - ${monthLabel}`,
+      body: `Your submitted timesheet for ${monthLabel} needs correction. Reason: ${parsed.data.rejectionReason}`,
     });
   }
 
@@ -554,6 +621,22 @@ export async function reopenTimesheetAction(
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+  revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
+  revalidatePath("/");
+
+  const notificationTarget = await loadContractorNotificationTarget(
+    supabase,
+    timesheet.contractor_id,
+  );
+
+  if (notificationTarget) {
+    const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
+    await sendContractorNotification({
+      to: notificationTarget.email,
+      subject: `Timesheet reopened - ${monthLabel}`,
+      body: `Your timesheet for ${monthLabel} has been reopened for correction.`,
+    });
+  }
 
   return {
     message: "Timesheet reopened for correction.",
@@ -631,6 +714,16 @@ export async function startTimesheetAction(
     };
   }
 
+  if (isFutureTimesheetMonth(parsed.data.year, parsed.data.month)) {
+    return {
+      message: "You cannot create a timesheet for a future month.",
+      status: "error",
+      fieldErrors: {
+        month: ["You cannot create a timesheet for a future month."],
+      },
+    };
+  }
+
   const supabase = await createClient();
   const { data: assignment, error: assignmentError } = await supabase
     .from("contractor_projects")
@@ -680,6 +773,8 @@ export async function startTimesheetAction(
   }
 
   revalidatePath("/timesheets");
+  revalidatePath(`/contractors/${contractor.id}/timesheets`);
+  revalidatePath("/");
   redirect(`/timesheets/${timesheet.id}`);
 }
 
@@ -942,6 +1037,8 @@ export async function saveTimesheetCalendarAction(
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+  revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
+  revalidatePath("/");
 
   return {
     message:
@@ -1052,18 +1149,28 @@ export async function submitTimesheetAction(
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+  revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
+  revalidatePath("/");
 
-  const notificationTarget = await loadContractorNotificationTarget(
+  const notificationContext = await loadTimesheetNotificationContext(
     supabase,
-    timesheet.contractor_id,
+    timesheet,
   );
 
-  if (notificationTarget) {
-    await sendContractorNotification({
-      to: notificationTarget.email,
-      subject: "Timesheet reopened",
-      body: "Your timesheet has been reopened for correction.",
-    });
+  if (notificationContext) {
+    const requestHeaders = await headers();
+    const baseUrl = getPortalBaseUrl(requestHeaders.get("origin"));
+    const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
+    await sendAdminNotification(
+      buildTimesheetSubmittedAdminEmail({
+        contractorName: notificationContext.contractorName,
+        contractorEmail: notificationContext.contractorEmail,
+        monthLabel,
+        projectName: notificationContext.projectName,
+        totalHours: formatHours(notificationContext.totalHours),
+        reviewLink: `${baseUrl}/timesheets/${timesheet.id}`,
+      }),
+    );
   }
 
   return {

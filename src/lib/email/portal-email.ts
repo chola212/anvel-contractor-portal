@@ -10,6 +10,7 @@ type PortalEmailInput = {
 };
 
 const requiredPortalSender = "ANVEL Consulting <contact@anvelconsulting.com>";
+export const portalAdminEmail = "contact@anvelconsulting.com";
 
 export class PortalEmailError extends Error {
   constructor(message: string) {
@@ -89,7 +90,7 @@ function wrapEmailHtml(title: string, body: string) {
 
 export function buildInviteEmail(contractorName: string, inviteLink: string) {
   return {
-    subject: "Your ANVEL Contractor Portal invitation",
+    subject: "ANVEL Contractor Portal invitation",
     html: wrapEmailHtml(
       "Set your portal password",
       `
@@ -117,7 +118,7 @@ ERP Utilities Consulting Services Ltd.`,
 
 export function buildPasswordResetEmail(resetLink: string) {
   return {
-    subject: "Reset your ANVEL Contractor Portal password",
+    subject: "Reset your portal password",
     html: wrapEmailHtml(
       "Reset your password",
       `
@@ -143,21 +144,26 @@ ERP Utilities Consulting Services Ltd.`,
 export function buildSelfBillingInvoiceEmail(
   contractorName: string,
   monthLabel: string,
+  invoiceNumber: string,
+  projectName: string | null = null,
 ) {
   return {
-    subject: `Self-billing invoice for ${monthLabel}`,
+    subject: `Self-billing invoice ${invoiceNumber} - ${monthLabel}`,
     html: wrapEmailHtml(
-      `Self-billing invoice for ${monthLabel}`,
+      `Self-billing invoice ${invoiceNumber}`,
       `
         <p>Hello ${contractorName},</p>
-        <p>Please find attached your self-billing invoice for ${monthLabel}.</p>
+        <p>Please find attached your self-billing invoice for ${monthLabel}${projectName ? ` for ${projectName}` : ""}.</p>
+        <p>Invoice number: <strong>${invoiceNumber}</strong></p>
         <p>This invoice has been generated based on the approved timesheet for the corresponding month.</p>
         <p>Kind regards,<br />ANVEL Consulting</p>
       `,
     ),
     text: `Hello ${contractorName},
 
-Please find attached your self-billing invoice for ${monthLabel}.
+Please find attached your self-billing invoice for ${monthLabel}${projectName ? ` for ${projectName}` : ""}.
+
+Invoice number: ${invoiceNumber}
 
 This invoice has been generated based on the approved timesheet for the corresponding month.
 
@@ -167,12 +173,142 @@ ANVEL Consulting`,
 }
 
 export function buildNotificationEmail(title: string, body: string) {
+  const htmlBody = body.split("\n").join("<br />");
+
   return {
     subject: title,
-    html: wrapEmailHtml(title, `<p>${body}</p><p>Kind regards,<br />ANVEL Consulting</p>`),
+    html: wrapEmailHtml(
+      title,
+      `<p>${htmlBody}</p><p>Kind regards,<br />ANVEL Consulting</p>`,
+    ),
     text: `${body}
 
 Kind regards,
 ANVEL Consulting`,
+  };
+}
+
+export function buildTimesheetSubmittedAdminEmail({
+  contractorName,
+  contractorEmail,
+  monthLabel,
+  projectName,
+  totalHours,
+  reviewLink,
+}: {
+  contractorName: string;
+  contractorEmail: string;
+  monthLabel: string;
+  projectName: string | null;
+  totalHours: string | null;
+  reviewLink: string;
+}) {
+  const subject = `Timesheet submitted - ${contractorName} - ${monthLabel}`;
+  const lines = [
+    `Contractor: ${contractorName}`,
+    `Email: ${contractorEmail}`,
+    `Month: ${monthLabel}`,
+    `Project: ${projectName ?? "Not set"}`,
+    `Total hours: ${totalHours ?? "Not available"}`,
+    `Review link: ${reviewLink}`,
+  ];
+
+  return {
+    subject,
+    html: wrapEmailHtml(
+      subject,
+      `
+        <p>A contractor timesheet has been submitted for review.</p>
+        <p><strong>Contractor:</strong> ${contractorName}<br />
+        <strong>Email:</strong> ${contractorEmail}<br />
+        <strong>Month:</strong> ${monthLabel}<br />
+        <strong>Project:</strong> ${projectName ?? "Not set"}<br />
+        <strong>Total hours:</strong> ${totalHours ?? "Not available"}</p>
+        <p><a href="${reviewLink}">Open timesheet review</a></p>
+      `,
+    ),
+    text: `A contractor timesheet has been submitted for review.
+
+${lines.join("\n")}`,
+  };
+}
+
+export function buildDocumentUploadedAdminEmail({
+  contractorName,
+  contractorEmail,
+  documentName,
+  uploadDate,
+  reviewLink,
+}: {
+  contractorName: string;
+  contractorEmail: string;
+  documentName: string;
+  uploadDate: string;
+  reviewLink: string;
+}) {
+  const subject = `Document uploaded - ${contractorName} - ${documentName}`;
+
+  return {
+    subject,
+    html: wrapEmailHtml(
+      subject,
+      `
+        <p>A contractor document has been uploaded for review.</p>
+        <p><strong>Contractor:</strong> ${contractorName}<br />
+        <strong>Email:</strong> ${contractorEmail}<br />
+        <strong>Document:</strong> ${documentName}<br />
+        <strong>Upload date:</strong> ${uploadDate}</p>
+        <p><a href="${reviewLink}">Open contractor documents</a></p>
+      `,
+    ),
+    text: `A contractor document has been uploaded for review.
+
+Contractor: ${contractorName}
+Email: ${contractorEmail}
+Document: ${documentName}
+Upload date: ${uploadDate}
+Review link: ${reviewLink}`,
+  };
+}
+
+export function buildInvoiceUploadedAdminEmail({
+  contractorName,
+  contractorEmail,
+  invoiceNumber,
+  monthLabel,
+  projectName,
+  reviewLink,
+}: {
+  contractorName: string;
+  contractorEmail: string;
+  invoiceNumber: string;
+  monthLabel: string;
+  projectName: string | null;
+  reviewLink: string;
+}) {
+  const subject = `Invoice uploaded - ${contractorName} - ${invoiceNumber} - ${monthLabel}`;
+
+  return {
+    subject,
+    html: wrapEmailHtml(
+      subject,
+      `
+        <p>A contractor invoice has been uploaded for review.</p>
+        <p><strong>Contractor:</strong> ${contractorName}<br />
+        <strong>Email:</strong> ${contractorEmail}<br />
+        <strong>Invoice:</strong> ${invoiceNumber}<br />
+        <strong>Month:</strong> ${monthLabel}<br />
+        <strong>Project:</strong> ${projectName ?? "Not set"}</p>
+        <p><a href="${reviewLink}">Open invoice review</a></p>
+      `,
+    ),
+    text: `A contractor invoice has been uploaded for review.
+
+Contractor: ${contractorName}
+Email: ${contractorEmail}
+Invoice: ${invoiceNumber}
+Month: ${monthLabel}
+Project: ${projectName ?? "Not set"}
+Review link: ${reviewLink}`,
   };
 }

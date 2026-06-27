@@ -281,6 +281,7 @@ export async function updateProjectAction(
 
   revalidatePath(`/projects/${currentProject.id}`);
   revalidatePath("/projects");
+  revalidatePath("/");
 
   return {
     message: "Project updated.",
@@ -382,6 +383,7 @@ export async function removeProjectAction(
 
     revalidatePath(`/projects/${project.id}`);
     revalidatePath("/projects");
+    revalidatePath("/");
 
     return {
       message: "Project has business history, so it was closed instead of deleted.",
@@ -422,6 +424,7 @@ export async function removeProjectAction(
   }
 
   revalidatePath("/projects");
+  revalidatePath("/");
 
   return {
     message: "Project deleted.",
@@ -505,8 +508,10 @@ export async function createAssignmentAction(
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/contractors/${parsed.data.contractorId}`);
+  revalidatePath(`/contractors/${parsed.data.contractorId}/timesheets`);
   revalidatePath("/projects");
   revalidatePath("/contractors");
+  revalidatePath("/");
 
   return {
     message: "Assignment created.",
@@ -662,8 +667,10 @@ export async function updateAssignmentStatusAction(
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/contractors/${parsed.data.contractorId}`);
+  revalidatePath(`/contractors/${parsed.data.contractorId}/timesheets`);
   revalidatePath("/projects");
   revalidatePath("/contractors");
+  revalidatePath("/");
 
   return {
     message: "Assignment updated.",

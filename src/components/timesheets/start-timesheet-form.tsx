@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -44,6 +44,9 @@ function SubmitButton() {
 
 export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
   const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  const [selectedYear, setSelectedYear] = useState(currentYear);
   const initialState: TimesheetActionState = {
     message: null,
     status: "idle",
@@ -126,7 +129,14 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
             className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
           >
             {monthOptions.map(([value, label]) => (
-              <option key={value} value={value}>
+              <option
+                key={value}
+                value={value}
+                disabled={
+                  selectedYear > currentYear ||
+                  (selectedYear === currentYear && Number(value) > currentMonth)
+                }
+              >
                 {label}
               </option>
             ))}
@@ -147,8 +157,9 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
             name="year"
             type="number"
             min="2024"
-            max="2100"
-            defaultValue={today.getFullYear()}
+            max={currentYear}
+            defaultValue={currentYear}
+            onChange={(event) => setSelectedYear(Number(event.currentTarget.value))}
             required
             className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
           />

@@ -122,12 +122,37 @@ assert.match(
   /generateSelfBillingInvoiceForTimesheet/,
   "approving a timesheet should generate a self-billing invoice",
 );
+assert.match(
+  timesheetActions,
+  /isFutureTimesheetMonth[\s\S]*You cannot create a timesheet for a future month/,
+  "starting a timesheet should reject future months server-side",
+);
+assert.match(
+  timesheetActions,
+  /submitTimesheetAction[\s\S]*sendAdminNotification[\s\S]*buildTimesheetSubmittedAdminEmail/,
+  "timesheet submission should notify the admin inbox",
+);
+assert.doesNotMatch(
+  timesheetActions.match(/submitTimesheetAction[\s\S]*/)?.[0] ?? "",
+  /Timesheet reopened/,
+  "timesheet submission must not send the reopened contractor email",
+);
+assert.match(
+  timesheetActions,
+  /reopenTimesheetAction[\s\S]*Timesheet reopened - \$\{monthLabel\}/,
+  "only the admin reopen flow should send the reopened contractor email",
+);
 
 const projectActions = read("src/app/(portal)/projects/actions.ts");
 assert.match(
   projectActions,
   /project_closed_for_history/,
   "project removal should close projects with business history",
+);
+assert.match(
+  projectActions,
+  /revalidatePath\("\/"\)/,
+  "project and assignment changes should refresh dashboard status data",
 );
 
 const contractorActions = read("src/app/(portal)/contractors/actions.ts");
@@ -161,6 +186,16 @@ assert.match(
   /contractor_offboarded/,
   "contractor offboarding should be audited",
 );
+assert.match(
+  contractorActions,
+  /listUsers/,
+  "contractor onboarding should detect existing auth users safely",
+);
+assert.match(
+  contractorActions,
+  /from\("profiles"\)\.upsert[\s\S]*from\("contractors"\)[\s\S]*(insert|update)/,
+  "contractor onboarding should save profile and contractor rows before emailing",
+);
 
 const forgotPasswordActions = read("src/app/forgot-password/actions.ts");
 assert.doesNotMatch(
@@ -189,6 +224,59 @@ assert.match(
   portalEmail,
   /Resend rejected the message with/,
   "portal email should log exact Resend rejection details server-side",
+);
+for (const expectedBuilder of [
+  "buildTimesheetSubmittedAdminEmail",
+  "buildDocumentUploadedAdminEmail",
+  "buildInvoiceUploadedAdminEmail",
+  "portalAdminEmail = \"contact@anvelconsulting.com\"",
+]) {
+  assert.match(
+    portalEmail,
+    new RegExp(expectedBuilder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `portal email should expose ${expectedBuilder}`,
+  );
+}
+
+const authCallback = read("src/app/auth/callback/route.ts");
+assert.match(
+  authCallback,
+  /exchangeCodeForSession/,
+  "auth callback should support Supabase code links",
+);
+assert.match(
+  authCallback,
+  /verifyOtp[\s\S]*token_hash/,
+  "auth callback should support Supabase token_hash links",
+);
+assert.match(
+  authCallback,
+  /searchParams\.get\("token"\)/,
+  "auth callback should support token fallback links",
+);
+assert.match(
+  authCallback,
+  /getSafeRedirectPath/,
+  "auth callback should preserve only safe reset redirects",
+);
+
+const startTimesheetForm = read("src/components/timesheets/start-timesheet-form.tsx");
+assert.match(
+  startTimesheetForm,
+  /disabled=\{[\s\S]*Number\(value\) > currentMonth/,
+  "timesheet start form should disable future months in the UI",
+);
+
+const documentActions = read("src/app/(portal)/documents/actions.ts");
+assert.match(
+  documentActions,
+  /profile\.role === "contractor"[\s\S]*sendAdminNotification[\s\S]*buildDocumentUploadedAdminEmail/,
+  "contractor document uploads should notify the admin inbox",
+);
+assert.doesNotMatch(
+  documentActions.match(/if \(profile\.role === "admin"\)[\s\S]*?}\n\n  if \(profile\.role === "contractor"\)/)?.[0] ?? "",
+  /buildDocumentUploadedAdminEmail/,
+  "admin document uploads should not send contractor-upload notifications",
 );
 
 const assignmentList = read("src/components/projects/assignment-list.tsx");
@@ -220,6 +308,23 @@ assert.match(
   invoiceActions,
   /invoice_type: "contractor_uploaded"/,
   "manual contractor invoice upload should remain explicitly contractor_uploaded",
+);
+assert.match(
+  invoiceActions,
+  /sendAdminNotification[\s\S]*buildInvoiceUploadedAdminEmail/,
+  "contractor invoice uploads should notify the admin inbox",
+);
+assert.match(
+  invoiceActions,
+  /Invoice approved for payment - \$\{invoice\.invoice_number\} - \$\{monthLabel\}/,
+  "invoice review emails should include invoice number and month",
+);
+
+const paymentActions = read("src/app/(portal)/payments/actions.ts");
+assert.match(
+  paymentActions,
+  /Payment marked paid - \$\{invoice\.invoice_number\} - \$\{monthLabel\}/,
+  "payment emails should include invoice number and month",
 );
 
 for (const [file, forbiddenQuery] of [
@@ -315,8 +420,8 @@ assert.match(
 );
 assert.match(
   selfBilling,
-  /buildSelfBillingInvoiceEmail/,
-  "self-billing generation should email the invoice",
+  /buildSelfBillingInvoiceEmail\([^)]*monthLabel[^)]*invoiceNumber[^)]*project\.name/s,
+  "self-billing generation should email the invoice with month, number and project",
 );
 assert.match(
   selfBilling,
@@ -409,6 +514,15 @@ for (const file of visibleCopyFiles) {
     content,
     /fake development|private .*bucket|MVP|later/,
     `${file} should not contain production-facing scaffolding copy`,
+  );
+}
+
+const readme = read("README.md");
+for (const expectedEmailTerm of ["SPF", "DKIM", "DMARC", "Resend"]) {
+  assert.match(
+    readme,
+    new RegExp(expectedEmailTerm),
+    `README should document ${expectedEmailTerm} email troubleshooting`,
   );
 }
 

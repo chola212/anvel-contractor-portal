@@ -1,12 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 import { requireCurrentProfile, requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import type { SupplierType } from "@/lib/contractors/types";
 import type { DocumentStatus } from "@/lib/documents/types";
+import { sendAdminNotification } from "@/lib/email/notifications";
+import {
+  buildDocumentUploadedAdminEmail,
+  getPortalBaseUrl,
+} from "@/lib/email/portal-email";
 import { createClient } from "@/lib/supabase/server";
 
 const maxDocumentSizeBytes = 10 * 1024 * 1024;
@@ -130,9 +136,14 @@ export async function uploadContractorDocumentAction(
       : parsed.success && parsed.data.contractorId
         ? await supabase
             .from("contractors")
-            .select("id,supplier_type")
+            .select("id,supplier_type,legal_name,email")
             .eq("id", parsed.data.contractorId)
-            .maybeSingle<{ id: string; supplier_type: SupplierType | null }>()
+            .maybeSingle<{
+              id: string;
+              supplier_type: SupplierType | null;
+              legal_name: string;
+              email: string;
+            }>()
             .then((result) => result.data)
         : null;
 
@@ -260,8 +271,23 @@ export async function uploadContractorDocumentAction(
     }
   }
 
+  if (profile.role === "contractor") {
+    const requestHeaders = await headers();
+    const baseUrl = getPortalBaseUrl(requestHeaders.get("origin"));
+    await sendAdminNotification(
+      buildDocumentUploadedAdminEmail({
+        contractorName: contractor.legal_name,
+        contractorEmail: contractor.email,
+        documentName: requirement.name,
+        uploadDate: new Date().toISOString().slice(0, 10),
+        reviewLink: `${baseUrl}/contractors/${contractor.id}/documents`,
+      }),
+    );
+  }
+
   revalidatePath("/documents");
   revalidatePath(`/contractors/${contractor.id}`);
+  revalidatePath(`/contractors/${contractor.id}/documents`);
 
   return {
     message: "Document uploaded for review.",
@@ -302,9 +328,9 @@ export async function reviewContractorDocumentAction(
   const supabase = await createClient();
   const { data: document, error: documentError } = await supabase
     .from("contractor_documents")
-    .select("id,status")
+    .select("id,status,contractor_id")
     .eq("id", parsed.data.documentId)
-    .maybeSingle<{ id: string; status: DocumentStatus }>();
+    .maybeSingle<{ id: string; status: DocumentStatus; contractor_id: string }>();
 
   if (documentError || !document) {
     return {
@@ -354,6 +380,9 @@ export async function reviewContractorDocumentAction(
   }
 
   revalidatePath("/documents");
+  revalidatePath(`/contractors/${document.contractor_id}/documents`);
+  revalidatePath(`/contractors/${document.contractor_id}`);
+  revalidatePath("/");
 
   return {
     message: "Document review saved.",

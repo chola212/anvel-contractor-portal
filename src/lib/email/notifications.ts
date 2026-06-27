@@ -1,4 +1,8 @@
-import { buildNotificationEmail, sendPortalEmail } from "./portal-email";
+import {
+  buildNotificationEmail,
+  portalAdminEmail,
+  sendPortalEmail,
+} from "./portal-email";
 
 export async function sendContractorNotification({
   to,
@@ -19,6 +23,24 @@ export async function sendContractorNotification({
     return result.sent;
   } catch (error) {
     console.error("Contractor notification email failed", error);
+    return false;
+  }
+}
+
+export async function sendAdminNotification(email: {
+  subject: string;
+  html: string;
+  text: string;
+}) {
+  try {
+    await sendPortalEmail({
+      to: portalAdminEmail,
+      ...email,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Admin notification email failed", error);
     return false;
   }
 }
