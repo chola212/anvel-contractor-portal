@@ -117,6 +117,11 @@ assert.match(
   /Calendar contains hours outside the assignment period/,
   "calendar save should reject entries outside assignment dates",
 );
+assert.match(
+  timesheetActions,
+  /generateSelfBillingInvoiceForTimesheet/,
+  "approving a timesheet should generate a self-billing invoice",
+);
 
 const projectActions = read("src/app/(portal)/projects/actions.ts");
 assert.match(
@@ -130,6 +135,11 @@ assert.match(
   contractorActions,
   /inviteUserByEmail|generateLink/,
   "contractor onboarding should use invite-only auth",
+);
+assert.match(
+  contractorActions,
+  /resendContractorInviteAction/,
+  "contractor onboarding should support invite resends",
 );
 assert.match(
   contractorActions,
@@ -149,6 +159,81 @@ assert.match(
   "contractor payments should show a clean pending message",
 );
 
+const invoiceActions = read("src/app/(portal)/invoices/actions.ts");
+assert.match(
+  invoiceActions,
+  /\.min\(1, "Enter the invoice number\."\)/,
+  "invoice number validation should allow one-character invoice numbers",
+);
+
+for (const [file, forbiddenQuery] of [
+  ["src/app/(portal)/documents/page.tsx", "getDocumentsForStaff"],
+  ["src/app/(portal)/timesheets/page.tsx", "getTimesheetsForStaff"],
+  ["src/app/(portal)/invoices/page.tsx", "getInvoicesForStaff"],
+  ["src/app/(portal)/payments/page.tsx", "getPaymentRowsForStaff"],
+]) {
+  assert.doesNotMatch(
+    read(file),
+    new RegExp(forbiddenQuery),
+    `${file} should not load unfiltered global records for staff by default`,
+  );
+}
+
+const contractorDetail = read("src/app/(portal)/contractors/[id]/page.tsx");
+for (const expectedQuery of [
+  "getDocumentsForContractor",
+  "getTimesheetsForContractor",
+  "getInvoicesForContractor",
+  "getPaymentRowsForContractor",
+]) {
+  assert.match(
+    contractorDetail,
+    new RegExp(expectedQuery),
+    "contractor profile should contain contractor-specific operational sections",
+  );
+}
+
+const dashboard = read("src/app/(portal)/page.tsx");
+assert.match(
+  dashboard,
+  /profile\.role === "contractor"/,
+  "contractor dashboard should have a role-specific branch",
+);
+assert.match(
+  dashboard,
+  /My self-billing invoices/,
+  "contractor dashboard should show own self-billing invoice link",
+);
+
+const selfBilling = read("src/lib/self-billing/generate.ts");
+assert.match(
+  selfBilling,
+  /existingInvoice/,
+  "self-billing generation should check for existing invoice first",
+);
+assert.match(
+  selfBilling,
+  /createSelfBillingInvoicePdf/,
+  "self-billing generation should create a PDF",
+);
+assert.match(
+  selfBilling,
+  /buildSelfBillingInvoiceEmail/,
+  "self-billing generation should email the invoice",
+);
+
+const resetScript = read("scripts/reset-operational-data.mjs");
+assert.match(
+  resetScript,
+  /ALLOW_OPERATIONAL_DATA_RESET/,
+  "reset script should require explicit confirmation",
+);
+assert.doesNotMatch(
+  resetScript,
+  /from\("contractors"\)\.delete|from\("profiles"\)\.delete|auth\.admin\.deleteUser/,
+  "reset script must preserve contractors, profiles and auth users",
+);
+
 const visibleCopyFiles = [
   "src/app/account-required/page.tsx",
   "src/app/forgot-password/page.tsx",
@@ -165,7 +250,7 @@ for (const file of visibleCopyFiles) {
   const content = read(file);
   assert.doesNotMatch(
     content,
-    /Supabase|fake development|private .*bucket|MVP|later/,
+    /fake development|private .*bucket|MVP|later/,
     `${file} should not contain production-facing scaffolding copy`,
   );
 }

@@ -1,10 +1,9 @@
 import { PaymentList } from "@/components/payments/payment-list";
+import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
-import {
-  getPaymentRowsForContractor,
-  getPaymentRowsForStaff,
-} from "@/lib/payments/queries";
+import { getContractorsForStaff } from "@/lib/contractors/queries";
+import { getPaymentRowsForContractor } from "@/lib/payments/queries";
 
 export default async function PaymentsPage() {
   const profile = await requireCurrentProfile();
@@ -15,9 +14,7 @@ export default async function PaymentsPage() {
   const rows =
     isContractor && contractor
       ? await getPaymentRowsForContractor(contractor.id)
-      : isContractor
-        ? []
-        : await getPaymentRowsForStaff();
+      : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -29,9 +26,9 @@ export default async function PaymentsPage() {
           Payments
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Manual payment status tracking for uploaded contractor invoices. This
-          screen does not process bank payments, collect payment cards, or create
-          self-billed invoices.
+          Manual payment status tracking for self-billing and optional manual
+          invoices. This screen does not process bank payments or collect
+          payment cards.
         </p>
       </section>
 
@@ -47,11 +44,14 @@ export default async function PaymentsPage() {
           </p>
         </section>
       ) : (
-        <PaymentList
-          rows={rows}
-          mode={isContractor ? "contractor" : "staff"}
-          canManage={profile.role === "admin"}
-        />
+        isContractor ? (
+          <PaymentList rows={rows} mode="contractor" canManage={false} />
+        ) : (
+          <ContractorOperationalSelector
+            contractors={await getContractorsForStaff()}
+            section="payments"
+          />
+        )
       )}
     </div>
   );

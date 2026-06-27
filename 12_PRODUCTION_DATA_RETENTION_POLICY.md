@@ -29,7 +29,7 @@ Do not use the portal for:
 - detailed task tracking;
 - passport or ID collection by default;
 - automatic bank payments;
-- self-billing or legal invoice issuing.
+- automatic bank payment execution.
 
 Do not put real personal data, full bank details, service-role keys, or production secrets into GitHub issues, commits, chat messages, screenshots, or local notes.
 
@@ -43,7 +43,7 @@ The portal may store these production data categories:
 - signed contractor document PDFs and metadata;
 - monthly timesheets and entries;
 - internal payment statements;
-- official contractor invoice PDFs and metadata;
+- self-billing and optional manual invoice PDFs and metadata;
 - manual payment status and reference records;
 - accountant export files;
 - audit logs for sensitive actions.

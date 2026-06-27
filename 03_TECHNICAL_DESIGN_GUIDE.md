@@ -4,7 +4,7 @@ Project: **ANVEL Contractor Portal**
 Company: **ERP UTILITIES CONSULTING SERVICES LTD**  
 Repository: `anvel-contractor-portal`  
 Production domain: `portal.anvelconsulting.com`  
-Notification email: `portal@anvelconsulting.com`  
+Notification email: `contact@anvelconsulting.com`  
 Audience: second-year Computer Science student learning full-stack development
 
 ---
@@ -68,7 +68,7 @@ The MVP must not include:
 - SAP credentials;
 - production client data;
 - automatic bank payments;
-- legal self-billing;
+- automatic bank payments;
 - electronic signature integration;
 - passport/ID document requirement by default;
 - payment card data;
@@ -683,7 +683,7 @@ created_at timestamptz not null default now()
 created_by uuid references profiles(id)
 ```
 
-This is not a legal invoice. It is an internal calculation and draft reference.
+Approved timesheets generate self-billing invoice records and PDFs. The payment statement values remain the calculation basis for those invoices and for payment tracking.
 
 ### 10.10 `invoices`
 

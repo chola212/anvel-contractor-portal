@@ -151,10 +151,24 @@ export async function createContractorAction(
   }
 
   const supabase = await createClient();
-  const adminSupabase = createAdminClient();
+  let adminSupabase: ReturnType<typeof createAdminClient>;
+
+  try {
+    adminSupabase = createAdminClient();
+  } catch (error) {
+    console.error("Contractor invitation service-role configuration is missing", error);
+    return {
+      message:
+        "Contractor invitations are not configured. Set the server-only service-role key before creating accounts.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   const requestHeaders = await headers();
   const requestOrigin = requestHeaders.get("origin");
   const redirectTo = buildAuthCallbackUrl(requestOrigin);
+  let actionLink: string | null = null;
 
   const inviteResult: {
     data: {
@@ -197,7 +211,7 @@ export async function createContractorAction(
   }
 
   if (process.env.RESEND_API_KEY) {
-    const actionLink = inviteResult.data.properties?.action_link;
+    actionLink = inviteResult.data.properties?.action_link ?? null;
 
     if (!actionLink) {
       return {
@@ -206,12 +220,6 @@ export async function createContractorAction(
         fieldErrors: {},
       };
     }
-
-    const email = buildInviteEmail(parsed.data.fullName, actionLink);
-    await sendPortalEmail({
-      to: parsed.data.email,
-      ...email,
-    });
   }
 
   const { error: profileInsertError } = await supabase.from("profiles").insert({
@@ -223,6 +231,8 @@ export async function createContractorAction(
   });
 
   if (profileInsertError) {
+    await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+
     return {
       message: `The account was invited, but the profile row could not be created: ${profileInsertError.message}`,
       status: "error",
@@ -252,6 +262,9 @@ export async function createContractorAction(
     .single<{ id: string }>();
 
   if (error || !contractor) {
+    await supabase.from("profiles").delete().eq("id", invitedUser.id);
+    await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+
     return {
       message:
         error?.code === "23505"
@@ -282,6 +295,24 @@ export async function createContractorAction(
       status: "error",
       fieldErrors: {},
     };
+  }
+
+  if (process.env.RESEND_API_KEY && actionLink) {
+    try {
+      const email = buildInviteEmail(parsed.data.fullName, actionLink);
+      await sendPortalEmail({
+        to: parsed.data.email,
+        ...email,
+      });
+    } catch (error) {
+      console.error("Contractor invitation email failed", error);
+      return {
+        message:
+          "Contractor account was created, but the invitation email could not be sent. Use Resend invite from the contractor profile.",
+        status: "error",
+        fieldErrors: {},
+      };
+    }
   }
 
   revalidatePath("/contractors");
@@ -576,6 +607,115 @@ export async function offboardContractorAction(
 
   return {
     message: "Contractor offboarded and account access disabled.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function resendContractorInviteAction(
+  _previousState: ContractorCreateState,
+  formData: FormData,
+): Promise<ContractorCreateState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = contractorIdSchema.safeParse({
+    contractorId: formData.get("contractorId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Contractor is missing.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    return {
+      message: "Branded email is not configured. Set RESEND_API_KEY before resending invites.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  let adminSupabase: ReturnType<typeof createAdminClient>;
+
+  try {
+    adminSupabase = createAdminClient();
+  } catch (error) {
+    console.error("Resend invite service-role configuration is missing", error);
+    return {
+      message: "Invite links are not configured. Set the server-only service-role key.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: contractor, error: contractorError } = await supabase
+    .from("contractors")
+    .select("id,legal_name,email,status")
+    .eq("id", parsed.data.contractorId)
+    .maybeSingle<{
+      id: string;
+      legal_name: string;
+      email: string;
+      status: string;
+    }>();
+
+  if (contractorError || !contractor) {
+    return {
+      message: "This contractor could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const requestHeaders = await headers();
+  const { data, error } = await adminSupabase.auth.admin.generateLink({
+    type: "recovery",
+    email: contractor.email,
+    options: {
+      redirectTo: buildAuthCallbackUrl(requestHeaders.get("origin")),
+    },
+  });
+
+  if (error || !data.properties?.action_link) {
+    return {
+      message: error?.message ?? "Could not prepare the invite link.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  try {
+    const email = buildInviteEmail(contractor.legal_name, data.properties.action_link);
+    await sendPortalEmail({
+      to: contractor.email,
+      ...email,
+    });
+  } catch (error) {
+    console.error("Resend invite email failed", error);
+    return {
+      message: "The invite link was prepared, but the email could not be sent.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "contractor_invite_resent",
+    entity_type: "contractor",
+    entity_id: contractor.id,
+    metadata: {
+      email: contractor.email,
+    },
+  });
+
+  revalidatePath(`/contractors/${contractor.id}`);
+
+  return {
+    message: "Invitation email resent.",
     status: "success",
     fieldErrors: {},
   };

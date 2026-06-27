@@ -1,10 +1,11 @@
 import { InvoiceList } from "@/components/invoices/invoice-list";
 import { InvoiceUploadForm } from "@/components/invoices/invoice-upload-form";
+import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { getContractorsForStaff } from "@/lib/contractors/queries";
 import {
   getInvoicesForContractor,
-  getInvoicesForStaff,
   getUploadableStatementsForContractor,
 } from "@/lib/invoices/queries";
 
@@ -17,9 +18,7 @@ export default async function InvoicesPage() {
   const invoices =
     isContractor && contractor
       ? await getInvoicesForContractor(contractor.id)
-      : isContractor
-        ? []
-        : await getInvoicesForStaff();
+      : [];
   const uploadableStatements =
     isContractor && contractor
       ? await getUploadableStatementsForContractor(contractor.id)
@@ -52,18 +51,23 @@ export default async function InvoicesPage() {
           </p>
         </section>
       ) : (
+        isContractor ? (
         <>
-          {isContractor ? (
-            <InvoiceUploadForm statements={uploadableStatements} />
-          ) : null}
+          <InvoiceUploadForm statements={uploadableStatements} />
           <InvoiceList
             invoices={invoices}
-            mode={isContractor ? "contractor" : "staff"}
-            showFileName={profile.role === "admin" || profile.role === "contractor"}
-            canDownload={profile.role === "admin" || profile.role === "contractor"}
-            canReview={profile.role === "admin"}
+            mode="contractor"
+            showFileName
+            canDownload
+            canReview={false}
           />
         </>
+        ) : (
+          <ContractorOperationalSelector
+            contractors={await getContractorsForStaff()}
+            section="invoices"
+          />
+        )
       )}
     </div>
   );

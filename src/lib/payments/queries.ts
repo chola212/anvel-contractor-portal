@@ -12,7 +12,9 @@ import type {
 const invoiceColumns = `
   id,
   payment_statement_id,
+  timesheet_id,
   contractor_id,
+  invoice_type,
   invoice_number,
   invoice_date,
   net_amount,

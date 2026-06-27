@@ -31,9 +31,8 @@ export function PaymentStatementPanel({
           No payment statement generated
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
-          A payment statement is an internal invoice draft calculated from an
-          approved timesheet. It is not a legal invoice and does not mark
-          anything as paid.
+          Self-billing invoices are generated from approved timesheets. Payment
+          status remains tracked separately.
         </p>
         {canGenerate && timesheetStatus === "approved" ? (
           <PaymentStatementGenerateForm timesheetId={timesheetId} />
@@ -55,12 +54,11 @@ export function PaymentStatementPanel({
             Payment statement
           </p>
           <h2 className="mt-2 text-lg font-semibold text-neutral-950">
-            Internal invoice draft
+            Self-billing calculation
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
-            This statement estimates what the contractor should invoice. The
-            contractor uploads the official invoice separately from this
-            internal calculation.
+            This calculation supports the generated self-billing invoice and
+            payment tracking for the approved timesheet.
           </p>
         </div>
         <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">

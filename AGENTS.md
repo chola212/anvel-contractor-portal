@@ -4,7 +4,7 @@ Project: **ANVEL Contractor Portal**
 Repository: `anvel-contractor-portal`  
 Owner: **ERP UTILITIES CONSULTING SERVICES LTD**  
 Production domain: `portal.anvelconsulting.com`  
-Notification email: `portal@anvelconsulting.com`
+Notification email: `contact@anvelconsulting.com`
 
 This file contains mandatory instructions for Codex or any AI coding assistant working in this repository.
 
@@ -32,7 +32,6 @@ It is not:
 - a CV scoring tool;
 - a client portal;
 - an accounting system;
-- a legal self-billing system;
 - a SAP code repository;
 - a project management system.
 
@@ -102,6 +101,7 @@ The MVP includes:
 - monthly timesheets;
 - admin approval/rejection of timesheets;
 - payment statement / invoice draft calculation;
+- self-billing invoice generation from approved timesheets;
 - official invoice upload by contractor;
 - invoice review;
 - manual payment status;
@@ -124,7 +124,6 @@ Do not implement the following unless the owner explicitly asks for them later:
 - SAP client data storage;
 - detailed task reporting;
 - automatic legal invoice issuance;
-- self-billing;
 - automatic bank payments;
 - electronic signature integration;
 - payment card handling;
@@ -205,21 +204,11 @@ Validation rules:
 
 ## 8. Invoice and payment rules
 
-The portal may calculate an expected payable amount from an approved timesheet.
+The portal calculates payable amounts from approved timesheets and generates self-billing invoices.
 
-This is called:
-
-```text
-Payment statement / invoice draft
-```
-
-It is not a legal invoice.
-
-The contractor must upload the official invoice.
+Contractor-uploaded invoices may remain available as an optional manual fallback.
 
 The portal tracks invoice review and payment status manually.
-
-Do not implement self-billing unless explicitly requested later.
 
 Do not implement automatic bank payments.
 
@@ -521,7 +510,6 @@ Ask before doing any of the following:
 
 - changing the approved stack;
 - adding paid APIs;
-- adding self-billing;
 - adding automatic bank payments;
 - adding electronic signature;
 - collecting passport/ID documents by default;

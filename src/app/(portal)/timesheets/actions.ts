@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { sendContractorNotification } from "@/lib/email/notifications";
+import { generateSelfBillingInvoiceForTimesheet } from "@/lib/self-billing/generate";
 import { createClient } from "@/lib/supabase/server";
 import {
   dateIsWithinAssignment,
@@ -204,6 +206,19 @@ async function validateTimesheetEntriesWithinAssignments(
   }
 }
 
+async function loadContractorNotificationTarget(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  contractorId: string,
+) {
+  const { data } = await supabase
+    .from("contractors")
+    .select("legal_name,email")
+    .eq("id", contractorId)
+    .maybeSingle<{ legal_name: string; email: string }>();
+
+  return data;
+}
+
 function parseWorkDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -323,11 +338,63 @@ export async function approveTimesheetAction(
     };
   }
 
+  let selfBillingMessage = "Self-billing invoice generated and emailed.";
+
+  try {
+    const approvedAt = new Date().toISOString();
+    const selfBilling = await generateSelfBillingInvoiceForTimesheet({
+      supabase,
+      timesheet: {
+        ...timesheet,
+        status: "approved",
+        approved_by: profile.id,
+        approved_at: approvedAt,
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+      },
+      actorProfileId: profile.id,
+    });
+
+    if (selfBilling.alreadyGenerated) {
+      selfBillingMessage = "Self-billing invoice already existed.";
+    } else if (selfBilling.emailStatus !== "sent") {
+      selfBillingMessage =
+        "Self-billing invoice generated, but email delivery needs attention.";
+    }
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? `Timesheet approved, but self-billing failed: ${error.message}`
+          : "Timesheet approved, but self-billing failed.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+  revalidatePath("/invoices");
+  revalidatePath("/payments");
+  revalidatePath("/exports");
+
+  const notificationTarget = await loadContractorNotificationTarget(
+    supabase,
+    timesheet.contractor_id,
+  );
+
+  if (notificationTarget) {
+    await sendContractorNotification({
+      to: notificationTarget.email,
+      subject: "Timesheet approved",
+      body:
+        "Your timesheet has been approved and a self-billing invoice has been generated from the approved hours.",
+    });
+  }
 
   return {
-    message: "Timesheet approved.",
+    message: `Timesheet approved. ${selfBillingMessage}`,
     status: "success",
     fieldErrors: {},
   };
@@ -400,6 +467,19 @@ export async function rejectTimesheetAction(
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+
+  const notificationTarget = await loadContractorNotificationTarget(
+    supabase,
+    timesheet.contractor_id,
+  );
+
+  if (notificationTarget) {
+    await sendContractorNotification({
+      to: notificationTarget.email,
+      subject: "Timesheet correction required",
+      body: `Your submitted timesheet needs correction. Reason: ${parsed.data.rejectionReason}`,
+    });
+  }
 
   return {
     message: "Timesheet rejected for correction.",
@@ -972,6 +1052,19 @@ export async function submitTimesheetAction(
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+
+  const notificationTarget = await loadContractorNotificationTarget(
+    supabase,
+    timesheet.contractor_id,
+  );
+
+  if (notificationTarget) {
+    await sendContractorNotification({
+      to: notificationTarget.email,
+      subject: "Timesheet reopened",
+      body: "Your timesheet has been reopened for correction.",
+    });
+  }
 
   return {
     message: "Timesheet submitted for review.",

@@ -1,12 +1,11 @@
 import { StartTimesheetForm } from "@/components/timesheets/start-timesheet-form";
 import { TimesheetList } from "@/components/timesheets/timesheet-list";
+import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getAssignmentsForContractor } from "@/lib/projects/queries";
-import {
-  getTimesheetsForContractor,
-  getTimesheetsForStaff,
-} from "@/lib/timesheets/queries";
+import { getContractorsForStaff } from "@/lib/contractors/queries";
+import { getTimesheetsForContractor } from "@/lib/timesheets/queries";
 
 export default async function TimesheetsPage() {
   const profile = await requireCurrentProfile();
@@ -17,9 +16,7 @@ export default async function TimesheetsPage() {
   const timesheets =
     isContractor && contractor
       ? await getTimesheetsForContractor(contractor.id)
-      : isContractor
-        ? []
-        : await getTimesheetsForStaff();
+      : [];
   const assignments =
     isContractor && contractor
       ? (await getAssignmentsForContractor(contractor.id)).filter((assignment) =>
@@ -56,13 +53,17 @@ export default async function TimesheetsPage() {
           </p>
         </section>
       ) : (
+        isContractor ? (
         <>
-          {isContractor ? <StartTimesheetForm assignments={assignments} /> : null}
-          <TimesheetList
-            timesheets={timesheets}
-            mode={isContractor ? "contractor" : "staff"}
-          />
+          <StartTimesheetForm assignments={assignments} />
+          <TimesheetList timesheets={timesheets} mode="contractor" />
         </>
+        ) : (
+          <ContractorOperationalSelector
+            contractors={await getContractorsForStaff()}
+            section="timesheets"
+          />
+        )
       )}
     </div>
   );

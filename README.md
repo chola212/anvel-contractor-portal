@@ -3,7 +3,7 @@
 Private invite-only contractor operations portal for ERP UTILITIES CONSULTING SERVICES LTD.
 
 Production domain: `portal.anvelconsulting.com`  
-Notification email: `portal@anvelconsulting.com`
+Notification email: `contact@anvelconsulting.com`
 
 ## What The Portal Does
 
@@ -33,6 +33,13 @@ PORTAL_EMAIL_FROM
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it in browser code and never commit `.env.local`.
+
+Use this production sender value:
+
+```text
+PORTAL_EMAIL_FROM="ANVEL Consulting <contact@anvelconsulting.com>"
+NEXT_PUBLIC_SITE_URL="https://portal.anvelconsulting.com"
+```
 
 Run the app:
 
@@ -70,10 +77,11 @@ https://portal.anvelconsulting.com/reset-password
 
 Password reset and invite links pass through `/auth/callback`, exchange the code for a session, then allow the user to set a new password.
 
-For branded production email, configure either:
+For branded production email, configure:
 
-- `RESEND_API_KEY` and `PORTAL_EMAIL_FROM`, or
-- a branded SMTP/template setup in the auth provider dashboard.
+- `RESEND_API_KEY`
+- `PORTAL_EMAIL_FROM="ANVEL Consulting <contact@anvelconsulting.com>"`
+- Resend domain authentication for `anvelconsulting.com`
 
 Do not use default-looking platform emails in production.
 
@@ -83,13 +91,15 @@ Do not use default-looking platform emails in production.
 - Admin edits contractor profile/account details and can offboard access safely.
 - Contractor opens a monthly timesheet and enters hours in a calendar view.
 - Timesheet dates are validated against assignment start/end dates in the UI and server actions.
-- Admin approves, rejects or reopens submitted timesheets.
-- Admin generates payment statements only when a single valid assignment rate covers all worked dates.
-- Contractor uploads official invoice PDF where manual invoice mode is used.
-- Admin records invoice review and can mark an invoice as paid from `/payments`.
+- Admin approves a submitted timesheet.
+- Approval generates a payment calculation, self-billing invoice record and PDF.
+- The self-billing PDF is stored in private invoice storage and emailed to the contractor.
+- Contractor-uploaded invoices remain available only as an optional manual fallback.
+- Admin records invoice review and can mark an invoice as paid from the contractor profile payment section.
 - Contractor payment view shows clean pending status until payment is recorded.
 - Admin and contractor can upload contractor documents; admin uploads are linked to the contractor and visible to them.
 - Accountant CSV export excludes bank details and private document links.
+- Admin Documents, Timesheets, Invoices and Payments workflows start by selecting a contractor, then managing that contractor's records.
 
 ## Checks
 
@@ -97,6 +107,7 @@ Run before committing:
 
 ```bash
 npm.cmd run lint
+npm.cmd run test
 npm.cmd run test:business
 npm.cmd run build
 ```
@@ -110,6 +121,27 @@ npm.cmd run test:a11y-mobile
 ```
 
 Some route scripts require a running local server and configured test credentials.
+
+## Operational Data Reset
+
+To restart operational testing without deleting contractors, profiles, auth users or configuration, use:
+
+```bash
+$env:ALLOW_OPERATIONAL_DATA_RESET="YES_DELETE_OPERATIONAL_DATA"
+npm.cmd run reset:operational-data
+```
+
+The script deletes operational documents, timesheets, payment statements, invoices, payments, projects, assignments and related audit logs. It also attempts to remove files from `contractor-documents` and `contractor-invoices`.
+
+It requires:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+ALLOW_OPERATIONAL_DATA_RESET=YES_DELETE_OPERATIONAL_DATA
+```
+
+Run it only against the intended environment.
 
 ## Deployment
 
@@ -130,8 +162,36 @@ High-level deployment order:
 7. Point Cloudflare DNS to the Vercel production deployment.
 8. Run production verification before entering real contractor data.
 
+## Email Configuration Checklist
+
+Supabase auth configuration:
+
+```text
+Site URL: https://portal.anvelconsulting.com
+Redirect URL: https://portal.anvelconsulting.com/auth/callback
+Redirect URL: https://portal.anvelconsulting.com/reset-password
+```
+
+Vercel environment variables:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SITE_URL=https://portal.anvelconsulting.com
+RESEND_API_KEY
+PORTAL_EMAIL_FROM=ANVEL Consulting <contact@anvelconsulting.com>
+```
+
+Resend/domain setup:
+
+- Add and verify `anvelconsulting.com` in Resend.
+- Configure the DNS records Resend provides in Cloudflare.
+- Wait until SPF/DKIM/domain status is verified.
+- Use `contact@anvelconsulting.com` as the sending mailbox.
+
 ## Current Legal/Accounting Assumptions
 
-Payment statements are operational calculations. Contractor-uploaded invoices remain available as the manual/legal invoice workflow.
+The portal generates self-billing invoices from approved timesheets. Human confirmation is still required for VAT/accounting policy, invoice wording and any jurisdiction-specific self-billing agreement requirements before relying on the generated PDF as the final statutory document.
 
-Self-billing invoice generation still requires human legal/accounting confirmation before it is treated as the legal production invoice process. Do not represent generated payment statements as legal self-billing invoices until that confirmation is complete.
+Payments remain manual status tracking. The portal does not execute bank payments.

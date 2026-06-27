@@ -32,8 +32,8 @@ export function InvoiceList({
           No invoices found
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Invoice records will appear here after a contractor uploads an
-          official invoice PDF against a payment statement.
+          Invoice records will appear here after self-billing generation or
+          optional manual invoice upload.
         </p>
       </section>
     );
@@ -43,11 +43,11 @@ export function InvoiceList({
     <section className="overflow-hidden rounded-md border border-neutral-200 bg-white">
       <div className="border-b border-neutral-200 px-5 py-4">
         <h2 className="text-base font-semibold text-neutral-950">
-          Official invoices
+          Invoices
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Uploaded contractor invoice metadata. Admins can record manual review
-          status without issuing invoices or triggering payment.
+          Self-billing and optional manual invoice records. Admins can record
+          review status and payment readiness.
         </p>
       </div>
       <div className="overflow-x-auto">

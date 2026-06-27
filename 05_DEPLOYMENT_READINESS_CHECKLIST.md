@@ -220,7 +220,7 @@ The current MVP does not add:
 
 - public registration;
 - automatic bank payments;
-- self-billing;
+- automatic bank payments;
 - electronic signatures;
 - analytics/tracking scripts;
 - passport or ID collection by default.

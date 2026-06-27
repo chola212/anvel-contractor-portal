@@ -10,10 +10,15 @@ export type InvoiceStatus =
   | "paid"
   | "on_hold";
 
+export type InvoiceType = "self_billing" | "contractor_uploaded";
+export type InvoiceEmailStatus = "not_sent" | "sent" | "failed";
+
 export type InvoiceRecord = {
   id: string;
   payment_statement_id: string | null;
+  timesheet_id: string | null;
   contractor_id: string;
+  invoice_type: InvoiceType;
   invoice_number: string;
   invoice_date: string;
   net_amount: number | string;
@@ -26,6 +31,10 @@ export type InvoiceRecord = {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_comment: string | null;
+  generated_by: string | null;
+  generated_at: string | null;
+  emailed_at: string | null;
+  email_status: InvoiceEmailStatus;
   created_at: string;
   updated_at: string;
 };

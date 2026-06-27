@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { sendContractorNotification } from "@/lib/email/notifications";
 import type { InvoiceStatus } from "@/lib/invoices/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,7 +17,7 @@ const uploadInvoiceSchema = z.object({
   invoiceNumber: z
     .string()
     .trim()
-    .min(2, "Enter the invoice number.")
+    .min(1, "Enter the invoice number.")
     .max(80, "Invoice number is too long."),
   invoiceDate: z
     .string()
@@ -61,6 +62,7 @@ export type InvoiceReviewState = {
 
 type StatementForInvoiceUpload = {
   id: string;
+  timesheet_id: string;
   contractor_id: string;
   project_id: string;
   net_amount: number | string;
@@ -177,7 +179,7 @@ export async function uploadContractorInvoiceAction(
   const supabase = await createClient();
   const { data: statement, error: statementError } = await supabase
     .from("payment_statements")
-    .select("id,contractor_id,project_id,net_amount,vat_amount,gross_amount,currency")
+    .select("id,timesheet_id,contractor_id,project_id,net_amount,vat_amount,gross_amount,currency")
     .eq("id", parsed.data.paymentStatementId)
     .maybeSingle<StatementForInvoiceUpload>();
 
@@ -195,6 +197,7 @@ export async function uploadContractorInvoiceAction(
     .from("invoices")
     .select("id")
     .eq("payment_statement_id", statement.id)
+    .eq("invoice_type", "contractor_uploaded")
     .limit(1)
     .maybeSingle<{ id: string }>();
 
@@ -236,7 +239,9 @@ export async function uploadContractorInvoiceAction(
   const { error: insertError } = await supabase.from("invoices").insert({
     id: invoiceId,
     payment_statement_id: statement.id,
+    timesheet_id: statement.timesheet_id,
     contractor_id: contractor.id,
+    invoice_type: "contractor_uploaded",
     invoice_number: parsed.data.invoiceNumber,
     invoice_date: parsed.data.invoiceDate,
     net_amount: statement.net_amount,
@@ -303,9 +308,9 @@ export async function reviewInvoiceAction(
   const supabase = await createClient();
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id,status")
+    .select("id,status,contractor_id")
     .eq("id", parsed.data.invoiceId)
-    .maybeSingle<{ id: string; status: InvoiceStatus }>();
+    .maybeSingle<{ id: string; status: InvoiceStatus; contractor_id: string }>();
 
   if (invoiceError || !invoice) {
     return {
@@ -352,6 +357,35 @@ export async function reviewInvoiceAction(
       status: "error",
       fieldErrors: {},
     };
+  }
+
+  const { data: contractor } = await supabase
+    .from("contractors")
+    .select("email")
+    .eq("id", invoice.contractor_id)
+    .maybeSingle<{ email: string }>();
+
+  if (
+    contractor &&
+    ["approved_for_payment", "correction_required", "on_hold"].includes(
+      parsed.data.status,
+    )
+  ) {
+    await sendContractorNotification({
+      to: contractor.email,
+      subject:
+        parsed.data.status === "approved_for_payment"
+          ? "Invoice approved for payment"
+          : parsed.data.status === "on_hold"
+            ? "Invoice put on hold"
+            : "Invoice correction required",
+      body:
+        parsed.data.status === "correction_required"
+          ? `Your invoice needs correction. Reason: ${parsed.data.reviewComment}`
+          : parsed.data.status === "on_hold"
+            ? "Your invoice has been put on hold while ANVEL reviews it."
+            : "Your invoice has been approved for payment tracking.",
+    });
   }
 
   revalidatePath("/invoices");

@@ -14,6 +14,7 @@ type DocumentUploadFormProps = {
   requirements: DocumentRequirementRecord[];
   contractors?: { id: string; legal_name: string; email: string }[];
   mode?: "contractor" | "staff";
+  selectedContractorId?: string;
 };
 
 function SubmitButton() {
@@ -34,6 +35,7 @@ export function DocumentUploadForm({
   requirements,
   contractors = [],
   mode = "contractor",
+  selectedContractorId,
 }: DocumentUploadFormProps) {
   const router = useRouter();
   const initialState: DocumentUploadState = {
@@ -81,7 +83,11 @@ export function DocumentUploadForm({
       </div>
 
       <form action={formAction} className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-        {mode === "staff" ? (
+        {mode === "staff" && selectedContractorId ? (
+          <input type="hidden" name="contractorId" value={selectedContractorId} />
+        ) : null}
+
+        {mode === "staff" && !selectedContractorId ? (
           <div className="space-y-2">
             <label
               htmlFor="contractorId"

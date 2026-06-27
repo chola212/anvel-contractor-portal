@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
+import { sendContractorNotification } from "@/lib/email/notifications";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceStatus } from "@/lib/invoices/types";
 
@@ -131,12 +132,13 @@ export async function updatePaymentStatusAction(
   const supabase = await createClient();
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id,status,currency")
+    .select("id,status,currency,contractor_id")
     .eq("id", parsed.data.invoiceId)
     .maybeSingle<{
       id: string;
       status: InvoiceStatus;
       currency: string;
+      contractor_id: string;
     }>();
 
   if (invoiceError || !invoice) {
@@ -240,6 +242,28 @@ export async function updatePaymentStatusAction(
       status: "error",
       fieldErrors: {},
     };
+  }
+
+  if (["paid", "on_hold"].includes(parsed.data.status)) {
+    const { data: contractor } = await supabase
+      .from("contractors")
+      .select("email")
+      .eq("id", invoice.contractor_id)
+      .maybeSingle<{ email: string }>();
+
+    if (contractor) {
+      await sendContractorNotification({
+        to: contractor.email,
+        subject:
+          parsed.data.status === "paid"
+            ? "Payment marked as paid"
+            : "Payment put on hold",
+        body:
+          parsed.data.status === "paid"
+            ? "Your invoice payment has been marked as paid in the ANVEL Contractor Portal."
+            : "Your invoice payment has been put on hold while ANVEL reviews it.",
+      });
+    }
   }
 
   revalidatePath("/payments");

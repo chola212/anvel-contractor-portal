@@ -51,7 +51,19 @@ export async function forgotPasswordAction(
   const redirectTo = buildAuthCallbackUrl(origin);
 
   if (process.env.RESEND_API_KEY) {
-    const adminSupabase = createAdminClient();
+    let adminSupabase: ReturnType<typeof createAdminClient>;
+
+    try {
+      adminSupabase = createAdminClient();
+    } catch (error) {
+      console.error("Password reset service-role configuration is missing", error);
+      return {
+        message: "Password reset email is not configured. Contact ANVEL support.",
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+
     const { data, error } = await adminSupabase.auth.admin.generateLink({
       type: "recovery",
       email: parsed.data.email,
@@ -69,11 +81,20 @@ export async function forgotPasswordAction(
       };
     }
 
-    const email = buildPasswordResetEmail(data.properties.action_link);
-    await sendPortalEmail({
-      to: parsed.data.email,
-      ...email,
-    });
+    try {
+      const email = buildPasswordResetEmail(data.properties.action_link);
+      await sendPortalEmail({
+        to: parsed.data.email,
+        ...email,
+      });
+    } catch (error) {
+      console.error("Password reset email provider failed", error);
+      return {
+        message: "Could not send the password reset email. Contact ANVEL support.",
+        status: "error",
+        fieldErrors: {},
+      };
+    }
 
     return {
       message:

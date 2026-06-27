@@ -20,7 +20,9 @@ export type PaymentRecord = {
 export type PaymentInvoiceRecord = {
   id: string;
   payment_statement_id: string | null;
+  timesheet_id: string | null;
   contractor_id: string;
+  invoice_type: string;
   invoice_number: string;
   invoice_date: string;
   net_amount: number | string;

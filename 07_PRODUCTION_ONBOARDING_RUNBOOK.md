@@ -40,7 +40,7 @@ Allowed for first onboarding:
 - required signed PDF documents;
 - project assignment and hourly rate;
 - monthly hours actually worked;
-- official contractor invoice PDF;
+- generated self-billing invoice PDF, with optional manual invoice PDF fallback;
 - manual payment status and accountant export data.
 
 Do not add by default:
@@ -341,7 +341,7 @@ Admin:
 3. Review the invoice.
 4. Record the invoice review status and comment.
 
-The portal does not issue invoices on behalf of contractors.
+The portal generates self-billing invoices from approved timesheets. Contractor-uploaded invoices remain an optional manual fallback if ANVEL needs one for a specific case.
 
 ## 13. Manual Payment Status
 

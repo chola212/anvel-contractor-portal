@@ -3,6 +3,10 @@ type PortalEmailInput = {
   subject: string;
   html: string;
   text: string;
+  attachments?: {
+    filename: string;
+    content: string;
+  }[];
 };
 
 export function getPortalBaseUrl(origin?: string | null) {
@@ -21,7 +25,7 @@ export async function sendPortalEmail(input: PortalEmailInput) {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
     process.env.PORTAL_EMAIL_FROM ??
-    "ANVEL Contractor Portal <portal@anvelconsulting.com>";
+    "ANVEL Consulting <contact@anvelconsulting.com>";
 
   if (!apiKey) {
     return { sent: false as const };
@@ -39,6 +43,7 @@ export async function sendPortalEmail(input: PortalEmailInput) {
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments,
     }),
   });
 
@@ -115,5 +120,42 @@ ${resetLink}
 If you did not request this, you can ignore this email.
 
 ERP Utilities Consulting Services Ltd.`,
+  };
+}
+
+export function buildSelfBillingInvoiceEmail(
+  contractorName: string,
+  monthLabel: string,
+) {
+  return {
+    subject: `Self-billing invoice for ${monthLabel}`,
+    html: wrapEmailHtml(
+      `Self-billing invoice for ${monthLabel}`,
+      `
+        <p>Hello ${contractorName},</p>
+        <p>Please find attached your self-billing invoice for ${monthLabel}.</p>
+        <p>This invoice has been generated based on the approved timesheet for the corresponding month.</p>
+        <p>Kind regards,<br />ANVEL Consulting</p>
+      `,
+    ),
+    text: `Hello ${contractorName},
+
+Please find attached your self-billing invoice for ${monthLabel}.
+
+This invoice has been generated based on the approved timesheet for the corresponding month.
+
+Kind regards,
+ANVEL Consulting`,
+  };
+}
+
+export function buildNotificationEmail(title: string, body: string) {
+  return {
+    subject: title,
+    html: wrapEmailHtml(title, `<p>${body}</p><p>Kind regards,<br />ANVEL Consulting</p>`),
+    text: `${body}
+
+Kind regards,
+ANVEL Consulting`,
   };
 }

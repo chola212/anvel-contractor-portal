@@ -1,13 +1,12 @@
 import { DocumentList } from "@/components/documents/document-list";
 import { DocumentUploadForm } from "@/components/documents/document-upload-form";
+import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
 import {
-  getAllDocumentRequirements,
   getDocumentRequirementsForContractor,
   getDocumentsForContractor,
-  getDocumentsForStaff,
 } from "@/lib/documents/queries";
 
 export default async function DocumentsPage() {
@@ -19,18 +18,11 @@ export default async function DocumentsPage() {
   const documents =
     isContractor && contractor
       ? await getDocumentsForContractor(contractor.id)
-      : isContractor
-        ? []
-        : await getDocumentsForStaff();
+      : [];
   const documentRequirements =
     isContractor && contractor
       ? await getDocumentRequirementsForContractor(contractor.supplier_type)
-      : !isContractor && profile.role === "admin"
-        ? await getAllDocumentRequirements()
-        : [];
-  const contractors =
-    !isContractor && profile.role === "admin" ? await getContractorsForStaff() : [];
-
+      : [];
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
       <section className="border-b border-neutral-200 pb-5">
@@ -60,20 +52,20 @@ export default async function DocumentsPage() {
           </section>
         )
       ) : null}
-      {!isContractor && profile.role === "admin" ? (
-        <DocumentUploadForm
-          requirements={documentRequirements}
-          contractors={contractors}
-          mode="staff"
+      {!isContractor ? (
+        <ContractorOperationalSelector
+          contractors={await getContractorsForStaff()}
+          section="documents"
         />
-      ) : null}
-      <DocumentList
-        documents={documents}
-        mode={isContractor ? "contractor" : "staff"}
-        showFileName={profile.role === "admin" || profile.role === "contractor"}
-        canDownload={profile.role === "admin" || profile.role === "contractor"}
-        canReview={profile.role === "admin"}
-      />
+      ) : (
+        <DocumentList
+          documents={documents}
+          mode="contractor"
+          showFileName
+          canDownload
+          canReview={false}
+        />
+      )}
     </div>
   );
 }
