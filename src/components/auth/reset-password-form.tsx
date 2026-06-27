@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 
 import { passwordRules, passwordSchema } from "@/lib/auth/password";
@@ -20,6 +20,7 @@ const resetPasswordSchema = z
 type ResetStatus = "idle" | "submitting" | "success" | "error";
 
 export function ResetPasswordForm() {
+  const submittingRef = useRef(false);
   const [status, setStatus] = useState<ResetStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -29,11 +30,18 @@ export function ResetPasswordForm() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (submittingRef.current) {
+      return;
+    }
+
+    submittingRef.current = true;
     setStatus("submitting");
     setMessage(null);
     setFieldErrors({});
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const parsed = resetPasswordSchema.safeParse({
       password: formData.get("password"),
       confirmPassword: formData.get("confirmPassword"),
@@ -43,38 +51,54 @@ export function ResetPasswordForm() {
       setStatus("error");
       setMessage("Check the new password and try again.");
       setFieldErrors(parsed.error.flatten().fieldErrors);
+      submittingRef.current = false;
       return;
     }
 
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!session) {
+      if (!session) {
+        setStatus("error");
+        setMessage(
+          "Open this page from the latest password reset email before choosing a new password.",
+        );
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: parsed.data.password,
+      });
+
+      if (error) {
+        setStatus("error");
+        setMessage(
+          "Could not update the password. The reset link may have expired.",
+        );
+        return;
+      }
+
+      form.reset();
+      setStatus("success");
+      setMessage(
+        "Password updated successfully. You can now sign in with your new password.",
+      );
+
+      void supabase.auth.signOut({ scope: "local" }).catch((signOutError) => {
+        console.error("Password updated, but local sign-out failed", signOutError);
+      });
+    } catch (error) {
+      console.error("Password update failed unexpectedly", error);
       setStatus("error");
       setMessage(
-        "Open this page from the latest password reset email before choosing a new password.",
+        "Could not update the password. Check your connection and try again.",
       );
-      return;
+    } finally {
+      submittingRef.current = false;
     }
-
-    const { error } = await supabase.auth.updateUser({
-      password: parsed.data.password,
-    });
-
-    if (error) {
-      setStatus("error");
-      setMessage(
-        "Could not update the password. The reset link may have expired.",
-      );
-      return;
-    }
-
-    await supabase.auth.signOut();
-    event.currentTarget.reset();
-    setStatus("success");
-    setMessage("Password updated. You can now sign in with the new password.");
   }
 
   return (
@@ -149,17 +173,26 @@ export function ResetPasswordForm() {
         </div>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={status === "submitting" || status === "success"}
-        className="w-full rounded-md bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-900 disabled:cursor-not-allowed disabled:bg-neutral-400"
-      >
-        {status === "submitting" ? "Updating password..." : "Update password"}
-      </button>
+      {status !== "success" ? (
+        <button
+          type="submit"
+          disabled={status === "submitting"}
+          className="w-full rounded-md bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-900 disabled:cursor-not-allowed disabled:bg-neutral-400"
+        >
+          {status === "submitting" ? "Updating password..." : "Update password"}
+        </button>
+      ) : null}
 
       <p className="text-center text-sm text-neutral-600">
-        <Link href="/login" className="font-medium text-teal-800 hover:text-teal-900">
-          Return to sign in
+        <Link
+          href="/login"
+          className={
+            status === "success"
+              ? "inline-flex min-h-10 items-center rounded-md bg-teal-800 px-4 py-2 font-semibold text-white transition-colors hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+              : "font-medium text-teal-800 hover:text-teal-900"
+          }
+        >
+          {status === "success" ? "Sign in" : "Return to sign in"}
         </Link>
       </p>
     </form>

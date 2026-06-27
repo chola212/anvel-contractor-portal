@@ -74,6 +74,21 @@ Resend must show `anvelconsulting.com` as verified. Confirm SPF and DKIM are
 valid; DMARC is recommended. Redeploy Vercel after any environment-variable
 change, and check Resend logs when delivery is delayed.
 
+Supabase Auth security-email check:
+
+- changing a password through `supabase.auth.updateUser` triggers Supabase
+  Auth's project-level **Password changed** notification when enabled;
+- this email is separate from the portal's branded reset-request email;
+- in **Authentication > Email > SMTP Settings**, configure sender
+  `ANVEL Consulting <contact@anvelconsulting.com>`, host `smtp.resend.com`,
+  port `465`, username `resend`, and a Resend API key as the password;
+- customize **Password changed** under
+  **Authentication > Email Templates > Security notifications**;
+- alternatively, disable that security notification if it is not wanted;
+- never leave it enabled with Supabase's default
+  `noreply@mail.app.supabase.io` sender in production;
+- verify the result with a fake user after saving the dashboard settings.
+
 ## 4. Supabase Production Project
 
 Supabase provides Auth, PostgreSQL, Storage and RLS.

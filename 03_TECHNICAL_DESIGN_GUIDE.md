@@ -1402,6 +1402,13 @@ valid SPF and DKIM records; DMARC is recommended. Redeploy Vercel after changing
 environment variables. If delivery is delayed, inspect Resend delivery logs
 before treating the portal workflow as failed.
 
+Password changes also have a Supabase Auth security notification that is not
+controlled by the portal email helper. In Supabase Dashboard, either disable
+the **Password changed** security notification or configure Resend under
+**Authentication > Email > SMTP Settings** and customize the Password changed
+security template. Production must not leave this notification enabled with
+Supabase's default sender.
+
 ### 23.3 Preview deployments
 
 Use preview deployments for branches.

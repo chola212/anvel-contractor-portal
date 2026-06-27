@@ -10,7 +10,7 @@ import type {
   TimesheetSummary,
 } from "./types";
 
-const timesheetColumns = `
+const timesheetCoreColumns = `
   id,
   contractor_id,
   project_id,
@@ -23,7 +23,6 @@ const timesheetColumns = `
   rejected_by,
   rejected_at,
   rejection_reason,
-  comments,
   created_at,
   updated_at
 `;
@@ -76,19 +75,19 @@ export async function getTimesheetsForStaff(filters: TimesheetFilters = {}) {
   const { data, error } = await applyTimesheetFilters(
     supabase
     .from("timesheets")
-      .select(timesheetColumns),
+      .select(timesheetCoreColumns),
     filters,
   )
     .order("year", { ascending: false })
     .order("month", { ascending: false })
     .order("created_at", { ascending: false })
-    .returns<TimesheetRecord[]>();
+    .returns<Omit<TimesheetRecord, "comments">[]>();
 
   if (error) {
     throw new Error(`Could not load timesheets: ${error.message}`);
   }
 
-  return hydrateTimesheets(data);
+  return hydrateTimesheets(await addTimesheetComments(data));
 }
 
 export async function getTimesheetsForContractor(
@@ -99,29 +98,37 @@ export async function getTimesheetsForContractor(
   const { data, error } = await applyTimesheetFilters(
     supabase
     .from("timesheets")
-    .select(timesheetColumns)
+    .select(timesheetCoreColumns)
       .eq("contractor_id", contractorId),
     filters,
   )
     .order("year", { ascending: false })
     .order("month", { ascending: false })
     .order("created_at", { ascending: false })
-    .returns<TimesheetRecord[]>();
+    .returns<Omit<TimesheetRecord, "comments">[]>();
 
   if (error) {
     throw new Error(`Could not load contractor timesheets: ${error.message}`);
   }
 
-  return hydrateTimesheets(data);
+  return hydrateTimesheets(await addTimesheetComments(data));
 }
 
 export async function getTimesheetById(id: string) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      id,
+    )
+  ) {
+    return null;
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("timesheets")
-    .select(timesheetColumns)
+    .select(timesheetCoreColumns)
     .eq("id", id)
-    .maybeSingle<TimesheetRecord>();
+    .maybeSingle<Omit<TimesheetRecord, "comments">>();
 
   if (error) {
     throw new Error(`Could not load timesheet: ${error.message}`);
@@ -131,7 +138,8 @@ export async function getTimesheetById(id: string) {
     return null;
   }
 
-  const [summary] = await hydrateTimesheets([data]);
+  const [timesheetWithComments] = await addTimesheetComments([data]);
+  const [summary] = await hydrateTimesheets([timesheetWithComments]);
   const { data: entries, error: entriesError } = await supabase
     .from("timesheet_entries")
     .select(entryColumns)
@@ -147,6 +155,48 @@ export async function getTimesheetById(id: string) {
     ...summary,
     entries,
   } satisfies TimesheetDetail;
+}
+
+async function addTimesheetComments(
+  timesheets: Omit<TimesheetRecord, "comments">[],
+) {
+  if (timesheets.length === 0) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("timesheets")
+    .select("id,comments")
+    .in(
+      "id",
+      timesheets.map((timesheet) => timesheet.id),
+    )
+    .returns<{ id: string; comments: string | null }[]>();
+
+  if (error?.code === "42703") {
+    console.warn(
+      "Timesheet comments migration is not applied; loading core timesheet data without comments.",
+    );
+
+    return timesheets.map((timesheet) => ({
+      ...timesheet,
+      comments: null,
+    }));
+  }
+
+  if (error) {
+    throw new Error(`Could not load timesheet comments: ${error.message}`);
+  }
+
+  const commentsByTimesheet = new Map(
+    data.map((timesheet) => [timesheet.id, timesheet.comments]),
+  );
+
+  return timesheets.map((timesheet) => ({
+    ...timesheet,
+    comments: commentsByTimesheet.get(timesheet.id) ?? null,
+  }));
 }
 
 async function hydrateTimesheets(timesheets: TimesheetRecord[]) {

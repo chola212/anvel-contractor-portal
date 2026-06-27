@@ -10,6 +10,8 @@ const adminEmail = process.env.SMOKE_ADMIN_EMAIL;
 const adminPassword = process.env.SMOKE_ADMIN_PASSWORD;
 const contractorEmail = process.env.SMOKE_CONTRACTOR_EMAIL;
 const contractorPassword = process.env.SMOKE_CONTRACTOR_PASSWORD;
+const smokeContractorId = process.env.SMOKE_CONTRACTOR_ID;
+const smokeTimesheetId = process.env.SMOKE_TIMESHEET_ID;
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabasePublishableKey =
@@ -38,6 +40,24 @@ const contractorAccessibleRoutes = [
   { path: "/invoices", expectedText: "Invoices" },
   { path: "/payments", expectedText: "Payments" },
 ];
+
+if (smokeContractorId) {
+  adminAccessibleRoutes.push({
+    path: `/contractors/${smokeContractorId}/timesheets`,
+    expectedText: "Timesheets",
+  });
+}
+
+if (smokeTimesheetId) {
+  adminAccessibleRoutes.push({
+    path: `/timesheets/${smokeTimesheetId}`,
+    expectedText: "Monthly timesheet detail",
+  });
+  contractorAccessibleRoutes.push({
+    path: `/timesheets/${smokeTimesheetId}`,
+    expectedText: "Monthly timesheet detail",
+  });
+}
 
 const contractorBlockedRoutes = [
   "/contractors",
@@ -203,6 +223,18 @@ async function checkBlocked(role, cookie, path) {
   );
 }
 
+async function checkNotFound(role, cookie, path) {
+  const { response } = await fetchWithCookie(path, cookie);
+
+  if (response.status !== 404) {
+    throw new Error(
+      `${role} ${path} returned ${response.status}; expected a clean 404.`,
+    );
+  }
+
+  return `${role} receives a clean 404 for ${path}`;
+}
+
 async function run() {
   const { resolvedAdminCookie, resolvedContractorCookie } =
     await resolveAuthCookies();
@@ -229,6 +261,18 @@ async function run() {
       "contractor",
       resolvedContractorCookie,
       path,
+    );
+    console.log(`OK ${message}`);
+  }
+
+  for (const [role, cookie] of [
+    ["admin", resolvedAdminCookie],
+    ["contractor", resolvedContractorCookie],
+  ]) {
+    const message = await checkNotFound(
+      role,
+      cookie,
+      "/timesheets/not-a-valid-timesheet-id",
     );
     console.log(`OK ${message}`);
   }

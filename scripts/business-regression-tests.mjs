@@ -192,6 +192,28 @@ assert.match(
 );
 assert.match(
   timesheetActions,
+  /commentsError\?\.code === "42703"[\s\S]*latest database migration is pending/,
+  "calendar hours should remain saveable while the comments migration is pending",
+);
+
+const timesheetQueries = read("src/lib/timesheets/queries.ts");
+assert.match(
+  timesheetQueries,
+  /timesheetCoreColumns[\s\S]*addTimesheetComments/,
+  "timesheet routes should load core data separately from optional comments",
+);
+assert.match(
+  timesheetQueries,
+  /error\?\.code === "42703"[\s\S]*loading core timesheet data without comments/,
+  "timesheet routes should tolerate the comments column during migration rollout",
+);
+assert.match(
+  timesheetQueries,
+  /getTimesheetById[\s\S]*\.test\([\s\S]*return null;[\s\S]*const supabase/,
+  "timesheet detail lookup should reject malformed ids before querying PostgreSQL",
+);
+assert.match(
+  timesheetActions,
   /submitTimesheetAction[\s\S]*sendAdminNotification[\s\S]*buildTimesheetSubmittedAdminEmail/,
   "timesheet submission should notify the admin inbox",
 );
@@ -451,6 +473,31 @@ assert.match(
   resetPasswordForm,
   /Password requirements[\s\S]*passwordRules/,
   "reset and invitation password setup should show the shared password rules",
+);
+assert.match(
+  resetPasswordForm,
+  /Password updated successfully\. You can now sign in with your new password\./,
+  "successful password update should show the required success message",
+);
+assert.match(
+  resetPasswordForm,
+  /status !== "success"[\s\S]*disabled=\{status === "submitting"\}/,
+  "password submit should be disabled only while the update is pending",
+);
+assert.match(
+  resetPasswordForm,
+  /submittingRef\.current/,
+  "password update should guard against double submission",
+);
+assert.match(
+  resetPasswordForm,
+  /status === "success" \? "Sign in" : "Return to sign in"/,
+  "successful password update should present a clear sign-in action",
+);
+assert.ok(
+  resetPasswordForm.indexOf('setStatus("success")') <
+    resetPasswordForm.indexOf("void supabase.auth.signOut"),
+  "success state should render before non-blocking local sign-out",
 );
 const passwordPolicy = read("src/lib/auth/password.ts");
 for (const rule of [
@@ -722,5 +769,39 @@ for (const expectedEmailTerm of ["SPF", "DKIM", "DMARC", "Resend"]) {
     `README should document ${expectedEmailTerm} email troubleshooting`,
   );
 }
+for (const expectedAuthEmailTerm of [
+  "Password changed",
+  "SMTP Settings",
+  "smtp.resend.com",
+  "noreply@mail.app.supabase.io",
+]) {
+  assert.match(
+    readme,
+    new RegExp(expectedAuthEmailTerm.replaceAll(".", "\\.")),
+    `README should document Supabase auth email configuration: ${expectedAuthEmailTerm}`,
+  );
+  assert.match(
+    read("05_DEPLOYMENT_READINESS_CHECKLIST.md"),
+    new RegExp(expectedAuthEmailTerm.replaceAll(".", "\\.")),
+    `production checklist should cover: ${expectedAuthEmailTerm}`,
+  );
+}
+
+const authenticatedRoutes = read("scripts/authenticated-route-smoke-test.mjs");
+assert.match(
+  authenticatedRoutes,
+  /SMOKE_CONTRACTOR_ID[\s\S]*\/contractors\/\$\{smokeContractorId\}\/timesheets/,
+  "authenticated smoke tests should cover the admin contractor timesheet route",
+);
+assert.match(
+  authenticatedRoutes,
+  /SMOKE_TIMESHEET_ID[\s\S]*\/timesheets\/\$\{smokeTimesheetId\}/,
+  "authenticated smoke tests should cover timesheet detail for admin and contractor",
+);
+assert.match(
+  authenticatedRoutes,
+  /timesheets\/not-a-valid-timesheet-id[\s\S]*clean 404|clean 404[\s\S]*timesheets\/not-a-valid-timesheet-id/,
+  "authenticated smoke tests should verify malformed timesheet ids do not crash",
+);
 
 console.log("Business regression checks passed.");

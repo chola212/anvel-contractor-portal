@@ -122,7 +122,7 @@ async function getAdminReviewTimesheet(
   const { data: timesheet, error } = await supabase
     .from("timesheets")
     .select(
-      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,comments,created_at,updated_at",
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
     )
     .eq("id", timesheetId)
     .maybeSingle<TimesheetRecord>();
@@ -655,7 +655,7 @@ async function getEditableOwnTimesheet(timesheetId: string) {
   const { data: timesheet, error } = await supabase
     .from("timesheets")
     .select(
-      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,comments,created_at,updated_at",
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
     )
     .eq("id", timesheetId)
     .maybeSingle<TimesheetRecord>();
@@ -1012,19 +1012,6 @@ export async function saveTimesheetCalendarAction(
     }
   }
 
-  const { error: commentsError } = await supabase
-    .from("timesheets")
-    .update({ comments: parsed.data.comments })
-    .eq("id", timesheet.id);
-
-  if (commentsError) {
-    return {
-      message: `Could not save timesheet comments: ${commentsError.message}`,
-      status: "error",
-      fieldErrors: {},
-    };
-  }
-
   if (upserts.length > 0) {
     const { error: upsertError } = await supabase
       .from("timesheet_entries")
@@ -1057,6 +1044,23 @@ export async function saveTimesheetCalendarAction(
         fieldErrors: {},
       };
     }
+  }
+
+  const { error: commentsError } = await supabase
+    .from("timesheets")
+    .update({ comments: parsed.data.comments })
+    .eq("id", timesheet.id);
+
+  if (commentsError?.code === "42703") {
+    warnings.push(
+      "comments were not saved because the latest database migration is pending",
+    );
+  } else if (commentsError) {
+    return {
+      message: `Calendar hours were saved, but comments could not be saved: ${commentsError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
   }
 
   revalidatePath(`/timesheets/${timesheet.id}`);

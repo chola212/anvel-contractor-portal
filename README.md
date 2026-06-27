@@ -72,6 +72,16 @@ Production self-billing requires the invoice metadata repair migration:
 supabase/migrations/202606270003_repair_self_billing_invoice_columns.sql
 ```
 
+Timesheet comments and the current document requirement defaults require:
+
+```text
+supabase/migrations/202606280001_timesheet_comments_and_document_requirements.sql
+```
+
+Apply this migration before deploying code that saves timesheet comments. The
+timesheet routes tolerate the column being temporarily absent, but comments
+cannot be persisted until the migration is applied.
+
 Apply all unapplied migrations in order in the production Supabase SQL Editor,
 then run this verification query:
 
@@ -122,6 +132,30 @@ ANVEL Consulting <contact@anvelconsulting.com>
 ```
 
 Do not use default-looking platform emails in production.
+
+### Supabase password-change security notification
+
+`supabase.auth.updateUser({ password })` can trigger Supabase Auth's separate
+**Password changed** security notification. This message is not sent by the
+portal's Resend helper, so changing `PORTAL_EMAIL_FROM` does not affect it.
+
+For production, choose one of these Supabase Dashboard configurations:
+
+1. Recommended: keep the security notification and brand it.
+   - Verify `anvelconsulting.com` in Resend.
+   - Open **Authentication > Email > SMTP Settings**.
+   - Enable custom SMTP with sender `contact@anvelconsulting.com`, sender name
+     `ANVEL Consulting`, host `smtp.resend.com`, port `465`, username `resend`,
+     and a server-side Resend API key as the password.
+   - Under **Authentication > Email Templates > Security notifications**,
+     customize **Password changed** with ANVEL subject and HTML.
+2. If no password-change notification is wanted, disable the project-level
+   **Password changed** security notification in that Email Templates section.
+
+Do not leave the notification enabled while Supabase's default
+`noreply@mail.app.supabase.io` sender is active. Test with a fake contractor
+after saving the dashboard configuration. The application cannot override this
+notification's sender in `updateUser`.
 
 ## Main Workflows
 
