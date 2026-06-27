@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:a11y-mobile": "node scripts/accessibility-mobile-check.mjs",
+    "test:business": "node scripts/business-regression-tests.mjs",
     "test:routes": "node scripts/route-smoke-test.mjs",
     "test:routes:auth": "node scripts/authenticated-route-smoke-test.mjs",
     "test:phase5:rls": "node scripts/phase5-rls-verify.mjs"

@@ -20,7 +20,7 @@ export function ContractorList({ contractors }: ContractorListProps) {
           No contractors found
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Create fake development contractor records before testing this module.
+          Contractor records will appear here after onboarding.
         </p>
       </section>
     );
@@ -33,8 +33,7 @@ export function ContractorList({ contractors }: ContractorListProps) {
           Contractor records
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Read-only operational view. Editing is intentionally out of scope for
-          this phase.
+          Open a profile to manage contractor details, access and assignments.
         </p>
       </div>
       <div className="overflow-x-auto">

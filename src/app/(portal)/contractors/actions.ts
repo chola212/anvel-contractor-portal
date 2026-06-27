@@ -1,10 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
+import {
+  buildAuthCallbackUrl,
+  buildInviteEmail,
+  sendPortalEmail,
+} from "@/lib/email/portal-email";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const optionalText = z
@@ -13,7 +20,12 @@ const optionalText = z
   .transform((value) => (value.length > 0 ? value : null));
 
 const createContractorSchema = z.object({
-  profileId: z.string().uuid("Select a contractor login profile."),
+  email: z.string().trim().email("Enter a valid contractor email address."),
+  fullName: z
+    .string()
+    .trim()
+    .min(1, "Enter the contractor account name.")
+    .max(160, "Keep the account name under 160 characters."),
   legalName: z
     .string()
     .trim()
@@ -49,10 +61,14 @@ const createContractorSchema = z.object({
 });
 
 const updateContractorSchema = createContractorSchema
-  .omit({ profileId: true })
+  .omit({})
   .extend({
     contractorId: z.string().uuid("Contractor is missing."),
   });
+
+const contractorIdSchema = z.object({
+  contractorId: z.string().uuid("Contractor is missing."),
+});
 
 const bankText = z
   .string()
@@ -111,7 +127,8 @@ export async function createContractorAction(
   const profile = await requireRole(["admin"]);
 
   const parsed = createContractorSchema.safeParse({
-    profileId: formData.get("profileId"),
+    email: formData.get("email"),
+    fullName: formData.get("fullName"),
     legalName: formData.get("legalName"),
     tradingName: formData.get("tradingName"),
     phone: formData.get("phone"),
@@ -134,39 +151,92 @@ export async function createContractorAction(
   }
 
   const supabase = await createClient();
-  const { data: loginProfile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id,email,role,is_active")
-    .eq("id", parsed.data.profileId)
-    .maybeSingle<{
-      id: string;
-      email: string;
-      role: string;
-      is_active: boolean;
-    }>();
+  const adminSupabase = createAdminClient();
+  const requestHeaders = await headers();
+  const requestOrigin = requestHeaders.get("origin");
+  const redirectTo = buildAuthCallbackUrl(requestOrigin);
 
-  if (
-    profileError ||
-    !loginProfile ||
-    loginProfile.role !== "contractor" ||
-    !loginProfile.is_active
-  ) {
+  const inviteResult: {
+    data: {
+      user: { id: string } | null;
+      properties?: {
+        action_link?: string;
+      };
+    };
+    error: { message: string } | null;
+  } = process.env.RESEND_API_KEY
+    ? await adminSupabase.auth.admin.generateLink({
+        type: "invite",
+        email: parsed.data.email,
+        options: {
+          data: {
+            full_name: parsed.data.fullName,
+            role: "contractor",
+          },
+          redirectTo,
+        },
+      })
+    : await adminSupabase.auth.admin.inviteUserByEmail(parsed.data.email, {
+        data: {
+          full_name: parsed.data.fullName,
+          role: "contractor",
+        },
+        redirectTo,
+      });
+
+  const invitedUser = inviteResult.data.user;
+
+  if (inviteResult.error || !invitedUser) {
     return {
-      message: "Select an active contractor login profile.",
+      message:
+        inviteResult.error?.message ??
+        "Could not create the contractor portal invitation.",
       status: "error",
-      fieldErrors: {
-        profileId: ["Select an active contractor login profile."],
-      },
+      fieldErrors: {},
+    };
+  }
+
+  if (process.env.RESEND_API_KEY) {
+    const actionLink = inviteResult.data.properties?.action_link;
+
+    if (!actionLink) {
+      return {
+        message: "Could not prepare the contractor invitation email.",
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+
+    const email = buildInviteEmail(parsed.data.fullName, actionLink);
+    await sendPortalEmail({
+      to: parsed.data.email,
+      ...email,
+    });
+  }
+
+  const { error: profileInsertError } = await supabase.from("profiles").insert({
+    id: invitedUser.id,
+    email: parsed.data.email,
+    full_name: parsed.data.fullName,
+    role: "contractor",
+    is_active: true,
+  });
+
+  if (profileInsertError) {
+    return {
+      message: `The account was invited, but the profile row could not be created: ${profileInsertError.message}`,
+      status: "error",
+      fieldErrors: {},
     };
   }
 
   const { data: contractor, error } = await supabase
     .from("contractors")
     .insert({
-      profile_id: parsed.data.profileId,
+      profile_id: invitedUser.id,
       legal_name: parsed.data.legalName,
       trading_name: parsed.data.tradingName,
-      email: loginProfile.email,
+      email: parsed.data.email,
       phone: parsed.data.phone,
       country: parsed.data.country,
       supplier_type: parsed.data.supplierType,
@@ -195,12 +265,13 @@ export async function createContractorAction(
   }
 
   const { error: auditError } = await supabase.from("audit_logs").insert({
-    actor_profile_id: profile.id,
-    action: "contractor_created",
+      actor_profile_id: profile.id,
+      action: "contractor_created",
     entity_type: "contractor",
     entity_id: contractor.id,
     metadata: {
-      profile_id: parsed.data.profileId,
+      profile_id: invitedUser.id,
+      email: parsed.data.email,
       status: parsed.data.status,
     },
   });
@@ -225,6 +296,8 @@ export async function updateContractorAction(
 
   const parsed = updateContractorSchema.safeParse({
     contractorId: formData.get("contractorId"),
+    email: formData.get("email"),
+    fullName: formData.get("fullName"),
     legalName: formData.get("legalName"),
     tradingName: formData.get("tradingName"),
     phone: formData.get("phone"),
@@ -251,7 +324,9 @@ export async function updateContractorAction(
     .from("contractors")
     .select(
       [
-        "id",
+      "id",
+        "profile_id",
+        "email",
         "legal_name",
         "trading_name",
         "phone",
@@ -268,6 +343,8 @@ export async function updateContractorAction(
     .eq("id", parsed.data.contractorId)
     .maybeSingle<{
       id: string;
+      profile_id: string | null;
+      email: string;
       legal_name: string;
       trading_name: string | null;
       phone: string | null;
@@ -290,6 +367,7 @@ export async function updateContractorAction(
   }
 
   const nextContractor = {
+    email: parsed.data.email,
     legal_name: parsed.data.legalName,
     trading_name: parsed.data.tradingName,
     phone: parsed.data.phone,
@@ -302,6 +380,47 @@ export async function updateContractorAction(
     vat_treatment: parsed.data.vatTreatment,
     status: parsed.data.status,
   };
+
+  if (currentContractor.profile_id) {
+    const adminSupabase = createAdminClient();
+    const { error: authUpdateError } =
+      await adminSupabase.auth.admin.updateUserById(
+        currentContractor.profile_id,
+        {
+          email: parsed.data.email,
+          user_metadata: {
+            full_name: parsed.data.fullName,
+            role: "contractor",
+          },
+        },
+      );
+
+    if (authUpdateError) {
+      return {
+        message: `Could not update the contractor login account: ${authUpdateError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({
+        email: parsed.data.email,
+        full_name: parsed.data.fullName,
+        role: "contractor",
+        is_active: parsed.data.status !== "offboarded",
+      })
+      .eq("id", currentContractor.profile_id);
+
+    if (profileUpdateError) {
+      return {
+        message: `Could not update the contractor profile account: ${profileUpdateError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+  }
 
   const { error: updateError } = await supabase
     .from("contractors")
@@ -327,6 +446,7 @@ export async function updateContractorAction(
     metadata: {
       before: {
         legal_name: currentContractor.legal_name,
+        email: currentContractor.email,
         trading_name: currentContractor.trading_name,
         phone: currentContractor.phone,
         country: currentContractor.country,
@@ -357,6 +477,105 @@ export async function updateContractorAction(
 
   return {
     message: "Contractor updated.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function offboardContractorAction(
+  _previousState: ContractorCreateState,
+  formData: FormData,
+): Promise<ContractorCreateState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = contractorIdSchema.safeParse({
+    contractorId: formData.get("contractorId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Contractor is missing.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: contractor, error: loadError } = await supabase
+    .from("contractors")
+    .select("id,profile_id,status")
+    .eq("id", parsed.data.contractorId)
+    .maybeSingle<{ id: string; profile_id: string | null; status: string }>();
+
+  if (loadError || !contractor) {
+    return {
+      message: "This contractor could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("contractors")
+    .update({ status: "offboarded" })
+    .eq("id", contractor.id);
+
+  if (updateError) {
+    return {
+      message: `Could not offboard the contractor: ${updateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  if (contractor.profile_id) {
+    const adminSupabase = createAdminClient();
+    const [{ error: profileError }, { error: authError }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .update({ is_active: false })
+        .eq("id", contractor.profile_id),
+      adminSupabase.auth.admin.updateUserById(contractor.profile_id, {
+        ban_duration: "876000h",
+      }),
+    ]);
+
+    if (profileError || authError) {
+      return {
+        message:
+          profileError?.message ??
+          authError?.message ??
+          "The contractor was offboarded, but account access could not be fully disabled.",
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "contractor_offboarded",
+    entity_type: "contractor",
+    entity_id: contractor.id,
+    metadata: {
+      from_status: contractor.status,
+      to_status: "offboarded",
+      profile_id: contractor.profile_id,
+    },
+  });
+
+  if (auditError) {
+    return {
+      message: `Contractor offboarded, but the audit log could not be recorded: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath(`/contractors/${contractor.id}`);
+  revalidatePath("/contractors");
+
+  return {
+    message: "Contractor offboarded and account access disabled.",
     status: "success",
     fieldErrors: {},
   };

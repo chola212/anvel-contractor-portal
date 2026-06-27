@@ -79,6 +79,22 @@ export async function getDocumentRequirementsForContractor(
   return data;
 }
 
+export async function getAllDocumentRequirements() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("document_requirements")
+    .select("id,supplier_type,name,is_required,requires_expiry_date,created_at")
+    .order("is_required", { ascending: false })
+    .order("name", { ascending: true })
+    .returns<DocumentRequirementRecord[]>();
+
+  if (error) {
+    throw new Error(`Could not load document requirements: ${error.message}`);
+  }
+
+  return data;
+}
+
 async function hydrateDocuments(documents: ContractorDocumentRecord[]) {
   if (documents.length === 0) {
     return [];

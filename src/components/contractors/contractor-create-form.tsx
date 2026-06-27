@@ -11,11 +11,6 @@ import {
   supplierTypeLabels,
   vatTreatmentLabels,
 } from "@/lib/contractors/format";
-import type { AvailableContractorProfile } from "@/lib/contractors/types";
-
-type ContractorCreateFormProps = {
-  profiles: AvailableContractorProfile[];
-};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -47,7 +42,7 @@ function FieldError({ errors }: { errors: string[] | undefined }) {
   );
 }
 
-export function ContractorCreateForm({ profiles }: ContractorCreateFormProps) {
+export function ContractorCreateForm() {
   const initialState: ContractorCreateState = {
     message: null,
     status: "idle",
@@ -57,20 +52,6 @@ export function ContractorCreateForm({ profiles }: ContractorCreateFormProps) {
     createContractorAction,
     initialState,
   );
-
-  if (profiles.length === 0) {
-    return (
-      <section className="rounded-md border border-neutral-200 bg-white p-5">
-        <h2 className="text-base font-semibold text-neutral-950">
-          No unlinked contractor logins
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Create an invite-only Supabase Auth user and active contractor profile
-          before adding the contractor business record here.
-        </p>
-      </section>
-    );
-  }
 
   return (
     <section className="rounded-md border border-neutral-200 bg-white p-5">
@@ -82,8 +63,9 @@ export function ContractorCreateForm({ profiles }: ContractorCreateFormProps) {
           Create a contractor profile
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Link an existing contractor login profile to a business profile. Bank
-          details remain out of this setup form.
+          Create an invite-only portal account and the linked contractor
+          business profile in one audited workflow. Bank details remain out of
+          this setup form.
         </p>
       </div>
 
@@ -91,26 +73,38 @@ export function ContractorCreateForm({ profiles }: ContractorCreateFormProps) {
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-2">
             <label
-              htmlFor="profileId"
+              htmlFor="email"
               className="block text-sm font-medium text-neutral-800"
             >
-              Contractor login profile
+              Email address
             </label>
-            <select
-              id="profileId"
-              name="profileId"
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               required
               className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.email} />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="fullName"
+              className="block text-sm font-medium text-neutral-800"
             >
-              <option value="">Select profile</option>
-              {profiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.email}
-                  {profile.full_name ? ` - ${profile.full_name}` : ""}
-                </option>
-              ))}
-            </select>
-            <FieldError errors={state.fieldErrors.profileId} />
+              Account name
+            </label>
+            <input
+              id="fullName"
+              name="fullName"
+              type="text"
+              required
+              maxLength={160}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.fullName} />
           </div>
 
           <div className="space-y-2">

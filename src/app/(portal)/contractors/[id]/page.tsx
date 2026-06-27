@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ContractorAuditHistory } from "@/components/contractors/contractor-audit-history";
 import { ContractorBankDetailsForm } from "@/components/contractors/contractor-bank-details-form";
+import { ContractorOffboardForm } from "@/components/contractors/contractor-offboard-form";
 import { ContractorProfilePanel } from "@/components/contractors/contractor-profile-panel";
 import { ContractorUpdateForm } from "@/components/contractors/contractor-update-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
@@ -60,6 +61,9 @@ export default async function ContractorDetailPage({
       ) : null}
       {profile.role === "admin" ? (
         <ContractorBankDetailsForm contractor={contractor} />
+      ) : null}
+      {profile.role === "admin" ? (
+        <ContractorOffboardForm contractor={contractor} />
       ) : null}
       {profile.role === "admin" ? (
         <ContractorAuditHistory logs={auditLogs} />

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
 import type { VatTreatment } from "@/lib/contractors/types";
+import { selectSingleStatementRate } from "@/lib/payment-statements/rate-selection";
 import { createClient } from "@/lib/supabase/server";
 import type { TimesheetEntryRecord, TimesheetRecord } from "@/lib/timesheets/types";
 
@@ -24,6 +25,9 @@ type ContractorForStatement = {
 };
 
 type AssignmentForStatement = {
+  id: string;
+  start_date: string | null;
+  end_date: string | null;
   hourly_rate: number | string;
   currency: string;
 };
@@ -117,17 +121,15 @@ export async function generatePaymentStatementAction(
       .maybeSingle<ContractorForStatement>(),
     supabase
       .from("contractor_projects")
-      .select("hourly_rate,currency")
+      .select("id,start_date,end_date,hourly_rate,currency")
       .eq("contractor_id", timesheet.contractor_id)
       .eq("project_id", timesheet.project_id)
-      .order("start_date", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle<AssignmentForStatement>(),
+      .returns<AssignmentForStatement[]>(),
     supabase
       .from("timesheet_entries")
-      .select("hours")
+      .select("work_date,hours")
       .eq("timesheet_id", timesheet.id)
-      .returns<Pick<TimesheetEntryRecord, "hours">[]>(),
+      .returns<Pick<TimesheetEntryRecord, "work_date" | "hours">[]>(),
   ]);
 
   if (contractorResult.error || !contractorResult.data) {
@@ -146,7 +148,7 @@ export async function generatePaymentStatementAction(
     };
   }
 
-  if (assignmentResult.error || !assignmentResult.data) {
+  if (assignmentResult.error || assignmentResult.data.length === 0) {
     return {
       message: "The contractor project rate could not be loaded.",
       status: "error",
@@ -172,7 +174,20 @@ export async function generatePaymentStatementAction(
     };
   }
 
-  const hourlyRate = roundMoney(Number(assignmentResult.data.hourly_rate));
+  const rateSelection = selectSingleStatementRate(
+    entryResult.data,
+    assignmentResult.data,
+  );
+
+  if (!rateSelection.ok) {
+    return {
+      message: rateSelection.message,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const hourlyRate = roundMoney(rateSelection.hourlyRate);
   const netAmount = roundMoney(totalHours * hourlyRate);
   const vatAmount = calculateVatAmount(
     netAmount,
@@ -191,7 +206,7 @@ export async function generatePaymentStatementAction(
       vat_treatment: contractorResult.data.vat_treatment,
       vat_amount: vatAmount,
       gross_amount: grossAmount,
-      currency: assignmentResult.data.currency,
+      currency: rateSelection.currency,
       created_by: profile.id,
     })
     .select("id")

@@ -3,6 +3,8 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
+import { buildAuthCallbackUrl, buildPasswordResetEmail, sendPortalEmail } from "@/lib/email/portal-email";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const forgotPasswordSchema = z.object({
@@ -46,13 +48,45 @@ export async function forgotPasswordAction(
     };
   }
 
+  const redirectTo = buildAuthCallbackUrl(origin);
+
+  if (process.env.RESEND_API_KEY) {
+    const adminSupabase = createAdminClient();
+    const { data, error } = await adminSupabase.auth.admin.generateLink({
+      type: "recovery",
+      email: parsed.data.email,
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error || !data.properties?.action_link) {
+      return {
+        message:
+          "If this email exists in the portal, a password reset link has been sent.",
+        status: "success",
+        fieldErrors: {},
+      };
+    }
+
+    const email = buildPasswordResetEmail(data.properties.action_link);
+    await sendPortalEmail({
+      to: parsed.data.email,
+      ...email,
+    });
+
+    return {
+      message:
+        "If this email exists in the portal, a password reset link has been sent.",
+      status: "success",
+      fieldErrors: {},
+    };
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    parsed.data.email,
-    {
-      redirectTo: `${origin}/reset-password`,
-    },
-  );
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo,
+  });
 
   if (error) {
     return {

@@ -17,7 +17,7 @@ export function ProjectList({ projects }: ProjectListProps) {
           No projects found
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Create fake development project records before testing assignments.
+          Project records will appear here after they are created.
         </p>
       </section>
     );

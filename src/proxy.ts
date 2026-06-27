@@ -6,6 +6,7 @@ const publicPaths = [
   "/login",
   "/forgot-password",
   "/reset-password",
+  "/auth/callback",
   "/account-required",
   "/api/health/supabase",
 ];

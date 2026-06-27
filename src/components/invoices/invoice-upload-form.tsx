@@ -71,9 +71,8 @@ export function InvoiceUploadForm({ statements }: InvoiceUploadFormProps) {
           Upload the official invoice PDF
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Upload fake development invoices only. The file is stored in the
-          private contractor invoice bucket and the expected amounts are copied
-          from the selected payment statement.
+          Upload the invoice PDF. Expected amounts are copied from the selected
+          payment statement for review.
         </p>
       </div>
 

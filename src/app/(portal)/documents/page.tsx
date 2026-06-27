@@ -1,9 +1,10 @@
 import { DocumentList } from "@/components/documents/document-list";
-import { DocumentStorageChecklist } from "@/components/documents/document-storage-checklist";
 import { DocumentUploadForm } from "@/components/documents/document-upload-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
+import { getContractorsForStaff } from "@/lib/contractors/queries";
 import {
+  getAllDocumentRequirements,
   getDocumentRequirementsForContractor,
   getDocumentsForContractor,
   getDocumentsForStaff,
@@ -24,7 +25,11 @@ export default async function DocumentsPage() {
   const documentRequirements =
     isContractor && contractor
       ? await getDocumentRequirementsForContractor(contractor.supplier_type)
-      : [];
+      : !isContractor && profile.role === "admin"
+        ? await getAllDocumentRequirements()
+        : [];
+  const contractors =
+    !isContractor && profile.role === "admin" ? await getContractorsForStaff() : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -36,12 +41,10 @@ export default async function DocumentsPage() {
           Documents
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Private contractor document metadata, PDF upload, signed downloads,
-          and admin review for fake development files.
+          Contractor document upload, secure downloads and admin review.
         </p>
       </section>
 
-      <DocumentStorageChecklist />
       {isContractor ? (
         contractor ? (
           <DocumentUploadForm requirements={documentRequirements} />
@@ -56,6 +59,13 @@ export default async function DocumentsPage() {
             </p>
           </section>
         )
+      ) : null}
+      {!isContractor && profile.role === "admin" ? (
+        <DocumentUploadForm
+          requirements={documentRequirements}
+          contractors={contractors}
+          mode="staff"
+        />
       ) : null}
       <DocumentList
         documents={documents}

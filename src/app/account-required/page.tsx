@@ -13,8 +13,8 @@ export default function AccountRequiredPage() {
           </h1>
           <p className="mt-3 text-sm leading-6 text-neutral-600">
             Your login exists, but the portal cannot find an active profile and
-            role for this account. Ask an admin to create a matching row in the
-            development Supabase `profiles` table before using the portal.
+            role for this account. Ask an admin to finish setting up your
+            portal access.
           </p>
           <form action={logoutAction} className="mt-6">
             <button

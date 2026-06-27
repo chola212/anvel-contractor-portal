@@ -22,8 +22,7 @@ export function TimesheetList({ timesheets, mode }: TimesheetListProps) {
           No timesheets found
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Monthly timesheets will appear here after fake development records are
-          created. Do not use real contractor data in development or staging.
+          Monthly timesheets will appear here after they are created.
         </p>
       </section>
     );

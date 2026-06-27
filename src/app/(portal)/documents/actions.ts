@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireRole } from "@/lib/auth/profile";
+import { requireCurrentProfile, requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import type { SupplierType } from "@/lib/contractors/types";
 import type { DocumentStatus } from "@/lib/documents/types";
@@ -14,6 +14,7 @@ const documentBucket = "contractor-documents";
 
 const uploadSchema = z.object({
   documentRequirementId: z.string().uuid("Select a document requirement."),
+  contractorId: z.string().uuid("Select a contractor.").optional(),
 });
 
 const reviewSchema = z.object({
@@ -33,6 +34,7 @@ export type DocumentUploadState = {
   status: "idle" | "success" | "error";
   fieldErrors: {
     documentRequirementId?: string[];
+    contractorId?: string[];
     file?: string[];
   };
 };
@@ -106,20 +108,48 @@ export async function uploadContractorDocumentAction(
   _previousState: DocumentUploadState,
   formData: FormData,
 ): Promise<DocumentUploadState> {
-  const profile = await requireRole(["contractor"]);
-  const contractor = await getContractorByProfileId(profile.id);
+  const profile = await requireCurrentProfile();
+  const parsed = uploadSchema.safeParse({
+    documentRequirementId: formData.get("documentRequirementId"),
+    contractorId:
+      profile.role === "admin" ? formData.get("contractorId") : undefined,
+  });
 
-  if (!contractor) {
+  if (profile.role === "operations") {
     return {
-      message: "Your account is not linked to a contractor profile.",
+      message: "Your role cannot upload contractor documents.",
       status: "error",
       fieldErrors: {},
     };
   }
 
-  const parsed = uploadSchema.safeParse({
-    documentRequirementId: formData.get("documentRequirementId"),
-  });
+  const supabase = await createClient();
+  const contractor =
+    profile.role === "contractor"
+      ? await getContractorByProfileId(profile.id)
+      : parsed.success && parsed.data.contractorId
+        ? await supabase
+            .from("contractors")
+            .select("id,supplier_type")
+            .eq("id", parsed.data.contractorId)
+            .maybeSingle<{ id: string; supplier_type: SupplierType | null }>()
+            .then((result) => result.data)
+        : null;
+
+  if (!contractor) {
+    return {
+      message:
+        profile.role === "contractor"
+          ? "Your account is not linked to a contractor profile."
+          : "Select a contractor before uploading a document.",
+      status: "error",
+      fieldErrors: {
+        contractorId:
+          profile.role === "admin" ? ["Select a contractor."] : undefined,
+      },
+    };
+  }
+
   const fileValidation = validateFile(formData.get("file"));
 
   if (!parsed.success || fileValidation.error || !fileValidation.file) {
@@ -132,12 +162,12 @@ export async function uploadContractorDocumentAction(
       status: "error",
       fieldErrors: {
         documentRequirementId: fieldErrors.documentRequirementId,
+        contractorId: fieldErrors.contractorId,
         file: fileValidation.error ? [fileValidation.error] : undefined,
       },
     };
   }
 
-  const supabase = await createClient();
   const { data: requirement, error: requirementError } = await supabase
     .from("document_requirements")
     .select("id,name,supplier_type")
@@ -209,7 +239,29 @@ export async function uploadContractorDocumentAction(
     };
   }
 
+  if (profile.role === "admin") {
+    const { error: auditError } = await supabase.from("audit_logs").insert({
+      actor_profile_id: profile.id,
+      action: "contractor_document_uploaded_by_admin",
+      entity_type: "contractor_document",
+      entity_id: documentId,
+      metadata: {
+        contractor_id: contractor.id,
+        document_requirement_id: requirement.id,
+      },
+    });
+
+    if (auditError) {
+      return {
+        message: `Document uploaded, but audit logging failed: ${auditError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+  }
+
   revalidatePath("/documents");
+  revalidatePath(`/contractors/${contractor.id}`);
 
   return {
     message: "Document uploaded for review.",

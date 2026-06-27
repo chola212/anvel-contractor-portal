@@ -74,9 +74,8 @@ export function ContractorBankDetailsForm({
           Edit contractor bank details
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Store fake development bank details only. This records payment
-          destination details for manual review; it does not trigger payments
-          or create self-billing.
+          Record payment destination details for manual review. This does not
+          trigger bank payments.
         </p>
       </div>
 

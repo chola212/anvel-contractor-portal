@@ -142,6 +142,23 @@ export function AssignmentUpdateForm({
 
       <div>
         <label
+          htmlFor={`start-date-${assignment.id}`}
+          className="mb-1 block text-xs font-medium text-neutral-600"
+        >
+          Start date
+        </label>
+        <input
+          id={`start-date-${assignment.id}`}
+          name="startDate"
+          type="date"
+          defaultValue={assignment.start_date ?? ""}
+          className="w-full rounded-md border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+        />
+        <FieldError errors={state.fieldErrors.startDate} />
+      </div>
+
+      <div>
+        <label
           htmlFor={`end-date-${assignment.id}`}
           className="mb-1 block text-xs font-medium text-neutral-600"
         >

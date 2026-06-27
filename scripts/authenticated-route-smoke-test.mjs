@@ -60,7 +60,7 @@ function assertCookiesPresent() {
         `Missing required environment variable(s): ${missing.join(", ")}.`,
         "Copy temporary browser cookies from controlled production smoke-test sessions.",
         "Do not save cookies in files, GitHub, chat, or documentation.",
-        "See 14_AUTHENTICATED_ROUTE_SMOKE_TEST_RUNBOOK.md for the exact steps.",
+        "See README.md for the authenticated route smoke-test command.",
       ].join(" "),
     );
   }

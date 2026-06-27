@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { DetailField } from "@/components/contractors/detail-field";
 import { PaymentStatementPanel } from "@/components/payment-statements/payment-statement-panel";
-import { TimesheetEntryForm } from "@/components/timesheets/timesheet-entry-form";
+import { TimesheetCalendarForm } from "@/components/timesheets/timesheet-calendar-form";
 import { TimesheetEntryList } from "@/components/timesheets/timesheet-entry-list";
 import { TimesheetReviewForm } from "@/components/timesheets/timesheet-review-form";
 import { TimesheetStatusBadge } from "@/components/timesheets/timesheet-status-badge";
@@ -11,6 +11,7 @@ import { TimesheetSubmitForm } from "@/components/timesheets/timesheet-submit-fo
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getPaymentStatementForTimesheet } from "@/lib/payment-statements/queries";
+import { getAssignmentPeriodsForContractorProject } from "@/lib/projects/queries";
 import {
   formatDateTime,
   formatHours,
@@ -43,6 +44,12 @@ export default async function TimesheetDetailPage({
     contractor?.id === timesheet.contractor_id &&
     ["draft", "rejected", "reopened"].includes(timesheet.status);
   const paymentStatement = await getPaymentStatementForTimesheet(timesheet.id);
+  const assignmentPeriods = isEditableByContractor
+    ? await getAssignmentPeriodsForContractorProject(
+        timesheet.contractor_id,
+        timesheet.project_id,
+      )
+    : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -72,10 +79,12 @@ export default async function TimesheetDetailPage({
 
       {isEditableByContractor ? (
         <>
-          <TimesheetEntryForm
+          <TimesheetCalendarForm
             timesheetId={timesheet.id}
             year={timesheet.year}
             month={timesheet.month}
+            entries={timesheet.entries}
+            assignments={assignmentPeriods}
           />
           <TimesheetSubmitForm
             timesheetId={timesheet.id}

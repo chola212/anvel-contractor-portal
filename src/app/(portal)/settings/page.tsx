@@ -1,5 +1,4 @@
 import { requireRole } from "@/lib/auth/profile";
-import { getSupabaseConfig } from "@/lib/supabase/env";
 
 type StatusItem = {
   label: string;
@@ -16,7 +15,7 @@ const accessControls: StatusItem[] = [
   {
     label: "Contractor access",
     value: "Own records only",
-    note: "Contractor routes rely on Supabase RLS and signed storage links.",
+    note: "Contractors can access only their own operational records.",
   },
   {
     label: "Operations access",
@@ -34,7 +33,7 @@ const productionBoundaries: StatusItem[] = [
   {
     label: "Real contractor data",
     value: "Production only",
-    note: "Development and staging must use fake data.",
+    note: "Non-production environments must not contain real contractor data.",
   },
   {
     label: "Bank payments",
@@ -42,27 +41,27 @@ const productionBoundaries: StatusItem[] = [
     note: "The portal records manual payment status only.",
   },
   {
-    label: "Self-billing",
-    value: "Out of scope",
-    note: "Payment statements are internal drafts, not legal invoices.",
+    label: "Invoice handling",
+    value: "Manual review",
+    note: "Generated statements and uploaded invoices require human review.",
   },
   {
     label: "Sensitive files",
-    value: "Private storage",
-    note: "Documents and invoices use private Supabase buckets.",
+    value: "Restricted access",
+    note: "Documents and invoices are available only to authorised users.",
   },
 ];
 
-const readinessChecks: StatusItem[] = [
+const operationalChecks: StatusItem[] = [
   {
     label: "Environment variables",
     value: "Required",
-    note: "Vercel must define Supabase URL and publishable key per environment.",
+    note: "Hosting configuration must define the required portal environment variables.",
   },
   {
     label: "Database migrations",
     value: "Manual verification",
-    note: "Run the checklist in supabase/README.md after applying SQL.",
+    note: "Apply and verify database changes before production use.",
   },
   {
     label: "Audit history",
@@ -72,20 +71,9 @@ const readinessChecks: StatusItem[] = [
   {
     label: "Deployment checklist",
     value: "Required before real data",
-    note: "Use 05_DEPLOYMENT_READINESS_CHECKLIST.md before production use.",
+    note: "Complete the production checklist before handling real contractor data.",
   },
 ];
-
-function getProjectReference(supabaseUrl: string) {
-  try {
-    const host = new URL(supabaseUrl).hostname;
-    return host.endsWith(".supabase.co")
-      ? host.replace(".supabase.co", "")
-      : host;
-  } catch {
-    return "Invalid Supabase URL";
-  }
-}
 
 function SettingsSection({
   title,
@@ -125,8 +113,6 @@ function SettingsSection({
 export default async function SettingsPage() {
   await requireRole(["admin"]);
 
-  const config = getSupabaseConfig();
-  const projectReference = getProjectReference(config.supabaseUrl);
   const vercelEnvironment = process.env.VERCEL_ENV ?? "local";
   const nodeEnvironment = process.env.NODE_ENV ?? "unknown";
 
@@ -148,9 +134,9 @@ export default async function SettingsPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-md border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Supabase project</p>
+          <p className="text-sm font-medium text-neutral-500">Data environment</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            {projectReference}
+            Configured
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">
@@ -183,8 +169,8 @@ export default async function SettingsPage() {
 
       <SettingsSection
         description="Checks that must stay true before the portal is used with real contractor data."
-        items={readinessChecks}
-        title="Readiness checks"
+        items={operationalChecks}
+        title="Operational checks"
       />
     </div>
   );

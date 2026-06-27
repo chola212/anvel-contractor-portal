@@ -7,6 +7,11 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { createClient } from "@/lib/supabase/server";
+import {
+  dateIsWithinAssignment,
+  getMonthBounds,
+  monthOverlapsAssignment,
+} from "@/lib/timesheets/assignment-periods";
 import type { TimesheetRecord } from "@/lib/timesheets/types";
 
 const editableStatuses = ["draft", "rejected", "reopened"] as const;
@@ -16,7 +21,7 @@ const startTimesheetSchema = z.object({
   year: z.coerce
     .number()
     .int("Enter a valid year.")
-    .min(2024, "Year must be 2024 or later.")
+    .min(2024, "Year must be 2024 or newer.")
     .max(2100, "Year is too far in the future."),
   month: z.coerce
     .number()
@@ -68,6 +73,8 @@ export type TimesheetActionState = {
 
 type AssignmentForCheck = {
   id: string;
+  start_date: string | null;
+  end_date: string | null;
 };
 
 type AuditAction =
@@ -148,6 +155,55 @@ async function recordTimesheetAuditLog(
   }
 }
 
+async function loadAssignmentsForTimesheet(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  timesheet: Pick<TimesheetRecord, "contractor_id" | "project_id">,
+) {
+  const { data, error } = await supabase
+    .from("contractor_projects")
+    .select("id,start_date,end_date")
+    .eq("contractor_id", timesheet.contractor_id)
+    .eq("project_id", timesheet.project_id)
+    .returns<AssignmentForCheck[]>();
+
+  if (error) {
+    throw new Error(`Could not check assignment dates: ${error.message}`);
+  }
+
+  return data;
+}
+
+async function validateTimesheetEntriesWithinAssignments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  timesheet: TimesheetRecord,
+) {
+  const [assignments, entryResult] = await Promise.all([
+    loadAssignmentsForTimesheet(supabase, timesheet),
+    supabase
+      .from("timesheet_entries")
+      .select("work_date")
+      .eq("timesheet_id", timesheet.id)
+      .returns<{ work_date: string }[]>(),
+  ]);
+
+  if (entryResult.error) {
+    throw new Error(`Could not check timesheet entries: ${entryResult.error.message}`);
+  }
+
+  const invalidEntry = entryResult.data.find(
+    (entry) =>
+      !assignments.some((assignment) =>
+        dateIsWithinAssignment(entry.work_date, assignment),
+      ),
+  );
+
+  if (invalidEntry) {
+    throw new Error(
+      `Timesheet contains hours outside the assignment period on ${invalidEntry.work_date}.`,
+    );
+  }
+}
+
 function parseWorkDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -213,6 +269,19 @@ export async function approveTimesheetAction(
 
   if (!timesheet) {
     return state;
+  }
+
+  try {
+    await validateTimesheetEntriesWithinAssignments(supabase, timesheet);
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Timesheet entries must be inside the assignment period.",
+      status: "error",
+      fieldErrors: {},
+    };
   }
 
   const { error } = await supabase
@@ -485,18 +554,24 @@ export async function startTimesheetAction(
   const supabase = await createClient();
   const { data: assignment, error: assignmentError } = await supabase
     .from("contractor_projects")
-    .select("id")
+    .select("id,start_date,end_date")
     .eq("contractor_id", contractor.id)
     .eq("project_id", parsed.data.projectId)
-    .in("status", ["planned", "active"])
-    .maybeSingle<AssignmentForCheck>();
+    .in("status", ["planned", "active", "paused", "closed"])
+    .returns<AssignmentForCheck[]>();
 
-  if (assignmentError || !assignment) {
+  const matchingAssignments =
+    assignment?.filter((item) =>
+      monthOverlapsAssignment(parsed.data.year, parsed.data.month, item),
+    ) ?? [];
+
+  if (assignmentError || matchingAssignments.length === 0) {
     return {
-      message: "Select a project assigned to your contractor profile.",
+      message:
+        "Select a month that overlaps an assignment period for this project.",
       status: "error",
       fieldErrors: {
-        projectId: ["Select an assigned project."],
+        projectId: ["Select an assigned project and month."],
       },
     };
   }
@@ -581,6 +656,35 @@ export async function addTimesheetEntryAction(
   }
 
   const supabase = await createClient();
+  let assignments: AssignmentForCheck[];
+
+  try {
+    assignments = await loadAssignmentsForTimesheet(supabase, timesheet);
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not check assignment dates.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  if (
+    !assignments.some((assignment) =>
+      dateIsWithinAssignment(parsed.data.workDate, assignment),
+    )
+  ) {
+    return {
+      message: "The work date is outside the assignment period.",
+      status: "error",
+      fieldErrors: {
+        workDate: ["Choose a date inside the assignment period."],
+      },
+    };
+  }
+
   const { error } = await supabase.from("timesheet_entries").insert({
     timesheet_id: timesheet.id,
     work_date: parsed.data.workDate,
@@ -612,6 +716,158 @@ export async function addTimesheetEntryAction(
       warnings.length > 0
         ? `Entry added. Warning: ${warnings.join(" and ")}.`
         : "Entry added.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
+
+export async function saveTimesheetCalendarAction(
+  _previousState: TimesheetActionState,
+  formData: FormData,
+): Promise<TimesheetActionState> {
+  const parsed = timesheetIdSchema.safeParse({
+    timesheetId: formData.get("timesheetId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Timesheet is missing.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { timesheet, state } = await getEditableOwnTimesheet(
+    parsed.data.timesheetId,
+  );
+
+  if (!timesheet) {
+    return state;
+  }
+
+  const { startDate, endDate, daysInMonth } = getMonthBounds(
+    timesheet.year,
+    timesheet.month,
+  );
+  const supabase = await createClient();
+  let assignments: AssignmentForCheck[];
+
+  try {
+    assignments = await loadAssignmentsForTimesheet(supabase, timesheet);
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not check assignment dates.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const upserts: {
+    timesheet_id: string;
+    work_date: string;
+    hours: number;
+    note: string | null;
+  }[] = [];
+  const deleteDates: string[] = [];
+  const warnings: string[] = [];
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = `${timesheet.year}-${String(timesheet.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const hoursValue = String(formData.get(`hours_${dateKey}`) ?? "").trim();
+    const noteValue = String(formData.get(`note_${dateKey}`) ?? "").trim();
+    const hours = hoursValue.length > 0 ? Number(hoursValue) : 0;
+
+    if (!Number.isFinite(hours) || hours < 0 || hours > 24) {
+      return {
+        message: "Check the calendar hours and try again.",
+        status: "error",
+        fieldErrors: {
+          [`hours_${dateKey}`]: ["Hours must be between 0 and 24."],
+        },
+      };
+    }
+
+    const hasAssignment = assignments.some((assignment) =>
+      dateIsWithinAssignment(dateKey, assignment),
+    );
+
+    if (hours > 0 && !hasAssignment) {
+      return {
+        message: "Calendar contains hours outside the assignment period.",
+        status: "error",
+        fieldErrors: {
+          [`hours_${dateKey}`]: ["This date is outside the assignment period."],
+        },
+      };
+    }
+
+    if (hours > 0) {
+      const parsedDate = parseWorkDate(dateKey);
+
+      if (hours > 10) {
+        warnings.push(`${dateKey} is above 10 hours`);
+      }
+
+      if (parsedDate && isWeekend(parsedDate)) {
+        warnings.push(`${dateKey} is a weekend`);
+      }
+
+      upserts.push({
+        timesheet_id: timesheet.id,
+        work_date: dateKey,
+        hours,
+        note: noteValue.length > 0 ? noteValue : null,
+      });
+    } else {
+      deleteDates.push(dateKey);
+    }
+  }
+
+  if (upserts.length > 0) {
+    const { error: upsertError } = await supabase
+      .from("timesheet_entries")
+      .upsert(upserts, {
+        onConflict: "timesheet_id,work_date",
+      });
+
+    if (upsertError) {
+      return {
+        message: `Could not save calendar hours: ${upsertError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+  }
+
+  if (deleteDates.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("timesheet_entries")
+      .delete()
+      .eq("timesheet_id", timesheet.id)
+      .gte("work_date", startDate)
+      .lte("work_date", endDate)
+      .in("work_date", deleteDates);
+
+    if (deleteError) {
+      return {
+        message: `Calendar hours were saved, but empty days could not be cleared: ${deleteError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+  }
+
+  revalidatePath(`/timesheets/${timesheet.id}`);
+  revalidatePath("/timesheets");
+
+  return {
+    message:
+      warnings.length > 0
+        ? `Calendar saved. Warning: ${warnings.slice(0, 4).join("; ")}${warnings.length > 4 ? "; additional warnings not shown" : ""}.`
+        : "Calendar saved.",
     status: "success",
     fieldErrors: {},
   };
@@ -669,6 +925,19 @@ export async function submitTimesheetAction(
   }
 
   const supabase = await createClient();
+  try {
+    await validateTimesheetEntriesWithinAssignments(supabase, timesheet);
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Timesheet entries must be inside the assignment period.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   const { count, error: countError } = await supabase
     .from("timesheet_entries")
     .select("id", { count: "exact", head: true })

@@ -31,9 +31,7 @@ export function DocumentList({
           No document metadata found
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Document records will appear here after fake development document
-          metadata is created. Do not upload real contractor documents outside
-          production.
+          Document records will appear here after PDFs are uploaded.
         </p>
       </section>
     );
@@ -46,8 +44,8 @@ export function DocumentList({
           Contractor documents
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Signed downloads use short-lived private links. Admins can record
-          review status without exposing public document URLs.
+          Admins can record review status and authorised users can download
+          contractor files.
         </p>
       </div>
       <div className="overflow-x-auto">

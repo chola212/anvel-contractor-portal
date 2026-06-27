@@ -26,7 +26,7 @@ export default async function Home() {
             <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
               Operational overview for contractor profiles, assignments,
               documents, timesheets, invoices and manual payment status. Counts
-              are loaded through Supabase access rules for the signed-in user.
+              are loaded according to the signed-in user&apos;s access level.
             </p>
           </div>
           <div className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
@@ -39,13 +39,13 @@ export default async function Home() {
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Portal state</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Operational MVP
+            Operational
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">
           <p className="text-sm font-medium text-neutral-500">Data source</p>
           <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Supabase with RLS
+            Access controlled
           </p>
         </div>
         <div className="rounded-md border border-neutral-200 bg-white p-4">

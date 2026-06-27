@@ -5,7 +5,6 @@ import {
   formatDate,
   formatDateTime,
 } from "@/lib/invoices/format";
-import { paymentStatusLabels } from "@/lib/payments/format";
 import type { PaymentRow } from "@/lib/payments/types";
 
 import { PaymentStatusBadge } from "./payment-status-badge";
@@ -116,40 +115,41 @@ export function PaymentList({ rows, mode, canManage }: PaymentListProps) {
                   </td>
                   <td className="px-5 py-4 align-top">
                     <PaymentStatusBadge status={paymentStatus} />
-                    <dl className="mt-3 space-y-1 text-xs text-neutral-600">
-                      <div>
-                        <dt className="inline font-medium text-neutral-500">
-                          Date:{" "}
-                        </dt>
-                        <dd className="inline">
-                          {formatDate(row.payment?.payment_date ?? null)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="inline font-medium text-neutral-500">
-                          Amount:{" "}
-                        </dt>
-                        <dd className="inline">
-                          {formatCurrency(
-                            row.payment?.paid_amount ?? null,
-                            row.payment?.currency ?? row.invoice.currency,
-                          )}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="inline font-medium text-neutral-500">
-                          Reference:{" "}
-                        </dt>
-                        <dd className="inline">
-                          {row.payment?.payment_reference ?? "Not set"}
-                        </dd>
-                      </div>
-                    </dl>
-                    {!row.payment ? (
-                      <p className="mt-2 text-xs text-neutral-500">
-                        Defaults to {paymentStatusLabels.pending}.
+                    {mode === "contractor" && !row.payment ? (
+                      <p className="mt-2 text-xs text-neutral-600">
+                        Payment not recorded yet.
                       </p>
-                    ) : null}
+                    ) : (
+                      <dl className="mt-3 space-y-1 text-xs text-neutral-600">
+                        <div>
+                          <dt className="inline font-medium text-neutral-500">
+                            Date:{" "}
+                          </dt>
+                          <dd className="inline">
+                            {formatDate(row.payment?.payment_date ?? null)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="inline font-medium text-neutral-500">
+                            Amount:{" "}
+                          </dt>
+                          <dd className="inline">
+                            {formatCurrency(
+                              row.payment?.paid_amount ?? null,
+                              row.payment?.currency ?? row.invoice.currency,
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="inline font-medium text-neutral-500">
+                            Reference:{" "}
+                          </dt>
+                          <dd className="inline">
+                            {row.payment?.payment_reference ?? "Not set"}
+                          </dd>
+                        </div>
+                      </dl>
+                    )}
                   </td>
                   {canManage ? (
                     <td className="px-5 py-4 align-top">

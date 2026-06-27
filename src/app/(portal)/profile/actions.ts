@@ -98,7 +98,7 @@ export async function updateOwnContractorProfileAction(
     return {
       message:
         error?.code === "PGRST202"
-          ? "The profile update database function is not installed yet. Apply the latest Supabase migration first."
+          ? "Profile updates are temporarily unavailable. Contact an admin before trying again."
           : `Could not update your profile: ${error?.message ?? "Unknown error"}`,
       status: "error",
       fieldErrors: {},

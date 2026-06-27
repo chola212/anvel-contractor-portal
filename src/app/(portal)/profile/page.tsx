@@ -45,8 +45,8 @@ export default async function ProfilePage() {
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
             Your login is active, but no contractor record is linked to this
-            profile yet. Ask an admin to create a contractor record for your
-            account in the development Supabase project.
+            profile yet. Ask an admin to finish setting up your contractor
+            account.
           </p>
         </section>
       )}

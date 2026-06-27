@@ -90,6 +90,43 @@ export function ContractorUpdateForm({
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-2">
             <label
+              htmlFor={`email-${contractor.id}`}
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Email address
+            </label>
+            <input
+              id={`email-${contractor.id}`}
+              name="email"
+              type="email"
+              required
+              defaultValue={contractor.email}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.email} />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor={`full-name-${contractor.id}`}
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Account name
+            </label>
+            <input
+              id={`full-name-${contractor.id}`}
+              name="fullName"
+              type="text"
+              required
+              maxLength={160}
+              defaultValue={contractor.legal_name}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.fullName} />
+          </div>
+
+          <div className="space-y-2">
+            <label
               htmlFor={`legal-name-${contractor.id}`}
               className="block text-sm font-medium text-neutral-800"
             >

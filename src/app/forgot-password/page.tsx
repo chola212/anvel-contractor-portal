@@ -22,7 +22,7 @@ export default async function ForgotPasswordPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">
             Enter the email address for your ANVEL portal account. If the
-            account exists, Supabase will send a reset link.
+            account exists, a secure reset link will be sent.
           </p>
           <div className="mt-6">
             <ForgotPasswordForm />

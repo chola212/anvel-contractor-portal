@@ -12,6 +12,8 @@ import type { DocumentRequirementRecord } from "@/lib/documents/types";
 
 type DocumentUploadFormProps = {
   requirements: DocumentRequirementRecord[];
+  contractors?: { id: string; legal_name: string; email: string }[];
+  mode?: "contractor" | "staff";
 };
 
 function SubmitButton() {
@@ -28,7 +30,11 @@ function SubmitButton() {
   );
 }
 
-export function DocumentUploadForm({ requirements }: DocumentUploadFormProps) {
+export function DocumentUploadForm({
+  requirements,
+  contractors = [],
+  mode = "contractor",
+}: DocumentUploadFormProps) {
   const router = useRouter();
   const initialState: DocumentUploadState = {
     message: null,
@@ -53,9 +59,7 @@ export function DocumentUploadForm({ requirements }: DocumentUploadFormProps) {
           Document upload unavailable
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          No document requirements are configured for your contractor profile
-          yet. Ask an admin to add development document requirements before
-          testing uploads.
+          No document requirements are configured for this contractor profile.
         </p>
       </section>
     );
@@ -65,19 +69,47 @@ export function DocumentUploadForm({ requirements }: DocumentUploadFormProps) {
     <section className="rounded-md border border-neutral-200 bg-white p-5">
       <div className="max-w-3xl">
         <p className="text-sm font-medium text-neutral-500">
-          Contractor upload
+          {mode === "staff" ? "Admin upload" : "Contractor upload"}
         </p>
         <h2 className="mt-2 text-lg font-semibold text-neutral-950">
           Upload a signed PDF document
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Upload fake development PDFs only. The file is stored in the private
-          contractor document bucket and a metadata record is created for
-          review.
+          Upload a PDF document for review. Documents are available only to the
+          contractor and authorised internal users.
         </p>
       </div>
 
       <form action={formAction} className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+        {mode === "staff" ? (
+          <div className="space-y-2">
+            <label
+              htmlFor="contractorId"
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Contractor
+            </label>
+            <select
+              id="contractorId"
+              name="contractorId"
+              required
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            >
+              <option value="">Select contractor</option>
+              {contractors.map((contractor) => (
+                <option key={contractor.id} value={contractor.id}>
+                  {contractor.legal_name} - {contractor.email}
+                </option>
+              ))}
+            </select>
+            {state.fieldErrors.contractorId?.map((error) => (
+              <p key={error} className="text-sm text-red-700">
+                {error}
+              </p>
+            ))}
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           <label
             htmlFor="documentRequirementId"

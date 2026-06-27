@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DetailField } from "@/components/contractors/detail-field";
 import { AssignmentCreateForm } from "@/components/projects/assignment-create-form";
 import { AssignmentList } from "@/components/projects/assignment-list";
+import { ProjectRemoveForm } from "@/components/projects/project-remove-form";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { ProjectUpdateForm } from "@/components/projects/project-update-form";
 import { requireRole } from "@/lib/auth/profile";
@@ -81,6 +82,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       </section>
 
       {profile.role === "admin" ? <ProjectUpdateForm project={project} /> : null}
+      {profile.role === "admin" ? <ProjectRemoveForm project={project} /> : null}
 
       {profile.role === "admin" ? (
         <AssignmentCreateForm

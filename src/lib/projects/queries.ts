@@ -67,6 +67,25 @@ export async function getProjectById(id: string) {
   return data;
 }
 
+export async function getAssignmentPeriodsForContractorProject(
+  contractorId: string,
+  projectId: string,
+) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("contractor_projects")
+    .select(assignmentColumns)
+    .eq("contractor_id", contractorId)
+    .eq("project_id", projectId)
+    .returns<ContractorProjectRecord[]>();
+
+  if (error) {
+    throw new Error(`Could not load assignment periods: ${error.message}`);
+  }
+
+  return data;
+}
+
 export async function getAssignmentsForProject(projectId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

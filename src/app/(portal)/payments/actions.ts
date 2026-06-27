@@ -252,3 +252,26 @@ export async function updatePaymentStatusAction(
     fieldErrors: {},
   };
 }
+
+export async function markInvoicePaidAction(formData: FormData) {
+  const invoiceId = formData.get("invoiceId");
+  const paidAmount = formData.get("paidAmount");
+  const paymentDate = new Date().toISOString().slice(0, 10);
+  const nextFormData = new FormData();
+
+  nextFormData.set("invoiceId", String(invoiceId ?? ""));
+  nextFormData.set("status", "paid");
+  nextFormData.set("paymentDate", paymentDate);
+  nextFormData.set("paidAmount", String(paidAmount ?? ""));
+  nextFormData.set("paymentReference", "");
+  nextFormData.set("internalNote", "Marked as paid from the payments list.");
+
+  await updatePaymentStatusAction(
+    {
+      message: null,
+      status: "idle",
+      fieldErrors: {},
+    },
+    nextFormData,
+  );
+}

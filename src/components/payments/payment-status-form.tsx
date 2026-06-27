@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 
 import {
+  markInvoicePaidAction,
   updatePaymentStatusAction,
   type PaymentActionState,
 } from "@/app/(portal)/payments/actions";
@@ -26,6 +27,20 @@ function SubmitButton() {
       className="rounded-md bg-teal-800 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-teal-900 disabled:cursor-not-allowed disabled:bg-neutral-400"
     >
       {pending ? "Saving..." : "Save"}
+    </button>
+  );
+}
+
+function MarkPaidButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
+    >
+      {pending ? "Marking..." : "Mark as paid"}
     </button>
   );
 }
@@ -67,8 +82,15 @@ export function PaymentStatusForm({ row }: PaymentStatusFormProps) {
   }, [router, state.status]);
 
   return (
-    <form action={formAction} className="min-w-72 space-y-3">
-      <input type="hidden" name="invoiceId" value={row.invoice.id} />
+    <div className="min-w-72 space-y-3">
+      <form action={markInvoicePaidAction} className="flex justify-end">
+        <input type="hidden" name="invoiceId" value={row.invoice.id} />
+        <input type="hidden" name="paidAmount" value={defaultPaidAmount} />
+        <MarkPaidButton />
+      </form>
+
+      <form action={formAction} className="space-y-3">
+        <input type="hidden" name="invoiceId" value={row.invoice.id} />
 
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <label className="sr-only" htmlFor={`payment-status-${row.invoice.id}`}>
@@ -176,6 +198,7 @@ export function PaymentStatusForm({ row }: PaymentStatusFormProps) {
           {state.message}
         </p>
       ) : null}
-    </form>
+      </form>
+    </div>
   );
 }

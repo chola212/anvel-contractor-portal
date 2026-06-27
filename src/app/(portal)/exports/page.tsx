@@ -59,8 +59,7 @@ export default async function ExportsPage({ searchParams }: ExportsPageProps) {
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
           This export does not include bank details or private document links.
-          Use it for development review with fake data only until production has
-          passed a security review.
+          Use it for accountant review and payment reconciliation.
         </p>
 
         <form className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
