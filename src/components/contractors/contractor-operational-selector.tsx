@@ -66,7 +66,7 @@ export function ContractorOperationalSelector({
                 <td className="px-5 py-4 align-top">
                   <Link
                     className="font-medium text-teal-800 hover:text-teal-950"
-                    href={`/contractors/${contractor.id}?section=${section}`}
+                    href={`/contractors/${contractor.id}/${section}`}
                   >
                     Open {sectionLabels[section]}
                   </Link>

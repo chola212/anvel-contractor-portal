@@ -37,11 +37,47 @@ const entryColumns = `
   updated_at
 `;
 
-export async function getTimesheetsForStaff() {
+export type TimesheetFilters = {
+  month?: string;
+  status?: string;
+};
+
+function parseMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+
+  return { year, month };
+}
+
+type TimesheetFilterableQuery<T> = T & {
+  eq(column: string, value: string | number): TimesheetFilterableQuery<T>;
+};
+
+function applyTimesheetFilters<T>(
+  query: T,
+  filters: TimesheetFilters = {},
+) {
+  let nextQuery = query as TimesheetFilterableQuery<T>;
+
+  if (filters.month) {
+    const { year, month } = parseMonth(filters.month);
+    nextQuery = nextQuery.eq("year", year).eq("month", month);
+  }
+
+  if (filters.status) {
+    nextQuery = nextQuery.eq("status", filters.status);
+  }
+
+  return nextQuery as T;
+}
+
+export async function getTimesheetsForStaff(filters: TimesheetFilters = {}) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyTimesheetFilters(
+    supabase
     .from("timesheets")
-    .select(timesheetColumns)
+      .select(timesheetColumns),
+    filters,
+  )
     .order("year", { ascending: false })
     .order("month", { ascending: false })
     .order("created_at", { ascending: false })
@@ -54,12 +90,18 @@ export async function getTimesheetsForStaff() {
   return hydrateTimesheets(data);
 }
 
-export async function getTimesheetsForContractor(contractorId: string) {
+export async function getTimesheetsForContractor(
+  contractorId: string,
+  filters: TimesheetFilters = {},
+) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyTimesheetFilters(
+    supabase
     .from("timesheets")
     .select(timesheetColumns)
-    .eq("contractor_id", contractorId)
+      .eq("contractor_id", contractorId),
+    filters,
+  )
     .order("year", { ascending: false })
     .order("month", { ascending: false })
     .order("created_at", { ascending: false })

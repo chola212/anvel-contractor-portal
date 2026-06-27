@@ -1,21 +1,44 @@
 import { StartTimesheetForm } from "@/components/timesheets/start-timesheet-form";
 import { TimesheetList } from "@/components/timesheets/timesheet-list";
 import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
+import { OperationalFilterForm } from "@/components/filters/operational-filter-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getAssignmentsForContractor } from "@/lib/projects/queries";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
+import {
+  parseMonthRangeFilters,
+  parseStatusFilter,
+  type SearchParamsInput,
+} from "@/lib/filters/search-params";
 import { getTimesheetsForContractor } from "@/lib/timesheets/queries";
 
-export default async function TimesheetsPage() {
+const timesheetStatuses = [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "reopened",
+] as const;
+
+export default async function TimesheetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsInput>;
+}) {
   const profile = await requireCurrentProfile();
+  const resolvedSearchParams = await searchParams;
+  const filters = {
+    month: parseMonthRangeFilters(resolvedSearchParams).month,
+    status: parseStatusFilter(resolvedSearchParams, timesheetStatuses),
+  };
   const isContractor = profile.role === "contractor";
   const contractor = isContractor
     ? await getContractorByProfileId(profile.id)
     : null;
   const timesheets =
     isContractor && contractor
-      ? await getTimesheetsForContractor(contractor.id)
+      ? await getTimesheetsForContractor(contractor.id, filters)
       : [];
   const assignments =
     isContractor && contractor
@@ -56,6 +79,21 @@ export default async function TimesheetsPage() {
         isContractor ? (
         <>
           <StartTimesheetForm assignments={assignments} />
+          <OperationalFilterForm
+            fields={[
+              { name: "month", label: "Timesheet month", type: "month", value: filters.month },
+              {
+                name: "status",
+                label: "Status",
+                type: "select",
+                value: filters.status,
+                options: timesheetStatuses.map((status) => ({
+                  value: status,
+                  label: status.replace(/_/g, " "),
+                })),
+              },
+            ]}
+          />
           <TimesheetList timesheets={timesheets} mode="contractor" />
         </>
         ) : (

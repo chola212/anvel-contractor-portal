@@ -1,23 +1,48 @@
 import { InvoiceList } from "@/components/invoices/invoice-list";
 import { InvoiceUploadForm } from "@/components/invoices/invoice-upload-form";
 import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
+import { OperationalFilterForm } from "@/components/filters/operational-filter-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
+import {
+  parseMonthRangeFilters,
+  parseStatusFilter,
+  type SearchParamsInput,
+} from "@/lib/filters/search-params";
 import {
   getInvoicesForContractor,
   getUploadableStatementsForContractor,
 } from "@/lib/invoices/queries";
 
-export default async function InvoicesPage() {
+const invoiceStatuses = [
+  "pending_upload",
+  "uploaded",
+  "checked",
+  "correction_required",
+  "approved_for_payment",
+  "paid",
+  "on_hold",
+] as const;
+
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsInput>;
+}) {
   const profile = await requireCurrentProfile();
+  const resolvedSearchParams = await searchParams;
+  const filters = {
+    ...parseMonthRangeFilters(resolvedSearchParams),
+    status: parseStatusFilter(resolvedSearchParams, invoiceStatuses),
+  };
   const isContractor = profile.role === "contractor";
   const contractor = isContractor
     ? await getContractorByProfileId(profile.id)
     : null;
   const invoices =
     isContractor && contractor
-      ? await getInvoicesForContractor(contractor.id)
+      ? await getInvoicesForContractor(contractor.id, filters)
       : [];
   const uploadableStatements =
     isContractor && contractor
@@ -54,6 +79,23 @@ export default async function InvoicesPage() {
         isContractor ? (
         <>
           <InvoiceUploadForm statements={uploadableStatements} />
+          <OperationalFilterForm
+            fields={[
+              { name: "month", label: "Invoice month", type: "month", value: filters.month },
+              { name: "from", label: "From month", type: "month", value: filters.from },
+              { name: "to", label: "To month", type: "month", value: filters.to },
+              {
+                name: "status",
+                label: "Status",
+                type: "select",
+                value: filters.status,
+                options: invoiceStatuses.map((status) => ({
+                  value: status,
+                  label: status.replace(/_/g, " "),
+                })),
+              },
+            ]}
+          />
           <InvoiceList
             invoices={invoices}
             mode="contractor"

@@ -148,6 +148,11 @@ assert.match(
 );
 assert.match(
   contractorActions,
+  /PORTAL_EMAIL_FROM|Resend domain verification/,
+  "contractor onboarding errors should point admins to Resend sender configuration",
+);
+assert.match(
+  contractorActions,
   /resendContractorInviteAction/,
   "contractor onboarding should support invite resends",
 );
@@ -172,6 +177,18 @@ assert.match(
   forgotPasswordActions,
   /RESEND_API_KEY/,
   "password reset should require branded email configuration",
+);
+
+const portalEmail = read("src/lib/email/portal-email.ts");
+assert.match(
+  portalEmail,
+  /ANVEL Consulting <contact@anvelconsulting\.com>/,
+  "portal email should use the required ANVEL sender",
+);
+assert.match(
+  portalEmail,
+  /Resend rejected the message with/,
+  "portal email should log exact Resend rejection details server-side",
 );
 
 const assignmentList = read("src/components/projects/assignment-list.tsx");
@@ -199,6 +216,11 @@ assert.match(
   /\.min\(1, "Enter the invoice number\."\)/,
   "invoice number validation should allow one-character invoice numbers",
 );
+assert.match(
+  invoiceActions,
+  /invoice_type: "contractor_uploaded"/,
+  "manual contractor invoice upload should remain explicitly contractor_uploaded",
+);
 
 for (const [file, forbiddenQuery] of [
   ["src/app/(portal)/documents/page.tsx", "getDocumentsForStaff"],
@@ -220,12 +242,53 @@ for (const expectedQuery of [
   "getInvoicesForContractor",
   "getPaymentRowsForContractor",
 ]) {
-  assert.match(
+  assert.doesNotMatch(
     contractorDetail,
     new RegExp(expectedQuery),
-    "contractor profile should contain contractor-specific operational sections",
+    "contractor profile overview should not render every operational section",
   );
 }
+
+for (const [file, expectedList, forbiddenList] of [
+  [
+    "src/app/(portal)/contractors/[id]/documents/page.tsx",
+    "DocumentList",
+    "TimesheetList|InvoiceList|PaymentList",
+  ],
+  [
+    "src/app/(portal)/contractors/[id]/timesheets/page.tsx",
+    "TimesheetList",
+    "DocumentList|InvoiceList|PaymentList",
+  ],
+  [
+    "src/app/(portal)/contractors/[id]/invoices/page.tsx",
+    "InvoiceList",
+    "DocumentList|TimesheetList|PaymentList",
+  ],
+  [
+    "src/app/(portal)/contractors/[id]/payments/page.tsx",
+    "PaymentList",
+    "DocumentList|TimesheetList|InvoiceList",
+  ],
+]) {
+  const content = read(file);
+  assert.match(content, new RegExp(expectedList), `${file} should render its section`);
+  assert.doesNotMatch(
+    content,
+    new RegExp(forbiddenList),
+    `${file} should not render unrelated sections`,
+  );
+  assert.match(content, /OperationalFilterForm/, `${file} should include filters`);
+}
+
+const operationalSelector = read(
+  "src/components/contractors/contractor-operational-selector.tsx",
+);
+assert.match(
+  operationalSelector,
+  /\/contractors\/\$\{contractor\.id\}\/\$\{section\}/,
+  "staff operational selector should open section-specific contractor routes",
+);
 
 const dashboard = read("src/app/(portal)/page.tsx");
 assert.match(
@@ -255,6 +318,44 @@ assert.match(
   /buildSelfBillingInvoiceEmail/,
   "self-billing generation should email the invoice",
 );
+assert.match(
+  selfBilling,
+  /email_status/,
+  "self-billing generation should update invoice email status",
+);
+assert.match(
+  selfBilling,
+  /eq\("timesheet_id", timesheet\.id\)[\s\S]*eq\("invoice_type", "self_billing"\)/,
+  "self-billing generation should prevent duplicate invoices per timesheet",
+);
+
+const selfBillingMigration = read(
+  "supabase/migrations/202606270003_repair_self_billing_invoice_columns.sql",
+);
+for (const expectedColumn of [
+  "timesheet_id",
+  "invoice_type",
+  "generated_by",
+  "generated_at",
+  "emailed_at",
+  "email_status",
+]) {
+  assert.match(
+    selfBillingMigration,
+    new RegExp(expectedColumn),
+    `self-billing migration should include ${expectedColumn}`,
+  );
+}
+assert.match(
+  selfBillingMigration,
+  /on delete set null/,
+  "self-billing migration should use on delete set null for nullable references",
+);
+assert.match(
+  selfBillingMigration,
+  /invoices_self_billing_timesheet_unique_idx/,
+  "self-billing migration should enforce one self-billing invoice per timesheet",
+);
 
 const resetScript = read("scripts/reset-operational-data.mjs");
 assert.match(
@@ -266,6 +367,28 @@ assert.doesNotMatch(
   resetScript,
   /from\("contractors"\)\.delete|from\("profiles"\)\.delete|auth\.admin\.deleteUser/,
   "reset script must preserve contractors, profiles and auth users",
+);
+
+const productionResetScript = read("scripts/reset-production-test-data.mjs");
+assert.match(
+  productionResetScript,
+  /ALLOW_PRODUCTION_TEST_DATA_RESET/,
+  "production test reset should require explicit confirmation",
+);
+assert.match(
+  productionResetScript,
+  /andres@anvelconsulting\.com/,
+  "production test reset should preserve the named admin account",
+);
+assert.match(
+  productionResetScript,
+  /andresvelascofdez@gmail\.com/,
+  "production test reset should preserve the named contractor account",
+);
+assert.match(
+  productionResetScript,
+  /ALLOW_AUTH_USER_PRUNE/,
+  "auth user pruning should require a separate guard",
 );
 
 const visibleCopyFiles = [

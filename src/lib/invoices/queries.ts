@@ -76,6 +76,57 @@ type LegacyInvoiceRecord = Omit<
     >
   >;
 
+export type InvoiceFilters = {
+  month?: string;
+  from?: string;
+  to?: string;
+  status?: string;
+};
+
+function monthStart(value: string) {
+  return `${value}-01`;
+}
+
+function monthEnd(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  const endDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return `${value}-${String(endDay).padStart(2, "0")}`;
+}
+
+type InvoiceFilterableQuery<T> = T & {
+  eq(column: string, value: string): InvoiceFilterableQuery<T>;
+  gte(column: string, value: string): InvoiceFilterableQuery<T>;
+  lte(column: string, value: string): InvoiceFilterableQuery<T>;
+};
+
+function applyInvoiceFilters<T>(
+  query: T,
+  filters: InvoiceFilters = {},
+) {
+  let nextQuery = query as InvoiceFilterableQuery<T>;
+
+  if (filters.month) {
+    nextQuery = nextQuery
+      .gte("invoice_date", monthStart(filters.month))
+      .lte("invoice_date", monthEnd(filters.month));
+  } else {
+    if (filters.from) {
+      nextQuery = nextQuery.gte("invoice_date", monthStart(filters.from));
+    }
+
+    if (filters.to) {
+      nextQuery = nextQuery.lte("invoice_date", monthEnd(filters.to));
+    }
+  }
+
+  if (filters.status) {
+    nextQuery = nextQuery.eq("status", filters.status);
+  }
+
+  return nextQuery as T;
+}
+
 function isMissingSelfBillingInvoiceColumn(error: {
   code?: string;
   message?: string;
@@ -107,19 +158,25 @@ function normalizeInvoiceRecord(invoice: LegacyInvoiceRecord): InvoiceRecord {
   };
 }
 
-export async function getInvoicesForStaff() {
+export async function getInvoicesForStaff(filters: InvoiceFilters = {}) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyInvoiceFilters(
+    supabase
     .from("invoices")
-    .select(invoiceColumns)
+      .select(invoiceColumns),
+    filters,
+  )
     .order("created_at", { ascending: false })
     .returns<InvoiceRecord[]>();
 
   if (error) {
     if (isMissingSelfBillingInvoiceColumn(error)) {
-      const { data: legacyData, error: legacyError } = await supabase
+      const { data: legacyData, error: legacyError } = await applyInvoiceFilters(
+        supabase
         .from("invoices")
-        .select(legacyInvoiceColumns)
+          .select(legacyInvoiceColumns),
+        filters,
+      )
         .order("created_at", { ascending: false })
         .returns<LegacyInvoiceRecord[]>();
 
@@ -136,21 +193,30 @@ export async function getInvoicesForStaff() {
   return hydrateInvoices(data);
 }
 
-export async function getInvoicesForContractor(contractorId: string) {
+export async function getInvoicesForContractor(
+  contractorId: string,
+  filters: InvoiceFilters = {},
+) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyInvoiceFilters(
+    supabase
     .from("invoices")
     .select(invoiceColumns)
-    .eq("contractor_id", contractorId)
+      .eq("contractor_id", contractorId),
+    filters,
+  )
     .order("created_at", { ascending: false })
     .returns<InvoiceRecord[]>();
 
   if (error) {
     if (isMissingSelfBillingInvoiceColumn(error)) {
-      const { data: legacyData, error: legacyError } = await supabase
+      const { data: legacyData, error: legacyError } = await applyInvoiceFilters(
+        supabase
         .from("invoices")
         .select(legacyInvoiceColumns)
-        .eq("contractor_id", contractorId)
+          .eq("contractor_id", contractorId),
+        filters,
+      )
         .order("created_at", { ascending: false })
         .returns<LegacyInvoiceRecord[]>();
 

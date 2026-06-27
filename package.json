@@ -13,7 +13,8 @@
     "test:routes": "node scripts/route-smoke-test.mjs",
     "test:routes:auth": "node scripts/authenticated-route-smoke-test.mjs",
     "test:phase5:rls": "node scripts/phase5-rls-verify.mjs",
-    "reset:operational-data": "node scripts/reset-operational-data.mjs"
+    "reset:operational-data": "node scripts/reset-operational-data.mjs",
+    "reset:production-test-data": "node scripts/reset-production-test-data.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

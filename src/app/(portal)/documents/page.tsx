@@ -1,6 +1,7 @@
 import { DocumentList } from "@/components/documents/document-list";
 import { DocumentUploadForm } from "@/components/documents/document-upload-form";
 import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
+import { OperationalFilterForm } from "@/components/filters/operational-filter-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
@@ -8,16 +9,47 @@ import {
   getDocumentRequirementsForContractor,
   getDocumentsForContractor,
 } from "@/lib/documents/queries";
+import {
+  parseDocumentTypeFilter,
+  parseStatusFilter,
+  parseUploadedMonthFilter,
+  type SearchParamsInput,
+} from "@/lib/filters/search-params";
 
-export default async function DocumentsPage() {
+const documentStatuses = [
+  "missing",
+  "uploaded",
+  "approved",
+  "rejected",
+  "expired",
+] as const;
+const documentTypes = [
+  "contract",
+  "tax_certificate",
+  "vat_certificate",
+  "insurance",
+  "other",
+] as const;
+
+export default async function DocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsInput>;
+}) {
   const profile = await requireCurrentProfile();
+  const resolvedSearchParams = await searchParams;
+  const filters = {
+    status: parseStatusFilter(resolvedSearchParams, documentStatuses),
+    documentType: parseDocumentTypeFilter(resolvedSearchParams),
+    uploadedMonth: parseUploadedMonthFilter(resolvedSearchParams),
+  };
   const isContractor = profile.role === "contractor";
   const contractor = isContractor
     ? await getContractorByProfileId(profile.id)
     : null;
   const documents =
     isContractor && contractor
-      ? await getDocumentsForContractor(contractor.id)
+      ? await getDocumentsForContractor(contractor.id, filters)
       : [];
   const documentRequirements =
     isContractor && contractor
@@ -58,6 +90,37 @@ export default async function DocumentsPage() {
           section="documents"
         />
       ) : (
+        <>
+        <OperationalFilterForm
+          fields={[
+            {
+              name: "status",
+              label: "Status",
+              type: "select",
+              value: filters.status,
+              options: documentStatuses.map((status) => ({
+                value: status,
+                label: status.replace(/_/g, " "),
+              })),
+            },
+            {
+              name: "documentType",
+              label: "Document type",
+              type: "select",
+              value: filters.documentType,
+              options: documentTypes.map((type) => ({
+                value: type,
+                label: type.replace(/_/g, " "),
+              })),
+            },
+            {
+              name: "uploadedMonth",
+              label: "Uploaded month",
+              type: "month",
+              value: filters.uploadedMonth,
+            },
+          ]}
+        />
         <DocumentList
           documents={documents}
           mode="contractor"
@@ -65,6 +128,7 @@ export default async function DocumentsPage() {
           canDownload
           canReview={false}
         />
+        </>
       )}
     </div>
   );

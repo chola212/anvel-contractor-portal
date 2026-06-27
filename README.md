@@ -64,6 +64,34 @@ Apply migrations to a Supabase EU project before using the portal. Required priv
 
 Read `supabase/README.md` before applying SQL.
 
+Production self-billing requires the invoice metadata repair migration:
+
+```text
+supabase/migrations/202606270003_repair_self_billing_invoice_columns.sql
+```
+
+Apply all unapplied migrations in order in the production Supabase SQL Editor,
+then run this verification query:
+
+```sql
+select column_name, data_type, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'invoices'
+  and column_name in (
+    'timesheet_id',
+    'invoice_type',
+    'generated_by',
+    'generated_at',
+    'emailed_at',
+    'email_status'
+  )
+order by column_name;
+```
+
+Expected result: six rows. `invoice_type` and `email_status` must be non-null
+and have defaults.
+
 ## Auth And Email
 
 Admin contractor onboarding now creates an invite-only contractor account, profile row and contractor business record from the portal.
@@ -82,6 +110,13 @@ For branded production email, configure:
 - `RESEND_API_KEY`
 - `PORTAL_EMAIL_FROM="ANVEL Consulting <contact@anvelconsulting.com>"`
 - Resend domain authentication for `anvelconsulting.com`
+
+The application now rejects invite, reset and invoice emails unless the sender
+is exactly:
+
+```text
+ANVEL Consulting <contact@anvelconsulting.com>
+```
 
 Do not use default-looking platform emails in production.
 
@@ -213,6 +248,42 @@ Resend/domain setup:
 - Configure the DNS records Resend provides in Cloudflare.
 - Wait until SPF/DKIM/domain status is verified.
 - Use `contact@anvelconsulting.com` as the sending mailbox.
+- Confirm `RESEND_API_KEY` exists in Vercel for production.
+- Confirm `PORTAL_EMAIL_FROM` is exactly `ANVEL Consulting <contact@anvelconsulting.com>`.
+- Redeploy Vercel after changing environment variables.
+- If email fails, check Vercel server logs for the exact Resend HTTP status and response body.
+
+## Production Test Data Reset
+
+Use this only when you intentionally want to clear the production test data
+while preserving:
+
+```text
+andres@anvelconsulting.com
+andresvelascofdez@gmail.com
+```
+
+The script preserves those two profile rows, the admin auth user, the contractor
+auth user, and the contractor row linked to
+`andresvelascofdez@gmail.com`. It clears operational records and files from the
+private document and invoice buckets.
+
+```powershell
+$env:NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="your-server-only-service-role-key"
+$env:ALLOW_PRODUCTION_TEST_DATA_RESET="YES_DELETE_TEST_DATA"
+npm.cmd run reset:production-test-data
+```
+
+Extra Auth users are not deleted by default. To prune them too, add the separate
+guard:
+
+```powershell
+$env:ALLOW_AUTH_USER_PRUNE="YES_DELETE_EXTRA_AUTH_USERS"
+```
+
+Never commit these environment variables. Run the script only from a trusted
+machine and only against the intended Supabase project.
 
 ## Current Legal/Accounting Assumptions
 

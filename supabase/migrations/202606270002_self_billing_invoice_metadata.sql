@@ -2,7 +2,7 @@
 
 alter table public.invoices
   add column if not exists invoice_type text not null default 'contractor_uploaded',
-  add column if not exists timesheet_id uuid references public.timesheets(id) on delete restrict,
+  add column if not exists timesheet_id uuid references public.timesheets(id) on delete set null,
   add column if not exists generated_by uuid references public.profiles(id) on delete set null,
   add column if not exists generated_at timestamptz,
   add column if not exists emailed_at timestamptz,

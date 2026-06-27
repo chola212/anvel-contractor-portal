@@ -78,7 +78,7 @@ export function TimesheetList({ timesheets, mode }: TimesheetListProps) {
                 {mode === "staff" ? (
                   <td className="px-5 py-4 align-top">
                     <Link
-                      href={`/contractors/${timesheet.contractor_id}`}
+                      href={`/contractors/${timesheet.contractor_id}/timesheets`}
                       className="font-medium text-teal-800 hover:text-teal-950"
                     >
                       {timesheet.contractor?.legal_name ?? "Unknown contractor"}

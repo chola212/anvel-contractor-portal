@@ -12,6 +12,9 @@ migrations/202606170001_contractor_document_storage.sql
 migrations/202606180001_payment_statement_unique_timesheet.sql
 migrations/202606180002_contractor_invoice_storage.sql
 migrations/202606230001_contractor_self_profile_update.sql
+migrations/202606270001_document_requirement_defaults.sql
+migrations/202606270002_self_billing_invoice_metadata.sql
+migrations/202606270003_repair_self_billing_invoice_columns.sql
 ```
 
 This migration creates:
@@ -54,6 +57,25 @@ function for contractor self-service profile edits:
 - contractor status, email, assignments, rates, and bank account fields are not
   accepted by the function;
 - each update writes a `contractor_self_profile_updated` audit log entry.
+
+The Phase 27 document requirement migration seeds default document requirement
+configuration.
+
+The self-billing invoice metadata migrations add production-required columns to
+`public.invoices`:
+
+- `timesheet_id`;
+- `invoice_type`;
+- `generated_by`;
+- `generated_at`;
+- `emailed_at`;
+- `email_status`.
+
+`202606270003_repair_self_billing_invoice_columns.sql` is safe to run in
+production after earlier migrations. It repairs partial deployments, backfills
+existing invoices as `contractor_uploaded`, sets existing `email_status` values
+to `not_sent`, recreates the `timesheet_id` foreign key with `on delete set
+null`, and adds the self-billing uniqueness indexes.
 
 Phase 12 accountant exports do not add a migration. The export reads existing
 invoice, payment statement, project, contractor and payment rows through the
@@ -152,6 +174,45 @@ where proname = 'update_own_contractor_profile';
 ```
 
 Expected result: one row named `update_own_contractor_profile`.
+
+Check the self-billing invoice columns:
+
+```sql
+select column_name, data_type, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'invoices'
+  and column_name in (
+    'timesheet_id',
+    'invoice_type',
+    'generated_by',
+    'generated_at',
+    'emailed_at',
+    'email_status'
+  )
+order by column_name;
+```
+
+Expected result: six rows. `invoice_type` and `email_status` should be
+`NO` for `is_nullable` and should have defaults.
+
+Check the self-billing indexes:
+
+```sql
+select indexname
+from pg_indexes
+where schemaname = 'public'
+  and tablename = 'invoices'
+  and indexname in (
+    'invoices_timesheet_id_idx',
+    'invoices_invoice_type_idx',
+    'invoices_self_billing_timesheet_unique_idx',
+    'invoices_self_billing_invoice_number_unique_idx'
+  )
+order by indexname;
+```
+
+Expected result: four rows.
 
 ## Development auth test users
 

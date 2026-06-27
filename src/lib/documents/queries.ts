@@ -25,11 +25,60 @@ const documentColumns = `
   updated_at
 `;
 
-export async function getDocumentsForStaff() {
+export type DocumentFilters = {
+  status?: string;
+  documentType?: string;
+  uploadedMonth?: string;
+};
+
+function monthStart(value: string) {
+  return `${value}-01T00:00:00.000Z`;
+}
+
+function monthEnd(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  const endDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return `${value}-${String(endDay).padStart(2, "0")}T23:59:59.999Z`;
+}
+
+type DocumentFilterableQuery<T> = T & {
+  eq(column: string, value: string): DocumentFilterableQuery<T>;
+  gte(column: string, value: string): DocumentFilterableQuery<T>;
+  lte(column: string, value: string): DocumentFilterableQuery<T>;
+};
+
+function applyDocumentFilters<T>(
+  query: T,
+  filters: DocumentFilters = {},
+) {
+  let nextQuery = query as DocumentFilterableQuery<T>;
+
+  if (filters.status) {
+    nextQuery = nextQuery.eq("status", filters.status);
+  }
+
+  if (filters.documentType) {
+    nextQuery = nextQuery.eq("document_type", filters.documentType);
+  }
+
+  if (filters.uploadedMonth) {
+    nextQuery = nextQuery
+      .gte("created_at", monthStart(filters.uploadedMonth))
+      .lte("created_at", monthEnd(filters.uploadedMonth));
+  }
+
+  return nextQuery as T;
+}
+
+export async function getDocumentsForStaff(filters: DocumentFilters = {}) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyDocumentFilters(
+    supabase
     .from("contractor_documents")
-    .select(documentColumns)
+      .select(documentColumns),
+    filters,
+  )
     .order("created_at", { ascending: false })
     .returns<ContractorDocumentRecord[]>();
 
@@ -40,12 +89,18 @@ export async function getDocumentsForStaff() {
   return hydrateDocuments(data);
 }
 
-export async function getDocumentsForContractor(contractorId: string) {
+export async function getDocumentsForContractor(
+  contractorId: string,
+  filters: DocumentFilters = {},
+) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyDocumentFilters(
+    supabase
     .from("contractor_documents")
     .select(documentColumns)
-    .eq("contractor_id", contractorId)
+      .eq("contractor_id", contractorId),
+    filters,
+  )
     .order("created_at", { ascending: false })
     .returns<ContractorDocumentRecord[]>();
 

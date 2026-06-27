@@ -87,7 +87,7 @@ export function InvoiceList({
                 {mode === "staff" ? (
                   <td className="px-5 py-4 align-top">
                     <Link
-                      href={`/contractors/${invoice.contractor_id}`}
+                      href={`/contractors/${invoice.contractor_id}/invoices`}
                       className="font-medium text-teal-800 hover:text-teal-950"
                     >
                       {invoice.contractor?.legal_name ?? "Unknown contractor"}

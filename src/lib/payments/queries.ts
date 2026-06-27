@@ -39,6 +39,13 @@ const legacyInvoiceColumns = `
   created_at
 `;
 
+export type PaymentFilters = {
+  month?: string;
+  from?: string;
+  to?: string;
+  status?: string;
+};
+
 type LegacyPaymentInvoiceRecord = Omit<
   PaymentInvoiceRecord,
   "timesheet_id" | "invoice_type"
@@ -67,6 +74,45 @@ function normalizePaymentInvoiceRecord(
   };
 }
 
+function monthStart(value: string) {
+  return `${value}-01`;
+}
+
+function monthEnd(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  const endDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return `${value}-${String(endDay).padStart(2, "0")}`;
+}
+
+type PaymentInvoiceFilterableQuery<T> = T & {
+  gte(column: string, value: string): PaymentInvoiceFilterableQuery<T>;
+  lte(column: string, value: string): PaymentInvoiceFilterableQuery<T>;
+};
+
+function applyPaymentInvoiceFilters<T>(
+  query: T,
+  filters: PaymentFilters = {},
+) {
+  let nextQuery = query as PaymentInvoiceFilterableQuery<T>;
+
+  if (filters.month) {
+    nextQuery = nextQuery
+      .gte("invoice_date", monthStart(filters.month))
+      .lte("invoice_date", monthEnd(filters.month));
+  } else {
+    if (filters.from) {
+      nextQuery = nextQuery.gte("invoice_date", monthStart(filters.from));
+    }
+
+    if (filters.to) {
+      nextQuery = nextQuery.lte("invoice_date", monthEnd(filters.to));
+    }
+  }
+
+  return nextQuery as T;
+}
+
 const paymentColumns = `
   id,
   invoice_id,
@@ -80,19 +126,25 @@ const paymentColumns = `
   updated_at
 `;
 
-export async function getPaymentRowsForStaff() {
+export async function getPaymentRowsForStaff(filters: PaymentFilters = {}) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyPaymentInvoiceFilters(
+    supabase
     .from("invoices")
-    .select(invoiceColumns)
+      .select(invoiceColumns),
+    filters,
+  )
     .order("invoice_date", { ascending: false })
     .returns<PaymentInvoiceRecord[]>();
 
   if (error) {
     if (isMissingSelfBillingInvoiceColumn(error)) {
-      const { data: legacyData, error: legacyError } = await supabase
+      const { data: legacyData, error: legacyError } = await applyPaymentInvoiceFilters(
+        supabase
         .from("invoices")
-        .select(legacyInvoiceColumns)
+          .select(legacyInvoiceColumns),
+        filters,
+      )
         .order("invoice_date", { ascending: false })
         .returns<LegacyPaymentInvoiceRecord[]>();
 
@@ -102,30 +154,42 @@ export async function getPaymentRowsForStaff() {
         );
       }
 
-      return hydratePaymentRows(legacyData.map(normalizePaymentInvoiceRecord));
+      return filterPaymentRowsByStatus(
+        await hydratePaymentRows(legacyData.map(normalizePaymentInvoiceRecord)),
+        filters,
+      );
     }
 
     throw new Error(`Could not load payment invoices: ${error.message}`);
   }
 
-  return hydratePaymentRows(data);
+  return filterPaymentRowsByStatus(await hydratePaymentRows(data), filters);
 }
 
-export async function getPaymentRowsForContractor(contractorId: string) {
+export async function getPaymentRowsForContractor(
+  contractorId: string,
+  filters: PaymentFilters = {},
+) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await applyPaymentInvoiceFilters(
+    supabase
     .from("invoices")
     .select(invoiceColumns)
-    .eq("contractor_id", contractorId)
+      .eq("contractor_id", contractorId),
+    filters,
+  )
     .order("invoice_date", { ascending: false })
     .returns<PaymentInvoiceRecord[]>();
 
   if (error) {
     if (isMissingSelfBillingInvoiceColumn(error)) {
-      const { data: legacyData, error: legacyError } = await supabase
+      const { data: legacyData, error: legacyError } = await applyPaymentInvoiceFilters(
+        supabase
         .from("invoices")
         .select(legacyInvoiceColumns)
-        .eq("contractor_id", contractorId)
+          .eq("contractor_id", contractorId),
+        filters,
+      )
         .order("invoice_date", { ascending: false })
         .returns<LegacyPaymentInvoiceRecord[]>();
 
@@ -135,13 +199,26 @@ export async function getPaymentRowsForContractor(contractorId: string) {
         );
       }
 
-      return hydratePaymentRows(legacyData.map(normalizePaymentInvoiceRecord));
+      return filterPaymentRowsByStatus(
+        await hydratePaymentRows(legacyData.map(normalizePaymentInvoiceRecord)),
+        filters,
+      );
     }
 
     throw new Error(`Could not load contractor payment invoices: ${error.message}`);
   }
 
-  return hydratePaymentRows(data);
+  return filterPaymentRowsByStatus(await hydratePaymentRows(data), filters);
+}
+
+function filterPaymentRowsByStatus(rows: PaymentRow[], filters: PaymentFilters) {
+  if (!filters.status) {
+    return rows;
+  }
+
+  return rows.filter(
+    (row) => (row.payment?.status ?? "pending") === filters.status,
+  );
 }
 
 async function hydratePaymentRows(invoices: PaymentInvoiceRecord[]) {

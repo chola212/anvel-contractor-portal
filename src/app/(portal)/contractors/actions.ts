@@ -299,7 +299,7 @@ export async function createContractorAction(
     console.error("Contractor invitation email failed", error);
     return {
       message:
-        "Contractor account was created, but the invitation email could not be sent. Use Resend invite from the contractor profile.",
+        "Contractor account was created, but Resend could not send the invitation. Check RESEND_API_KEY, PORTAL_EMAIL_FROM and Resend domain verification, then use Resend invite from the contractor profile.",
       status: "error",
       fieldErrors: {},
     };
@@ -686,7 +686,8 @@ export async function resendContractorInviteAction(
   } catch (error) {
     console.error("Resend invite email failed", error);
     return {
-      message: "The invite link was prepared, but the email could not be sent.",
+      message:
+        "The invite link was prepared, but Resend could not send the email. Check RESEND_API_KEY, PORTAL_EMAIL_FROM and Resend domain verification.",
       status: "error",
       fieldErrors: {},
     };

@@ -1,19 +1,36 @@
 import { PaymentList } from "@/components/payments/payment-list";
 import { ContractorOperationalSelector } from "@/components/contractors/contractor-operational-selector";
+import { OperationalFilterForm } from "@/components/filters/operational-filter-form";
 import { requireCurrentProfile } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
+import {
+  parseMonthRangeFilters,
+  parseStatusFilter,
+  type SearchParamsInput,
+} from "@/lib/filters/search-params";
 import { getPaymentRowsForContractor } from "@/lib/payments/queries";
 
-export default async function PaymentsPage() {
+const paymentStatuses = ["pending", "approved", "paid", "on_hold"] as const;
+
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsInput>;
+}) {
   const profile = await requireCurrentProfile();
+  const resolvedSearchParams = await searchParams;
+  const filters = {
+    ...parseMonthRangeFilters(resolvedSearchParams),
+    status: parseStatusFilter(resolvedSearchParams, paymentStatuses),
+  };
   const isContractor = profile.role === "contractor";
   const contractor = isContractor
     ? await getContractorByProfileId(profile.id)
     : null;
   const rows =
     isContractor && contractor
-      ? await getPaymentRowsForContractor(contractor.id)
+      ? await getPaymentRowsForContractor(contractor.id, filters)
       : [];
 
   return (
@@ -45,7 +62,26 @@ export default async function PaymentsPage() {
         </section>
       ) : (
         isContractor ? (
-          <PaymentList rows={rows} mode="contractor" canManage={false} />
+          <>
+            <OperationalFilterForm
+              fields={[
+                { name: "month", label: "Invoice month", type: "month", value: filters.month },
+                { name: "from", label: "From month", type: "month", value: filters.from },
+                { name: "to", label: "To month", type: "month", value: filters.to },
+                {
+                  name: "status",
+                  label: "Payment status",
+                  type: "select",
+                  value: filters.status,
+                  options: paymentStatuses.map((status) => ({
+                    value: status,
+                    label: status.replace(/_/g, " "),
+                  })),
+                },
+              ]}
+            />
+            <PaymentList rows={rows} mode="contractor" canManage={false} />
+          </>
         ) : (
           <ContractorOperationalSelector
             contractors={await getContractorsForStaff()}

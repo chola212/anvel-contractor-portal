@@ -9,6 +9,15 @@ type PortalEmailInput = {
   }[];
 };
 
+const requiredPortalSender = "ANVEL Consulting <contact@anvelconsulting.com>";
+
+export class PortalEmailError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PortalEmailError";
+  }
+}
+
 export function getPortalBaseUrl(origin?: string | null) {
   return (
     origin ??
@@ -25,10 +34,16 @@ export async function sendPortalEmail(input: PortalEmailInput) {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
     process.env.PORTAL_EMAIL_FROM ??
-    "ANVEL Consulting <contact@anvelconsulting.com>";
+    requiredPortalSender;
 
   if (!apiKey) {
-    return { sent: false as const };
+    throw new PortalEmailError("RESEND_API_KEY is not configured.");
+  }
+
+  if (from !== requiredPortalSender) {
+    throw new PortalEmailError(
+      `PORTAL_EMAIL_FROM must be exactly ${requiredPortalSender}. Current value: ${from}`,
+    );
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -49,7 +64,9 @@ export async function sendPortalEmail(input: PortalEmailInput) {
 
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`Email provider rejected the message: ${message}`);
+    throw new PortalEmailError(
+      `Resend rejected the message with ${response.status}: ${message}`,
+    );
   }
 
   return { sent: true as const };
