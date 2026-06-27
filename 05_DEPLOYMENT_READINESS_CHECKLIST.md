@@ -56,12 +56,23 @@ Required Vercel environment variables:
 ```text
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SITE_URL=https://portal.anvelconsulting.com
+RESEND_API_KEY
+PORTAL_EMAIL_FROM=ANVEL Consulting <contact@anvelconsulting.com>
+ADMIN_NOTIFICATION_EMAIL=contact@anvelconsulting.com
 ```
 
 If the Supabase dashboard only provides a legacy anon public key, use that value
 for `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 
-Do not add the Supabase service role key to Vercel for the current app.
+`SUPABASE_SERVICE_ROLE_KEY` is required by server actions that generate branded
+invite and password-reset links. Keep it server-only: never prefix it with
+`NEXT_PUBLIC_`, never expose it in browser code and never commit it.
+
+Resend must show `anvelconsulting.com` as verified. Confirm SPF and DKIM are
+valid; DMARC is recommended. Redeploy Vercel after any environment-variable
+change, and check Resend logs when delivery is delayed.
 
 ## 4. Supabase Production Project
 

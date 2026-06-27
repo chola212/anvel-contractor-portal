@@ -3,7 +3,12 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
-import { buildAuthCallbackUrl, buildPasswordResetEmail, sendPortalEmail } from "@/lib/email/portal-email";
+import {
+  buildAuthCallbackUrl,
+  buildGeneratedAuthLink,
+  buildPasswordResetEmail,
+  sendPortalEmail,
+} from "@/lib/email/portal-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const forgotPasswordSchema = z.object({
@@ -79,7 +84,13 @@ export async function forgotPasswordAction(
     },
   });
 
-  if (error || !data.properties?.action_link) {
+  const resetLink = buildGeneratedAuthLink(
+    data.properties,
+    "recovery",
+    origin,
+  );
+
+  if (error || !resetLink) {
     console.error(
       "Password reset link generation failed",
       error?.message ?? "Missing action link",
@@ -92,7 +103,7 @@ export async function forgotPasswordAction(
   }
 
   try {
-    const email = buildPasswordResetEmail(data.properties.action_link);
+    const email = buildPasswordResetEmail(resetLink);
     await sendPortalEmail({
       to: parsed.data.email,
       ...email,

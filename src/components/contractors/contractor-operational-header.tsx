@@ -17,14 +17,17 @@ export function ContractorOperationalHeader({
 }: ContractorOperationalHeaderProps) {
   return (
     <section className="border-b border-neutral-200 pb-5">
-      <div className="flex flex-wrap gap-3 text-sm font-medium">
+      <div className="flex flex-wrap gap-2">
         <Link
           href={`/contractors/${contractorId}`}
-          className="text-teal-800 hover:text-teal-950"
+          className="inline-flex min-h-9 items-center rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-900 transition-colors hover:border-teal-300 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
         >
           Back to contractor
         </Link>
-        <Link href={selectorHref} className="text-teal-800 hover:text-teal-950">
+        <Link
+          href={selectorHref}
+          className="inline-flex min-h-9 items-center rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 transition-colors hover:border-neutral-400 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+        >
           {selectorLabel}
         </Link>
       </div>

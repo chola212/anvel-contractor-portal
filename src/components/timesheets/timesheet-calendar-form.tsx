@@ -19,6 +19,7 @@ type TimesheetCalendarFormProps = {
   month: number;
   entries: TimesheetEntryRecord[];
   assignments: AssignmentPeriod[];
+  comments: string | null;
 };
 
 const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -58,6 +59,7 @@ export function TimesheetCalendarForm({
   month,
   entries,
   assignments,
+  comments,
 }: TimesheetCalendarFormProps) {
   const initialState: TimesheetActionState = {
     message: null,
@@ -114,14 +116,20 @@ export function TimesheetCalendarForm({
               const isEnabled = assignments.some((assignment) =>
                 dateIsWithinAssignment(key, assignment),
               );
+              const dayOfWeek = new Date(
+                Date.UTC(year, month - 1, day),
+              ).getUTCDay();
+              const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
               return (
                 <div
                   key={key}
                   className={[
-                    "min-h-32 bg-white p-2",
+                    "min-h-32 p-2",
+                    isWeekend ? "bg-neutral-100" : "bg-white",
                     isEnabled ? "" : "bg-neutral-50 text-neutral-400",
                   ].join(" ")}
+                  data-weekend={isWeekend ? "true" : undefined}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold">{day}</span>
@@ -153,25 +161,33 @@ export function TimesheetCalendarForm({
                       {error}
                     </p>
                   ))}
-                  <label
-                    htmlFor={`note-${key}`}
-                    className="mt-2 block text-xs font-medium text-neutral-600"
-                  >
-                    Note
-                  </label>
-                  <input
-                    id={`note-${key}`}
-                    name={`note_${key}`}
-                    type="text"
-                    maxLength={280}
-                    disabled={!isEnabled}
-                    defaultValue={entry?.note ?? ""}
-                    className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs text-neutral-950 outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-                  />
                 </div>
               );
             })}
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label
+            htmlFor="comments"
+            className="block text-sm font-medium text-neutral-800"
+          >
+            Comments
+          </label>
+          <textarea
+            id="comments"
+            name="comments"
+            rows={3}
+            maxLength={2000}
+            defaultValue={comments ?? ""}
+            placeholder="Add any comments for this timesheet if needed."
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+          />
+          {state.fieldErrors.comments?.map((error) => (
+            <p key={error} className="text-sm text-red-700">
+              {error}
+            </p>
+          ))}
         </div>
 
         <div className="flex justify-end">

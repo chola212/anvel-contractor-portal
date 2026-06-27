@@ -69,7 +69,7 @@ export async function generatePaymentStatementAction(
   const { data: timesheet, error: timesheetError } = await supabase
     .from("timesheets")
     .select(
-      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,comments,created_at,updated_at",
     )
     .eq("id", parsed.data.timesheetId)
     .maybeSingle<TimesheetRecord>();

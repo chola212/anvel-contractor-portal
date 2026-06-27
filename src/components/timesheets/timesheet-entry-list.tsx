@@ -13,6 +13,8 @@ export function TimesheetEntryList({
   timesheetId,
   editable,
 }: TimesheetEntryListProps) {
+  const hasLegacyNotes = entries.some((entry) => Boolean(entry.note));
+
   if (entries.length === 0) {
     return (
       <section className="rounded-md border border-neutral-200 bg-white p-5">
@@ -34,8 +36,10 @@ export function TimesheetEntryList({
           Daily entries
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Required data is date and hours. Notes are optional and should stay
-          brief.
+          Required data is date and hours.
+          {hasLegacyNotes
+            ? " Existing legacy notes remain visible for historical context."
+            : ""}
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -48,9 +52,11 @@ export function TimesheetEntryList({
               <th scope="col" className="px-5 py-3 font-medium">
                 Hours
               </th>
-              <th scope="col" className="px-5 py-3 font-medium">
-                Note
-              </th>
+              {hasLegacyNotes ? (
+                <th scope="col" className="px-5 py-3 font-medium">
+                  Legacy note
+                </th>
+              ) : null}
               {editable ? (
                 <th scope="col" className="px-5 py-3 font-medium">
                   Action
@@ -67,9 +73,11 @@ export function TimesheetEntryList({
                 <td className="px-5 py-4 align-top text-neutral-700">
                   {formatHours(entry.hours)}
                 </td>
-                <td className="px-5 py-4 align-top text-neutral-700">
-                  {entry.note ?? "No note"}
-                </td>
+                {hasLegacyNotes ? (
+                  <td className="px-5 py-4 align-top text-neutral-700">
+                    {entry.note ?? "No note"}
+                  </td>
+                ) : null}
                 {editable ? (
                   <td className="px-5 py-4 align-top">
                     <form action={deleteTimesheetEntryAction}>

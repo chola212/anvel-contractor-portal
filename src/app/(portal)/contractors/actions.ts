@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/profile";
 import {
   buildAuthCallbackUrl,
+  buildGeneratedAuthLink,
   buildInviteEmail,
   sendPortalEmail,
 } from "@/lib/email/portal-email";
@@ -270,7 +271,11 @@ export async function createContractorAction(
     };
   }
 
-  const actionLink = inviteResult.data.properties?.action_link ?? null;
+  const actionLink = buildGeneratedAuthLink(
+    inviteResult.data.properties,
+    existingAuthUser ? "recovery" : "invite",
+    requestOrigin,
+  );
 
   if (!actionLink) {
     if (!existingAuthUser) {
@@ -778,7 +783,13 @@ export async function resendContractorInviteAction(
     },
   });
 
-  if (error || !data.properties?.action_link) {
+  const inviteLink = buildGeneratedAuthLink(
+    data.properties,
+    "recovery",
+    requestHeaders.get("origin"),
+  );
+
+  if (error || !inviteLink) {
     return {
       message: error?.message ?? "Could not prepare the invite link.",
       status: "error",
@@ -787,7 +798,7 @@ export async function resendContractorInviteAction(
   }
 
   try {
-    const email = buildInviteEmail(contractor.legal_name, data.properties.action_link);
+    const email = buildInviteEmail(contractor.legal_name, inviteLink);
     await sendPortalEmail({
       to: contractor.email,
       ...email,

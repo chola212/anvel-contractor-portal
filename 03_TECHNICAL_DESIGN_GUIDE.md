@@ -1388,10 +1388,19 @@ Add variables in Vercel:
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SITE_URL=https://portal.anvelconsulting.com
+RESEND_API_KEY
+PORTAL_EMAIL_FROM=ANVEL Consulting <contact@anvelconsulting.com>
+ADMIN_NOTIFICATION_EMAIL=contact@anvelconsulting.com
 ```
 
-If server-only secrets are ever required, mark them as server-side only and never expose them with `NEXT_PUBLIC_`.
+The service-role and Resend keys are server-only. Never expose them with a
+`NEXT_PUBLIC_` prefix. Resend must have `anvelconsulting.com` verified with
+valid SPF and DKIM records; DMARC is recommended. Redeploy Vercel after changing
+environment variables. If delivery is delayed, inspect Resend delivery logs
+before treating the portal workflow as failed.
 
 ### 23.3 Preview deployments
 

@@ -30,6 +30,7 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SITE_URL
 RESEND_API_KEY
 PORTAL_EMAIL_FROM
+ADMIN_NOTIFICATION_EMAIL
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it in browser code and never commit `.env.local`.
@@ -38,6 +39,7 @@ Use this production sender value:
 
 ```text
 PORTAL_EMAIL_FROM="ANVEL Consulting <contact@anvelconsulting.com>"
+ADMIN_NOTIFICATION_EMAIL="contact@anvelconsulting.com"
 NEXT_PUBLIC_SITE_URL="https://portal.anvelconsulting.com"
 ```
 
@@ -109,6 +111,7 @@ For branded production email, configure:
 
 - `RESEND_API_KEY`
 - `PORTAL_EMAIL_FROM="ANVEL Consulting <contact@anvelconsulting.com>"`
+- `ADMIN_NOTIFICATION_EMAIL="contact@anvelconsulting.com"`
 - Resend domain authentication for `anvelconsulting.com`
 
 The application now rejects invite, reset and invoice emails unless the sender
@@ -240,6 +243,7 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SITE_URL=https://portal.anvelconsulting.com
 RESEND_API_KEY
 PORTAL_EMAIL_FROM=ANVEL Consulting <contact@anvelconsulting.com>
+ADMIN_NOTIFICATION_EMAIL=contact@anvelconsulting.com
 ```
 
 Resend/domain setup:
@@ -250,8 +254,9 @@ Resend/domain setup:
 - Use `contact@anvelconsulting.com` as the sending mailbox.
 - Confirm `RESEND_API_KEY` exists in Vercel for production.
 - Confirm `PORTAL_EMAIL_FROM` is exactly `ANVEL Consulting <contact@anvelconsulting.com>`.
+- Confirm `ADMIN_NOTIFICATION_EMAIL` is `contact@anvelconsulting.com`.
 - Redeploy Vercel after changing environment variables.
-- If email fails, check Vercel server logs for the exact Resend HTTP status and response body.
+- If delivery is delayed or fails, check Resend logs and Vercel server logs for the exact delivery state or HTTP response.
 
 Deliverability troubleshooting:
 

@@ -39,7 +39,7 @@ export default async function ContractorDetailPage({
       <section className="border-b border-neutral-200 pb-5">
         <Link
           href="/contractors"
-          className="text-sm font-medium text-teal-800 hover:text-teal-950"
+          className="inline-flex min-h-9 items-center rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-900 transition-colors hover:border-teal-300 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
         >
           Back to contractors
         </Link>

@@ -22,6 +22,15 @@ export async function GET(request: NextRequest) {
   const next = getSafeRedirectPath(requestUrl.searchParams.get("next"));
   const redirectUrl = request.nextUrl.clone();
 
+  console.info("Auth callback received", {
+    queryParamNames: [...requestUrl.searchParams.keys()].sort(),
+    verificationPath: code
+      ? "code"
+      : tokenHash && type
+        ? "token_hash"
+        : "missing",
+  });
+
   redirectUrl.pathname = next;
   redirectUrl.search = "";
 
@@ -45,6 +54,11 @@ export async function GET(request: NextRequest) {
       : {
           error: new Error("Missing auth callback token."),
         };
+
+  console.info("Auth callback verification completed", {
+    verificationPath: code ? "code" : "token_hash",
+    succeeded: !result.error,
+  });
 
   if (result.error) {
     console.error("Auth callback failed", result.error);

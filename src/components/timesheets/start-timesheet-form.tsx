@@ -8,6 +8,7 @@ import {
   type TimesheetActionState,
 } from "@/app/(portal)/timesheets/actions";
 import type { ProjectAssignment } from "@/lib/projects/types";
+import { monthOverlapsAssignment } from "@/lib/timesheets/assignment-periods";
 
 type StartTimesheetFormProps = {
   assignments: ProjectAssignment[];
@@ -47,6 +48,8 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const initialState: TimesheetActionState = {
     message: null,
     status: "idle",
@@ -101,6 +104,8 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
             id="projectId"
             name="projectId"
             required
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.currentTarget.value)}
             className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
           >
             <option value="">Select project</option>
@@ -124,7 +129,10 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
           <select
             id="month"
             name="month"
-            defaultValue={String(today.getMonth() + 1)}
+            value={String(selectedMonth)}
+            onChange={(event) =>
+              setSelectedMonth(Number(event.currentTarget.value))
+            }
             required
             className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
           >
@@ -134,7 +142,17 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
                 value={value}
                 disabled={
                   selectedYear > currentYear ||
-                  (selectedYear === currentYear && Number(value) > currentMonth)
+                  (selectedYear === currentYear && Number(value) > currentMonth) ||
+                  (selectedProjectId.length > 0 &&
+                    !assignments.some(
+                      (assignment) =>
+                        assignment.project_id === selectedProjectId &&
+                        monthOverlapsAssignment(
+                          selectedYear,
+                          Number(value),
+                          assignment,
+                        ),
+                    ))
                 }
               >
                 {label}
@@ -146,6 +164,20 @@ export function StartTimesheetForm({ assignments }: StartTimesheetFormProps) {
               {error}
             </p>
           ))}
+          {selectedProjectId &&
+          !assignments.some(
+            (assignment) =>
+              assignment.project_id === selectedProjectId &&
+              monthOverlapsAssignment(
+                selectedYear,
+                selectedMonth,
+                assignment,
+              ),
+          ) ? (
+            <p className="text-sm text-amber-800">
+              You cannot create a timesheet outside the assignment period.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">

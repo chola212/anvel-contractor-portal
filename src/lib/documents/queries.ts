@@ -6,6 +6,7 @@ import type {
   DocumentContractorSummary,
   DocumentRequirementRecord,
 } from "./types";
+import { contractorDocumentRequirementNames } from "./requirements";
 
 const documentColumns = `
   id,
@@ -123,6 +124,7 @@ export async function getDocumentRequirementsForContractor(
         ? `supplier_type.is.null,supplier_type.eq.${supplierType}`
         : "supplier_type.is.null",
     )
+    .in("name", [...contractorDocumentRequirementNames])
     .order("is_required", { ascending: false })
     .order("name", { ascending: true })
     .returns<DocumentRequirementRecord[]>();
@@ -139,6 +141,7 @@ export async function getAllDocumentRequirements() {
   const { data, error } = await supabase
     .from("document_requirements")
     .select("id,supplier_type,name,is_required,requires_expiry_date,created_at")
+    .in("name", [...contractorDocumentRequirementNames])
     .order("is_required", { ascending: false })
     .order("name", { ascending: true })
     .returns<DocumentRequirementRecord[]>();

@@ -59,6 +59,14 @@ const timesheetIdSchema = z.object({
   timesheetId: z.string().uuid("Timesheet is missing."),
 });
 
+const saveTimesheetCalendarSchema = timesheetIdSchema.extend({
+  comments: z
+    .string()
+    .trim()
+    .max(2000, "Keep comments under 2,000 characters.")
+    .transform((value) => (value.length > 0 ? value : null)),
+});
+
 const entryIdSchema = z.object({
   timesheetId: z.string().uuid("Timesheet is missing."),
   entryId: z.string().uuid("Entry is missing."),
@@ -114,7 +122,7 @@ async function getAdminReviewTimesheet(
   const { data: timesheet, error } = await supabase
     .from("timesheets")
     .select(
-      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,comments,created_at,updated_at",
     )
     .eq("id", timesheetId)
     .maybeSingle<TimesheetRecord>();
@@ -217,19 +225,6 @@ async function validateTimesheetEntriesWithinAssignments(
       `Timesheet contains hours outside the assignment period on ${invalidEntry.work_date}.`,
     );
   }
-}
-
-async function loadContractorNotificationTarget(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  contractorId: string,
-) {
-  const { data } = await supabase
-    .from("contractors")
-    .select("legal_name,email")
-    .eq("id", contractorId)
-    .maybeSingle<{ legal_name: string; email: string }>();
-
-  return data;
 }
 
 async function loadTimesheetNotificationContext(
@@ -442,18 +437,18 @@ export async function approveTimesheetAction(
   revalidatePath(`/contractors/${timesheet.contractor_id}/payments`);
   revalidatePath("/");
 
-  const notificationTarget = await loadContractorNotificationTarget(
+  const notificationTarget = await loadTimesheetNotificationContext(
     supabase,
-    timesheet.contractor_id,
+    timesheet,
   );
 
   if (notificationTarget) {
     const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
     await sendContractorNotification({
-      to: notificationTarget.email,
+      to: notificationTarget.contractorEmail,
       subject: `Timesheet approved - ${monthLabel}`,
       body:
-        `Your timesheet for ${monthLabel} has been approved and a self-billing invoice has been generated from the approved hours.`,
+        `Your timesheet for ${monthLabel}${notificationTarget.projectName ? ` for ${notificationTarget.projectName}` : ""} has been approved and a self-billing invoice has been generated from the approved hours.`,
     });
   }
 
@@ -534,17 +529,17 @@ export async function rejectTimesheetAction(
   revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
   revalidatePath("/");
 
-  const notificationTarget = await loadContractorNotificationTarget(
+  const notificationTarget = await loadTimesheetNotificationContext(
     supabase,
-    timesheet.contractor_id,
+    timesheet,
   );
 
   if (notificationTarget) {
     const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
     await sendContractorNotification({
-      to: notificationTarget.email,
+      to: notificationTarget.contractorEmail,
       subject: `Timesheet rejected - ${monthLabel}`,
-      body: `Your submitted timesheet for ${monthLabel} needs correction. Reason: ${parsed.data.rejectionReason}`,
+      body: `Your submitted timesheet for ${monthLabel}${notificationTarget.projectName ? ` for ${notificationTarget.projectName}` : ""} needs correction. Reason: ${parsed.data.rejectionReason}`,
     });
   }
 
@@ -624,17 +619,17 @@ export async function reopenTimesheetAction(
   revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
   revalidatePath("/");
 
-  const notificationTarget = await loadContractorNotificationTarget(
+  const notificationTarget = await loadTimesheetNotificationContext(
     supabase,
-    timesheet.contractor_id,
+    timesheet,
   );
 
   if (notificationTarget) {
     const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
     await sendContractorNotification({
-      to: notificationTarget.email,
+      to: notificationTarget.contractorEmail,
       subject: `Timesheet reopened - ${monthLabel}`,
-      body: `Your timesheet for ${monthLabel} has been reopened for correction.`,
+      body: `Your timesheet for ${monthLabel}${notificationTarget.projectName ? ` for ${notificationTarget.projectName}` : ""} has been reopened for correction.`,
     });
   }
 
@@ -660,7 +655,7 @@ async function getEditableOwnTimesheet(timesheetId: string) {
   const { data: timesheet, error } = await supabase
     .from("timesheets")
     .select(
-      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,comments,created_at,updated_at",
     )
     .eq("id", timesheetId)
     .maybeSingle<TimesheetRecord>();
@@ -740,11 +735,10 @@ export async function startTimesheetAction(
 
   if (assignmentError || matchingAssignments.length === 0) {
     return {
-      message:
-        "Select a month that overlaps an assignment period for this project.",
+      message: "You cannot create a timesheet outside the assignment period.",
       status: "error",
       fieldErrors: {
-        projectId: ["Select an assigned project and month."],
+        month: ["You cannot create a timesheet outside the assignment period."],
       },
     };
   }
@@ -900,13 +894,14 @@ export async function saveTimesheetCalendarAction(
   _previousState: TimesheetActionState,
   formData: FormData,
 ): Promise<TimesheetActionState> {
-  const parsed = timesheetIdSchema.safeParse({
+  const parsed = saveTimesheetCalendarSchema.safeParse({
     timesheetId: formData.get("timesheetId"),
+    comments: formData.get("comments"),
   });
 
   if (!parsed.success) {
     return {
-      message: "Timesheet is missing.",
+      message: "Check the timesheet calendar and comments.",
       status: "error",
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
@@ -940,6 +935,23 @@ export async function saveTimesheetCalendarAction(
     };
   }
 
+  const { data: existingEntries, error: existingEntriesError } = await supabase
+    .from("timesheet_entries")
+    .select("work_date,note")
+    .eq("timesheet_id", timesheet.id)
+    .returns<{ work_date: string; note: string | null }[]>();
+
+  if (existingEntriesError) {
+    return {
+      message: `Could not load existing calendar details: ${existingEntriesError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const existingNotes = new Map(
+    existingEntries.map((entry) => [entry.work_date, entry.note]),
+  );
   const upserts: {
     timesheet_id: string;
     work_date: string;
@@ -952,7 +964,6 @@ export async function saveTimesheetCalendarAction(
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dateKey = `${timesheet.year}-${String(timesheet.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const hoursValue = String(formData.get(`hours_${dateKey}`) ?? "").trim();
-    const noteValue = String(formData.get(`note_${dateKey}`) ?? "").trim();
     const hours = hoursValue.length > 0 ? Number(hoursValue) : 0;
 
     if (!Number.isFinite(hours) || hours < 0 || hours > 24) {
@@ -994,11 +1005,24 @@ export async function saveTimesheetCalendarAction(
         timesheet_id: timesheet.id,
         work_date: dateKey,
         hours,
-        note: noteValue.length > 0 ? noteValue : null,
+        note: existingNotes.get(dateKey) ?? null,
       });
     } else {
       deleteDates.push(dateKey);
     }
+  }
+
+  const { error: commentsError } = await supabase
+    .from("timesheets")
+    .update({ comments: parsed.data.comments })
+    .eq("id", timesheet.id);
+
+  if (commentsError) {
+    return {
+      message: `Could not save timesheet comments: ${commentsError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
   }
 
   if (upserts.length > 0) {

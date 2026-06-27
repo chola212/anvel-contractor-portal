@@ -23,6 +23,7 @@ const timesheetColumns = `
   rejected_by,
   rejected_at,
   rejection_reason,
+  comments,
   created_at,
   updated_at
 `;

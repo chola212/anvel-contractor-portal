@@ -53,12 +53,60 @@ assert.equal(
   "timesheet month should overlap assignment starting mid-month",
 );
 assert.equal(
+  monthOverlapsAssignment(2026, 6, {
+    start_date: "2026-07-15",
+    end_date: "2026-09-10",
+  }),
+  false,
+  "timesheet month before assignment start should be rejected",
+);
+assert.equal(
+  monthOverlapsAssignment(2026, 10, {
+    start_date: "2026-07-15",
+    end_date: "2026-09-10",
+  }),
+  false,
+  "timesheet month after assignment end should be rejected",
+);
+assert.equal(
+  monthOverlapsAssignment(2026, 8, {
+    start_date: "2026-07-15",
+    end_date: "2026-09-10",
+  }),
+  true,
+  "current month inside an assignment should be accepted",
+);
+assert.equal(
+  monthOverlapsAssignment(2026, 8, {
+    start_date: "2026-07-15",
+    end_date: null,
+  }),
+  true,
+  "an assignment without an end date should allow later non-future months",
+);
+assert.equal(
   dateIsWithinAssignment("2026-07-14", {
     start_date: "2026-07-15",
     end_date: null,
   }),
   false,
   "worked day before assignment start should be rejected",
+);
+assert.equal(
+  dateIsWithinAssignment("2026-09-11", {
+    start_date: "2026-07-15",
+    end_date: "2026-09-10",
+  }),
+  false,
+  "worked day after a mid-month assignment end should be rejected",
+);
+assert.equal(
+  dateIsWithinAssignment("2026-09-10", {
+    start_date: "2026-07-15",
+    end_date: "2026-09-10",
+  }),
+  true,
+  "the assignment end date should remain valid",
 );
 assert.equal(
   selectSingleStatementRate(
@@ -126,6 +174,21 @@ assert.match(
   timesheetActions,
   /isFutureTimesheetMonth[\s\S]*You cannot create a timesheet for a future month/,
   "starting a timesheet should reject future months server-side",
+);
+assert.match(
+  timesheetActions,
+  /startTimesheetAction[\s\S]*monthOverlapsAssignment[\s\S]*You cannot create a timesheet outside the assignment period/,
+  "server action should reject a bypassed month outside the assignment period",
+);
+assert.match(
+  timesheetActions,
+  /update\(\{ comments: parsed\.data\.comments \}\)/,
+  "calendar save should persist the single timesheet comments field",
+);
+assert.match(
+  timesheetActions,
+  /existingNotes\.get\(dateKey\)/,
+  "calendar save should preserve legacy daily notes",
 );
 assert.match(
   timesheetActions,
@@ -229,7 +292,7 @@ for (const expectedBuilder of [
   "buildTimesheetSubmittedAdminEmail",
   "buildDocumentUploadedAdminEmail",
   "buildInvoiceUploadedAdminEmail",
-  "portalAdminEmail = \"contact@anvelconsulting.com\"",
+  "ADMIN_NOTIFICATION_EMAIL",
 ]) {
   assert.match(
     portalEmail,
@@ -243,6 +306,16 @@ assert.match(
   authCallback,
   /exchangeCodeForSession/,
   "auth callback should support Supabase code links",
+);
+assert.match(
+  authCallback,
+  /verificationPath:[\s\S]*code[\s\S]*token_hash/,
+  "auth callback should safely log whether code or token_hash verification was used",
+);
+assert.match(
+  authCallback,
+  /queryParamNames/,
+  "auth callback should log query parameter names without logging token values",
 );
 assert.match(
   authCallback,
@@ -266,6 +339,44 @@ assert.match(
   /disabled=\{[\s\S]*Number\(value\) > currentMonth/,
   "timesheet start form should disable future months in the UI",
 );
+assert.match(
+  startTimesheetForm,
+  /monthOverlapsAssignment/,
+  "timesheet start form should disable months outside the selected assignment",
+);
+
+const calendarForm = read(
+  "src/components/timesheets/timesheet-calendar-form.tsx",
+);
+assert.doesNotMatch(
+  calendarForm,
+  /name=\{`note_/,
+  "calendar should no longer render daily note inputs",
+);
+assert.equal(
+  (calendarForm.match(/name="comments"/g) ?? []).length,
+  1,
+  "calendar should render one whole-timesheet comments field",
+);
+assert.match(
+  calendarForm,
+  /data-weekend=\{isWeekend \? "true"/,
+  "weekend calendar cells should expose weekend styling",
+);
+assert.match(
+  calendarForm,
+  /disabled=\{!isEnabled\}/,
+  "weekend inputs should remain enabled when the assignment permits the date",
+);
+
+const timesheetMigration = read(
+  "supabase/migrations/202606280001_timesheet_comments_and_document_requirements.sql",
+);
+assert.match(
+  timesheetMigration,
+  /add column if not exists comments text/,
+  "migration should add optional whole-timesheet comments safely",
+);
 
 const documentActions = read("src/app/(portal)/documents/actions.ts");
 assert.match(
@@ -273,6 +384,34 @@ assert.match(
   /profile\.role === "contractor"[\s\S]*sendAdminNotification[\s\S]*buildDocumentUploadedAdminEmail/,
   "contractor document uploads should notify the admin inbox",
 );
+const documentRequirements = read("src/lib/documents/requirements.ts");
+for (const requirement of [
+  "Contractor Agreement",
+  "NDA",
+  "Assignment Schedule",
+  "Other",
+]) {
+  assert.match(
+    documentRequirements,
+    new RegExp(requirement),
+    `shared document requirements should include ${requirement}`,
+  );
+  assert.match(
+    timesheetMigration,
+    new RegExp(requirement),
+    `document requirement migration should include ${requirement}`,
+  );
+}
+for (const documentPage of [
+  "src/app/(portal)/documents/page.tsx",
+  "src/app/(portal)/contractors/[id]/documents/page.tsx",
+]) {
+  assert.match(
+    read(documentPage),
+    /getDocumentRequirementFilterOptions/,
+    `${documentPage} should derive filters from the upload requirement source`,
+  );
+}
 assert.doesNotMatch(
   documentActions.match(/if \(profile\.role === "admin"\)[\s\S]*?}\n\n  if \(profile\.role === "contractor"\)/)?.[0] ?? "",
   /buildDocumentUploadedAdminEmail/,
@@ -303,6 +442,64 @@ assert.match(
   invoiceActions,
   /\.min\(1, "Enter the invoice number\."\)/,
   "invoice number validation should allow one-character invoice numbers",
+);
+
+const resetPasswordForm = read(
+  "src/components/auth/reset-password-form.tsx",
+);
+assert.match(
+  resetPasswordForm,
+  /Password requirements[\s\S]*passwordRules/,
+  "reset and invitation password setup should show the shared password rules",
+);
+const passwordPolicy = read("src/lib/auth/password.ts");
+for (const rule of [
+  "At least 12 characters",
+  "At least one uppercase letter",
+  "At least one lowercase letter",
+  "At least one number",
+]) {
+  assert.match(
+    passwordPolicy,
+    new RegExp(rule),
+    `visible and enforced password policy should include: ${rule}`,
+  );
+}
+
+assert.match(
+  portalEmail,
+  /buildGeneratedAuthLink[\s\S]*hashed_token[\s\S]*token_hash/,
+  "branded auth emails should use Supabase's generated hashed token in the app callback",
+);
+const inviteEmailSection =
+  portalEmail.match(/export function buildInviteEmail[\s\S]*?export function buildPasswordResetEmail/)?.[0] ??
+  "";
+const resetEmailSection =
+  portalEmail.match(/export function buildPasswordResetEmail[\s\S]*?export function buildSelfBillingInvoiceEmail/)?.[0] ??
+  "";
+assert.match(
+  inviteEmailSection,
+  /<ul>[\s\S]*monthly timesheets[\s\S]*self-billing invoices[\s\S]*payment status/,
+  "invitation email should explain the portal purpose in bullet points",
+);
+assert.doesNotMatch(
+  resetEmailSection,
+  /company details|monthly timesheets|self-billing invoices|payment status/,
+  "password reset email should remain short without invitation-purpose bullets",
+);
+assert.match(
+  portalEmail,
+  /Self-billing invoice generated - \$\{invoiceNumber\} - \$\{monthLabel\}/,
+  "self-billing email subject should include action, invoice number and month",
+);
+
+const operationalHeader = read(
+  "src/components/contractors/contractor-operational-header.tsx",
+);
+assert.match(
+  operationalHeader,
+  /Back to contractor[\s\S]*rounded-md[\s\S]*focus-visible:ring-2|rounded-md[\s\S]*focus-visible:ring-2[\s\S]*Back to contractor/,
+  "operational back links should have compact button styling and visible focus",
 );
 assert.match(
   invoiceActions,

@@ -14,6 +14,11 @@ const publicPageChecks = [
     expectedText: "ANVEL Contractor Portal",
     label: "forgot password page",
   },
+  {
+    path: "/reset-password",
+    expectedText: "Password requirements",
+    label: "reset password page",
+  },
 ];
 
 const protectedRoutes = [

@@ -10,7 +10,8 @@ type PortalEmailInput = {
 };
 
 const requiredPortalSender = "ANVEL Consulting <contact@anvelconsulting.com>";
-export const portalAdminEmail = "contact@anvelconsulting.com";
+export const portalAdminEmail =
+  process.env.ADMIN_NOTIFICATION_EMAIL ?? "contact@anvelconsulting.com";
 
 export class PortalEmailError extends Error {
   constructor(message: string) {
@@ -21,14 +22,48 @@ export class PortalEmailError extends Error {
 
 export function getPortalBaseUrl(origin?: string | null) {
   return (
-    origin ??
     process.env.NEXT_PUBLIC_SITE_URL ??
+    origin ??
     "https://portal.anvelconsulting.com"
   ).replace(/\/$/, "");
 }
 
 export function buildAuthCallbackUrl(origin: string | null | undefined) {
   return `${getPortalBaseUrl(origin)}/auth/callback?next=/reset-password`;
+}
+
+type GeneratedAuthLinkProperties = {
+  action_link?: string;
+  hashed_token?: string;
+  email_otp?: string;
+  redirect_to?: string;
+  verification_type?: string;
+};
+
+export function buildGeneratedAuthLink(
+  properties: GeneratedAuthLinkProperties | null | undefined,
+  fallbackType: "invite" | "recovery",
+  origin?: string | null,
+) {
+  console.info("Generated Supabase auth link shape", {
+    hasActionLink: Boolean(properties?.action_link),
+    hasHashedToken: Boolean(properties?.hashed_token),
+    hasEmailOtp: Boolean(properties?.email_otp),
+    hasRedirectTo: Boolean(properties?.redirect_to),
+    verificationType: properties?.verification_type ?? fallbackType,
+  });
+
+  if (properties?.hashed_token) {
+    const callbackUrl = new URL(buildAuthCallbackUrl(origin));
+    callbackUrl.searchParams.set("token_hash", properties.hashed_token);
+    callbackUrl.searchParams.set(
+      "type",
+      properties.verification_type ?? fallbackType,
+    );
+    return callbackUrl.toString();
+  }
+
+  return properties?.action_link ?? null;
 }
 
 export async function sendPortalEmail(input: PortalEmailInput) {
@@ -95,7 +130,16 @@ export function buildInviteEmail(contractorName: string, inviteLink: string) {
       "Set your portal password",
       `
         <p>Hello ${contractorName},</p>
-        <p>Your ANVEL Contractor Portal account has been prepared. Use the secure link below to set your password and access your account.</p>
+        <p>You have been invited to access the ANVEL Contractor Portal.</p>
+        <p>This portal is used to:</p>
+        <ul>
+          <li>keep your contractor profile and company details up to date;</li>
+          <li>upload and review required documents such as the Contractor Agreement, NDA and Assignment Schedule;</li>
+          <li>create and submit monthly timesheets;</li>
+          <li>receive self-billing invoices generated from approved timesheets;</li>
+          <li>track payment status.</li>
+        </ul>
+        <p>Use the secure link below to set your password and access the portal.</p>
         <p style="margin: 24px 0;">
           <a href="${inviteLink}" style="background: #115e59; color: #ffffff; padding: 11px 16px; border-radius: 6px; text-decoration: none; font-weight: 700;">
             Set password
@@ -106,7 +150,16 @@ export function buildInviteEmail(contractorName: string, inviteLink: string) {
     ),
     text: `Hello ${contractorName},
 
-Your ANVEL Contractor Portal account has been prepared. Use this secure link to set your password:
+You have been invited to access the ANVEL Contractor Portal.
+
+This portal is used to:
+- keep your contractor profile and company details up to date;
+- upload and review required documents such as the Contractor Agreement, NDA and Assignment Schedule;
+- create and submit monthly timesheets;
+- receive self-billing invoices generated from approved timesheets;
+- track payment status.
+
+Use the secure link below to set your password and access the portal:
 
 ${inviteLink}
 
@@ -148,7 +201,7 @@ export function buildSelfBillingInvoiceEmail(
   projectName: string | null = null,
 ) {
   return {
-    subject: `Self-billing invoice ${invoiceNumber} - ${monthLabel}`,
+    subject: `Self-billing invoice generated - ${invoiceNumber} - ${monthLabel}`,
     html: wrapEmailHtml(
       `Self-billing invoice ${invoiceNumber}`,
       `

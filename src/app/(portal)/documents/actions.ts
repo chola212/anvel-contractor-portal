@@ -8,6 +8,7 @@ import { requireCurrentProfile, requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import type { SupplierType } from "@/lib/contractors/types";
 import type { DocumentStatus } from "@/lib/documents/types";
+import { normaliseDocumentType } from "@/lib/documents/requirements";
 import { sendAdminNotification } from "@/lib/email/notifications";
 import {
   buildDocumentUploadedAdminEmail,
@@ -60,15 +61,6 @@ type RequirementForUpload = {
   name: string;
   supplier_type: SupplierType | null;
 };
-
-function normaliseDocumentType(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 80);
-}
 
 function safeFileName(value: string) {
   const withoutExtension = value.replace(/\.pdf$/i, "");

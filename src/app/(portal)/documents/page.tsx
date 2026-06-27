@@ -9,6 +9,7 @@ import {
   getDocumentRequirementsForContractor,
   getDocumentsForContractor,
 } from "@/lib/documents/queries";
+import { getDocumentRequirementFilterOptions } from "@/lib/documents/requirements";
 import {
   parseDocumentTypeFilter,
   parseStatusFilter,
@@ -23,14 +24,6 @@ const documentStatuses = [
   "rejected",
   "expired",
 ] as const;
-const documentTypes = [
-  "contract",
-  "tax_certificate",
-  "vat_certificate",
-  "insurance",
-  "other",
-] as const;
-
 export default async function DocumentsPage({
   searchParams,
 }: {
@@ -108,10 +101,9 @@ export default async function DocumentsPage({
               label: "Document type",
               type: "select",
               value: filters.documentType,
-              options: documentTypes.map((type) => ({
-                value: type,
-                label: type.replace(/_/g, " "),
-              })),
+              options: getDocumentRequirementFilterOptions(
+                documentRequirements,
+              ),
             },
             {
               name: "uploadedMonth",

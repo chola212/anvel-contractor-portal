@@ -56,7 +56,7 @@ export default async function TimesheetDetailPage({
       <section className="border-b border-neutral-200 pb-5">
         <Link
           href="/timesheets"
-          className="text-sm font-medium text-teal-800 hover:text-teal-950"
+          className="inline-flex min-h-9 items-center rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-900 transition-colors hover:border-teal-300 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
         >
           Back to timesheets
         </Link>
@@ -85,6 +85,7 @@ export default async function TimesheetDetailPage({
             month={timesheet.month}
             entries={timesheet.entries}
             assignments={assignmentPeriods}
+            comments={timesheet.comments}
           />
           <TimesheetSubmitForm
             timesheetId={timesheet.id}
@@ -154,6 +155,10 @@ export default async function TimesheetDetailPage({
           <DetailField
             label="Correction reason"
             value={timesheet.rejection_reason ?? "Not set"}
+          />
+          <DetailField
+            label="Comments"
+            value={timesheet.comments ?? "No comments"}
           />
         </dl>
       </section>

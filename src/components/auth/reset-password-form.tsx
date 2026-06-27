@@ -4,16 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { z } from "zod";
 
+import { passwordRules, passwordSchema } from "@/lib/auth/password";
 import { createClient } from "@/lib/supabase/client";
 
 const resetPasswordSchema = z
   .object({
-    password: z
-      .string()
-      .min(12, "Use at least 12 characters.")
-      .regex(/[A-Z]/, "Use at least one uppercase letter.")
-      .regex(/[a-z]/, "Use at least one lowercase letter.")
-      .regex(/[0-9]/, "Use at least one number."),
+    password: passwordSchema,
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -84,6 +80,19 @@ export function ResetPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-2">
+        <div
+          className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-3 text-sm text-neutral-700"
+          aria-labelledby="password-rules-heading"
+        >
+          <p id="password-rules-heading" className="font-medium text-neutral-900">
+            Password requirements
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {passwordRules.map((rule) => (
+              <li key={rule}>{rule}.</li>
+            ))}
+          </ul>
+        </div>
         <label
           htmlFor="password"
           className="block text-sm font-medium text-neutral-800"
