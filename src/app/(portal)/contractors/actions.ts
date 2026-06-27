@@ -153,6 +153,15 @@ export async function createContractorAction(
   const supabase = await createClient();
   let adminSupabase: ReturnType<typeof createAdminClient>;
 
+  if (!process.env.RESEND_API_KEY) {
+    return {
+      message:
+        "Contractor invitations are not configured. Set RESEND_API_KEY before creating accounts.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   try {
     adminSupabase = createAdminClient();
   } catch (error) {
@@ -168,35 +177,18 @@ export async function createContractorAction(
   const requestHeaders = await headers();
   const requestOrigin = requestHeaders.get("origin");
   const redirectTo = buildAuthCallbackUrl(requestOrigin);
-  let actionLink: string | null = null;
 
-  const inviteResult: {
-    data: {
-      user: { id: string } | null;
-      properties?: {
-        action_link?: string;
-      };
-    };
-    error: { message: string } | null;
-  } = process.env.RESEND_API_KEY
-    ? await adminSupabase.auth.admin.generateLink({
-        type: "invite",
-        email: parsed.data.email,
-        options: {
-          data: {
-            full_name: parsed.data.fullName,
-            role: "contractor",
-          },
-          redirectTo,
-        },
-      })
-    : await adminSupabase.auth.admin.inviteUserByEmail(parsed.data.email, {
-        data: {
-          full_name: parsed.data.fullName,
-          role: "contractor",
-        },
-        redirectTo,
-      });
+  const inviteResult = await adminSupabase.auth.admin.generateLink({
+    type: "invite",
+    email: parsed.data.email,
+    options: {
+      data: {
+        full_name: parsed.data.fullName,
+        role: "contractor",
+      },
+      redirectTo,
+    },
+  });
 
   const invitedUser = inviteResult.data.user;
 
@@ -210,16 +202,16 @@ export async function createContractorAction(
     };
   }
 
-  if (process.env.RESEND_API_KEY) {
-    actionLink = inviteResult.data.properties?.action_link ?? null;
+  const actionLink = inviteResult.data.properties?.action_link ?? null;
 
-    if (!actionLink) {
-      return {
-        message: "Could not prepare the contractor invitation email.",
-        status: "error",
-        fieldErrors: {},
-      };
-    }
+  if (!actionLink) {
+    await adminSupabase.auth.admin.deleteUser(invitedUser.id);
+
+    return {
+      message: "Could not prepare the contractor invitation email.",
+      status: "error",
+      fieldErrors: {},
+    };
   }
 
   const { error: profileInsertError } = await supabase.from("profiles").insert({
@@ -297,22 +289,20 @@ export async function createContractorAction(
     };
   }
 
-  if (process.env.RESEND_API_KEY && actionLink) {
-    try {
-      const email = buildInviteEmail(parsed.data.fullName, actionLink);
-      await sendPortalEmail({
-        to: parsed.data.email,
-        ...email,
-      });
-    } catch (error) {
-      console.error("Contractor invitation email failed", error);
-      return {
-        message:
-          "Contractor account was created, but the invitation email could not be sent. Use Resend invite from the contractor profile.",
-        status: "error",
-        fieldErrors: {},
-      };
-    }
+  try {
+    const email = buildInviteEmail(parsed.data.fullName, actionLink);
+    await sendPortalEmail({
+      to: parsed.data.email,
+      ...email,
+    });
+  } catch (error) {
+    console.error("Contractor invitation email failed", error);
+    return {
+      message:
+        "Contractor account was created, but the invitation email could not be sent. Use Resend invite from the contractor profile.",
+      status: "error",
+      fieldErrors: {},
+    };
   }
 
   revalidatePath("/contractors");

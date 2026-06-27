@@ -120,7 +120,31 @@ npm.cmd run test:routes:auth
 npm.cmd run test:a11y-mobile
 ```
 
-Some route scripts require a running local server and configured test credentials.
+Route scripts require a running app at `SMOKE_BASE_URL`, which defaults to `http://localhost:3000`.
+
+For authenticated route checks, use dedicated fake-data smoke accounts and either provide temporary browser cookies:
+
+```powershell
+$env:SMOKE_BASE_URL="http://localhost:3000"
+$env:SMOKE_ADMIN_COOKIE="copy-from-admin-browser-session"
+$env:SMOKE_CONTRACTOR_COOKIE="copy-from-contractor-browser-session"
+npm.cmd run test:routes:auth
+```
+
+Or let the script sign in with Supabase and create the route cookies:
+
+```powershell
+$env:SMOKE_BASE_URL="http://localhost:3000"
+$env:SMOKE_ADMIN_EMAIL="admin-smoke@example.test"
+$env:SMOKE_ADMIN_PASSWORD="replace-with-local-secret"
+$env:SMOKE_CONTRACTOR_EMAIL="contractor-smoke@example.test"
+$env:SMOKE_CONTRACTOR_PASSWORD="replace-with-local-secret"
+$env:NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
+$env:NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_your-key"
+npm.cmd run test:routes:auth
+```
+
+Do not commit, paste into chat, or store real production cookies or passwords.
 
 ## Operational Data Reset
 

@@ -1,9 +1,20 @@
+import { createServerClient } from "@supabase/ssr";
+
 const baseUrl = normalizeBaseUrl(
   process.env.SMOKE_BASE_URL ?? "http://localhost:3000",
 );
 const timeoutMs = Number.parseInt(process.env.SMOKE_TIMEOUT_MS ?? "10000", 10);
 const adminCookie = process.env.SMOKE_ADMIN_COOKIE;
 const contractorCookie = process.env.SMOKE_CONTRACTOR_COOKIE;
+const adminEmail = process.env.SMOKE_ADMIN_EMAIL;
+const adminPassword = process.env.SMOKE_ADMIN_PASSWORD;
+const contractorEmail = process.env.SMOKE_CONTRACTOR_EMAIL;
+const contractorPassword = process.env.SMOKE_CONTRACTOR_PASSWORD;
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+const supabasePublishableKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const userAgent = "anvel-authenticated-route-smoke-test/1.0";
 
@@ -43,27 +54,93 @@ function urlFor(path) {
   return new URL(path, `${baseUrl}/`).toString();
 }
 
-function assertCookiesPresent() {
-  const missing = [];
+function missingAuthMessage(role) {
+  const prefix = role.toUpperCase();
 
-  if (!adminCookie) {
-    missing.push("SMOKE_ADMIN_COOKIE");
+  return [
+    `Missing ${role} smoke-test authentication.`,
+    `Set SMOKE_${prefix}_COOKIE, or set SMOKE_${prefix}_EMAIL and SMOKE_${prefix}_PASSWORD.`,
+    "When using email/password, also set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
+    "Set SMOKE_BASE_URL to the app URL under test, for example http://localhost:3000.",
+    "Use dedicated fake-data smoke accounts only. Do not save passwords or cookies in files, GitHub, chat, or documentation.",
+  ].join(" ");
+}
+
+function cookieHeaderFromJar(cookieJar) {
+  return [...cookieJar.entries()]
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+async function signInAndCreateCookie(role, email, password) {
+  if (!email || !password) {
+    throw new Error(missingAuthMessage(role));
   }
 
-  if (!contractorCookie) {
-    missing.push("SMOKE_CONTRACTOR_COOKIE");
-  }
-
-  if (missing.length > 0) {
+  if (!supabaseUrl || !supabasePublishableKey) {
     throw new Error(
       [
-        `Missing required environment variable(s): ${missing.join(", ")}.`,
-        "Copy temporary browser cookies from controlled production smoke-test sessions.",
-        "Do not save cookies in files, GitHub, chat, or documentation.",
-        "See README.md for the authenticated route smoke-test command.",
+        "Missing Supabase browser configuration for smoke-test sign-in.",
+        "Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
       ].join(" "),
     );
   }
+
+  const cookieJar = new Map();
+  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
+    cookies: {
+      getAll() {
+        return [...cookieJar.entries()].map(([name, value]) => ({
+          name,
+          value,
+        }));
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          cookieJar.set(name, value);
+        });
+      },
+    },
+  });
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    throw new Error(`${role} smoke-test sign-in failed: ${error.message}`);
+  }
+
+  const cookie = cookieHeaderFromJar(cookieJar);
+
+  if (!cookie) {
+    throw new Error(`${role} smoke-test sign-in did not create auth cookies.`);
+  }
+
+  return cookie;
+}
+
+async function resolveAuthCookie(role, cookie, email, password) {
+  if (cookie) {
+    return cookie;
+  }
+
+  return signInAndCreateCookie(role, email, password);
+}
+
+async function resolveAuthCookies() {
+  const [resolvedAdminCookie, resolvedContractorCookie] = await Promise.all([
+    resolveAuthCookie("admin", adminCookie, adminEmail, adminPassword),
+    resolveAuthCookie(
+      "contractor",
+      contractorCookie,
+      contractorEmail,
+      contractorPassword,
+    ),
+  ]);
+
+  return { resolvedAdminCookie, resolvedContractorCookie };
 }
 
 async function fetchWithCookie(path, cookie) {
@@ -127,27 +204,32 @@ async function checkBlocked(role, cookie, path) {
 }
 
 async function run() {
-  assertCookiesPresent();
+  const { resolvedAdminCookie, resolvedContractorCookie } =
+    await resolveAuthCookies();
 
   console.log(`Running authenticated route smoke test against ${baseUrl}`);
-  console.log("Cookie values are intentionally not printed.");
+  console.log("Credentials and cookie values are intentionally not printed.");
 
   for (const route of adminAccessibleRoutes) {
-    const message = await checkAccessible("admin", adminCookie, route);
+    const message = await checkAccessible("admin", resolvedAdminCookie, route);
     console.log(`OK ${message}`);
   }
 
   for (const route of contractorAccessibleRoutes) {
     const message = await checkAccessible(
       "contractor",
-      contractorCookie,
+      resolvedContractorCookie,
       route,
     );
     console.log(`OK ${message}`);
   }
 
   for (const path of contractorBlockedRoutes) {
-    const message = await checkBlocked("contractor", contractorCookie, path);
+    const message = await checkBlocked(
+      "contractor",
+      resolvedContractorCookie,
+      path,
+    );
     console.log(`OK ${message}`);
   }
 

@@ -25,6 +25,48 @@ const invoiceColumns = `
   created_at
 `;
 
+const legacyInvoiceColumns = `
+  id,
+  payment_statement_id,
+  contractor_id,
+  invoice_number,
+  invoice_date,
+  net_amount,
+  vat_amount,
+  gross_amount,
+  currency,
+  status,
+  created_at
+`;
+
+type LegacyPaymentInvoiceRecord = Omit<
+  PaymentInvoiceRecord,
+  "timesheet_id" | "invoice_type"
+> &
+  Partial<Pick<PaymentInvoiceRecord, "timesheet_id" | "invoice_type">>;
+
+function isMissingSelfBillingInvoiceColumn(error: {
+  code?: string;
+  message?: string;
+}) {
+  const message = error.message?.toLowerCase() ?? "";
+
+  return (
+    error.code === "42703" ||
+    ["timesheet_id", "invoice_type"].some((column) => message.includes(column))
+  );
+}
+
+function normalizePaymentInvoiceRecord(
+  invoice: LegacyPaymentInvoiceRecord,
+): PaymentInvoiceRecord {
+  return {
+    ...invoice,
+    timesheet_id: invoice.timesheet_id ?? null,
+    invoice_type: invoice.invoice_type ?? "contractor_uploaded",
+  };
+}
+
 const paymentColumns = `
   id,
   invoice_id,
@@ -47,6 +89,22 @@ export async function getPaymentRowsForStaff() {
     .returns<PaymentInvoiceRecord[]>();
 
   if (error) {
+    if (isMissingSelfBillingInvoiceColumn(error)) {
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("invoices")
+        .select(legacyInvoiceColumns)
+        .order("invoice_date", { ascending: false })
+        .returns<LegacyPaymentInvoiceRecord[]>();
+
+      if (legacyError) {
+        throw new Error(
+          `Could not load payment invoices: ${legacyError.message}`,
+        );
+      }
+
+      return hydratePaymentRows(legacyData.map(normalizePaymentInvoiceRecord));
+    }
+
     throw new Error(`Could not load payment invoices: ${error.message}`);
   }
 
@@ -63,6 +121,23 @@ export async function getPaymentRowsForContractor(contractorId: string) {
     .returns<PaymentInvoiceRecord[]>();
 
   if (error) {
+    if (isMissingSelfBillingInvoiceColumn(error)) {
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("invoices")
+        .select(legacyInvoiceColumns)
+        .eq("contractor_id", contractorId)
+        .order("invoice_date", { ascending: false })
+        .returns<LegacyPaymentInvoiceRecord[]>();
+
+      if (legacyError) {
+        throw new Error(
+          `Could not load contractor payment invoices: ${legacyError.message}`,
+        );
+      }
+
+      return hydratePaymentRows(legacyData.map(normalizePaymentInvoiceRecord));
+    }
+
     throw new Error(`Could not load contractor payment invoices: ${error.message}`);
   }
 

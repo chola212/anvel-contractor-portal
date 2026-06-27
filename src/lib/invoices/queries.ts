@@ -35,6 +35,78 @@ const invoiceColumns = `
   updated_at
 `;
 
+const legacyInvoiceColumns = `
+  id,
+  payment_statement_id,
+  contractor_id,
+  invoice_number,
+  invoice_date,
+  net_amount,
+  vat_amount,
+  gross_amount,
+  currency,
+  file_path,
+  file_name,
+  status,
+  reviewed_by,
+  reviewed_at,
+  review_comment,
+  created_at,
+  updated_at
+`;
+
+type LegacyInvoiceRecord = Omit<
+  InvoiceRecord,
+  | "timesheet_id"
+  | "invoice_type"
+  | "generated_by"
+  | "generated_at"
+  | "emailed_at"
+  | "email_status"
+> &
+  Partial<
+    Pick<
+      InvoiceRecord,
+      | "timesheet_id"
+      | "invoice_type"
+      | "generated_by"
+      | "generated_at"
+      | "emailed_at"
+      | "email_status"
+    >
+  >;
+
+function isMissingSelfBillingInvoiceColumn(error: {
+  code?: string;
+  message?: string;
+}) {
+  const message = error.message?.toLowerCase() ?? "";
+
+  return (
+    error.code === "42703" ||
+    [
+      "timesheet_id",
+      "invoice_type",
+      "generated_by",
+      "generated_at",
+      "emailed_at",
+      "email_status",
+    ].some((column) => message.includes(column))
+  );
+}
+
+function normalizeInvoiceRecord(invoice: LegacyInvoiceRecord): InvoiceRecord {
+  return {
+    ...invoice,
+    timesheet_id: invoice.timesheet_id ?? null,
+    invoice_type: invoice.invoice_type ?? "contractor_uploaded",
+    generated_by: invoice.generated_by ?? null,
+    generated_at: invoice.generated_at ?? null,
+    emailed_at: invoice.emailed_at ?? null,
+    email_status: invoice.email_status ?? "not_sent",
+  };
+}
+
 export async function getInvoicesForStaff() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -44,6 +116,20 @@ export async function getInvoicesForStaff() {
     .returns<InvoiceRecord[]>();
 
   if (error) {
+    if (isMissingSelfBillingInvoiceColumn(error)) {
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("invoices")
+        .select(legacyInvoiceColumns)
+        .order("created_at", { ascending: false })
+        .returns<LegacyInvoiceRecord[]>();
+
+      if (legacyError) {
+        throw new Error(`Could not load invoices: ${legacyError.message}`);
+      }
+
+      return hydrateInvoices(legacyData.map(normalizeInvoiceRecord));
+    }
+
     throw new Error(`Could not load invoices: ${error.message}`);
   }
 
@@ -60,6 +146,23 @@ export async function getInvoicesForContractor(contractorId: string) {
     .returns<InvoiceRecord[]>();
 
   if (error) {
+    if (isMissingSelfBillingInvoiceColumn(error)) {
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("invoices")
+        .select(legacyInvoiceColumns)
+        .eq("contractor_id", contractorId)
+        .order("created_at", { ascending: false })
+        .returns<LegacyInvoiceRecord[]>();
+
+      if (legacyError) {
+        throw new Error(
+          `Could not load contractor invoices: ${legacyError.message}`,
+        );
+      }
+
+      return hydrateInvoices(legacyData.map(normalizeInvoiceRecord));
+    }
+
     throw new Error(`Could not load contractor invoices: ${error.message}`);
   }
 
@@ -75,10 +178,24 @@ export async function getInvoiceById(id: string) {
     .maybeSingle<InvoiceRecord>();
 
   if (error) {
+    if (isMissingSelfBillingInvoiceColumn(error)) {
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("invoices")
+        .select(legacyInvoiceColumns)
+        .eq("id", id)
+        .maybeSingle<LegacyInvoiceRecord>();
+
+      if (legacyError) {
+        throw new Error(`Could not load invoice: ${legacyError.message}`);
+      }
+
+      return legacyData ? normalizeInvoiceRecord(legacyData) : null;
+    }
+
     throw new Error(`Could not load invoice: ${error.message}`);
   }
 
-  return data;
+  return data ? normalizeInvoiceRecord(data) : null;
 }
 
 export async function getUploadableStatementsForContractor(contractorId: string) {

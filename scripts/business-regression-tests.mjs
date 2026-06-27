@@ -133,8 +133,18 @@ assert.match(
 const contractorActions = read("src/app/(portal)/contractors/actions.ts");
 assert.match(
   contractorActions,
-  /inviteUserByEmail|generateLink/,
-  "contractor onboarding should use invite-only auth",
+  /generateLink/,
+  "contractor onboarding should generate invite links with Supabase Admin",
+);
+assert.doesNotMatch(
+  contractorActions,
+  /inviteUserByEmail/,
+  "contractor onboarding must not send Supabase-branded invitation emails",
+);
+assert.match(
+  contractorActions,
+  /RESEND_API_KEY/,
+  "contractor onboarding should require branded email configuration",
 );
 assert.match(
   contractorActions,
@@ -145,6 +155,30 @@ assert.match(
   contractorActions,
   /contractor_offboarded/,
   "contractor offboarding should be audited",
+);
+
+const forgotPasswordActions = read("src/app/forgot-password/actions.ts");
+assert.doesNotMatch(
+  forgotPasswordActions,
+  /resetPasswordForEmail/,
+  "password reset must not send Supabase-branded reset emails",
+);
+assert.match(
+  forgotPasswordActions,
+  /generateLink/,
+  "password reset should generate a recovery link with Supabase Admin",
+);
+assert.match(
+  forgotPasswordActions,
+  /RESEND_API_KEY/,
+  "password reset should require branded email configuration",
+);
+
+const assignmentList = read("src/components/projects/assignment-list.tsx");
+assert.doesNotMatch(
+  assignmentList,
+  /Sales rate[\s\S]{0,300}Hidden for this role/,
+  "contractor assignment views should not reveal a hidden sales-rate field",
 );
 
 const paymentList = read("src/components/payments/payment-list.tsx");

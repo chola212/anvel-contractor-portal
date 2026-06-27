@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { buildAuthCallbackUrl, buildPasswordResetEmail, sendPortalEmail } from "@/lib/email/portal-email";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 const forgotPasswordSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
@@ -50,68 +49,58 @@ export async function forgotPasswordAction(
 
   const redirectTo = buildAuthCallbackUrl(origin);
 
-  if (process.env.RESEND_API_KEY) {
-    let adminSupabase: ReturnType<typeof createAdminClient>;
-
-    try {
-      adminSupabase = createAdminClient();
-    } catch (error) {
-      console.error("Password reset service-role configuration is missing", error);
-      return {
-        message: "Password reset email is not configured. Contact ANVEL support.",
-        status: "error",
-        fieldErrors: {},
-      };
-    }
-
-    const { data, error } = await adminSupabase.auth.admin.generateLink({
-      type: "recovery",
-      email: parsed.data.email,
-      options: {
-        redirectTo,
-      },
-    });
-
-    if (error || !data.properties?.action_link) {
-      return {
-        message:
-          "If this email exists in the portal, a password reset link has been sent.",
-        status: "success",
-        fieldErrors: {},
-      };
-    }
-
-    try {
-      const email = buildPasswordResetEmail(data.properties.action_link);
-      await sendPortalEmail({
-        to: parsed.data.email,
-        ...email,
-      });
-    } catch (error) {
-      console.error("Password reset email provider failed", error);
-      return {
-        message: "Could not send the password reset email. Contact ANVEL support.",
-        status: "error",
-        fieldErrors: {},
-      };
-    }
-
+  if (!process.env.RESEND_API_KEY) {
+    console.error("Password reset email provider is not configured");
     return {
-      message:
-        "If this email exists in the portal, a password reset link has been sent.",
-      status: "success",
+      message: "Password reset email is not configured. Contact ANVEL support.",
+      status: "error",
       fieldErrors: {},
     };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo,
+  let adminSupabase: ReturnType<typeof createAdminClient>;
+
+  try {
+    adminSupabase = createAdminClient();
+  } catch (error) {
+    console.error("Password reset service-role configuration is missing", error);
+    return {
+      message: "Password reset email is not configured. Contact ANVEL support.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { data, error } = await adminSupabase.auth.admin.generateLink({
+    type: "recovery",
+    email: parsed.data.email,
+    options: {
+      redirectTo,
+    },
   });
 
-  if (error) {
+  if (error || !data.properties?.action_link) {
+    console.error(
+      "Password reset link generation failed",
+      error?.message ?? "Missing action link",
+    );
     return {
-      message: "Could not send the password reset email.",
+      message: "Could not prepare the password reset email. Contact ANVEL support.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  try {
+    const email = buildPasswordResetEmail(data.properties.action_link);
+    await sendPortalEmail({
+      to: parsed.data.email,
+      ...email,
+    });
+  } catch (error) {
+    console.error("Password reset email provider failed", error);
+    return {
+      message: "Could not send the password reset email. Contact ANVEL support.",
       status: "error",
       fieldErrors: {},
     };

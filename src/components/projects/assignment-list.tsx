@@ -60,9 +60,11 @@ export function AssignmentList({
               <th scope="col" className="px-5 py-3 font-medium">
                 Hourly rate
               </th>
-              <th scope="col" className="px-5 py-3 font-medium">
-                Sales rate
-              </th>
+              {showSalesRate ? (
+                <th scope="col" className="px-5 py-3 font-medium">
+                  Sales rate
+                </th>
+              ) : null}
               {showAssignmentControls ? (
                 <th scope="col" className="px-5 py-3 font-medium">
                   Manage
@@ -108,11 +110,11 @@ export function AssignmentList({
                     ? formatCurrency(assignment.hourly_rate, assignment.currency)
                     : "Hidden for this role"}
                 </td>
-                <td className="px-5 py-4 align-top text-neutral-700">
-                  {showSalesRate
-                    ? formatCurrency(assignment.sales_rate, assignment.currency)
-                    : "Hidden for this role"}
-                </td>
+                {showSalesRate ? (
+                  <td className="px-5 py-4 align-top text-neutral-700">
+                    {formatCurrency(assignment.sales_rate, assignment.currency)}
+                  </td>
+                ) : null}
                 {showAssignmentControls ? (
                   <td className="px-5 py-4 align-top">
                     <AssignmentUpdateForm assignment={assignment} />
