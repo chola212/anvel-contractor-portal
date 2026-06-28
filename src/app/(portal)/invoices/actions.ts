@@ -11,11 +11,11 @@ import {
   buildInvoiceUploadedAdminEmail,
   getPortalBaseUrl,
 } from "@/lib/email/portal-email";
+import { validatePdfUploadFile } from "@/lib/files/pdf-upload";
 import type { InvoiceStatus } from "@/lib/invoices/types";
 import { createClient } from "@/lib/supabase/server";
 
 const invoiceBucket = "contractor-invoices";
-const maxInvoiceSizeBytes = 10 * 1024 * 1024;
 
 const uploadInvoiceSchema = z.object({
   paymentStatementId: z.string().uuid("Select a payment statement."),
@@ -88,34 +88,6 @@ function safeFileName(value: string) {
   return `${safeBaseName || "invoice"}.pdf`;
 }
 
-function validateFile(value: FormDataEntryValue | null) {
-  if (!(value instanceof File) || value.size === 0) {
-    return {
-      file: null,
-      error: "Select the official invoice PDF.",
-    };
-  }
-
-  if (value.size > maxInvoiceSizeBytes) {
-    return {
-      file: null,
-      error: "PDF files must be 10 MB or smaller.",
-    };
-  }
-
-  if (value.type !== "application/pdf" || !value.name.toLowerCase().endsWith(".pdf")) {
-    return {
-      file: null,
-      error: "Only PDF files are accepted.",
-    };
-  }
-
-  return {
-    file: value,
-    error: null,
-  };
-}
-
 function parseInvoiceDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -163,7 +135,10 @@ export async function uploadContractorInvoiceAction(
     invoiceNumber: formData.get("invoiceNumber"),
     invoiceDate: formData.get("invoiceDate"),
   });
-  const fileValidation = validateFile(formData.get("file"));
+  const fileValidation = await validatePdfUploadFile({
+    value: formData.get("file"),
+    emptyMessage: "Select the official invoice PDF.",
+  });
 
   if (!parsed.success || fileValidation.error || !fileValidation.file) {
     const fieldErrors = parsed.success

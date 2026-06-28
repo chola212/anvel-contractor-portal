@@ -330,7 +330,17 @@ assert.match(
 assert.match(
   forgotPasswordActions,
   /RESEND_API_KEY/,
-  "password reset should require branded email configuration",
+  "password reset should use branded email configuration when available",
+);
+assert.match(
+  forgotPasswordActions,
+  /neutralResetMessage[\s\S]*If this email exists in the portal, a password reset link has been sent/,
+  "forgot-password should use a neutral response for valid submitted emails",
+);
+assert.doesNotMatch(
+  forgotPasswordActions,
+  /Contact ANVEL support|Could not send the password reset email|Could not prepare the password reset email/,
+  "forgot-password should not expose service-role or email-provider failures to users",
 );
 
 const portalEmail = read("src/lib/email/portal-email.ts");
@@ -343,6 +353,26 @@ assert.match(
   portalEmail,
   /Resend rejected the message with/,
   "portal email should log exact Resend rejection details server-side",
+);
+assert.match(
+  portalEmail,
+  /NODE_ENV === "production"[\s\S]*NEXT_PUBLIC_SITE_URL must be configured in production/,
+  "production auth links should fail closed when NEXT_PUBLIC_SITE_URL is missing",
+);
+assert.match(
+  portalEmail,
+  /function escapeEmailHtml[\s\S]*replaceAll\("&", "&amp;"\)[\s\S]*replaceAll\("<", "&lt;"\)[\s\S]*replaceAll\(">", "&gt;"\)/,
+  "portal email should provide HTML escaping for dynamic values",
+);
+assert.match(
+  portalEmail,
+  /buildOutgoingInvoiceEmail[\s\S]*safeConsultantName[\s\S]*safeProjectName[\s\S]*safeInvoiceNumber/,
+  "outgoing invoice email HTML should escape consultant, project and invoice values",
+);
+assert.match(
+  portalEmail,
+  /buildNotificationEmail[\s\S]*escapeEmailLines\(body\)/,
+  "notification emails should preserve line breaks after escaping HTML",
 );
 for (const expectedBuilder of [
   "buildTimesheetSubmittedAdminEmail",
@@ -506,6 +536,32 @@ assert.match(
   documentActions,
   /profile\.role === "contractor"[\s\S]*sendAdminNotification[\s\S]*buildDocumentUploadedAdminEmail/,
   "contractor document uploads should notify the admin inbox",
+);
+assert.match(
+  documentActions,
+  /validatePdfUploadFile[\s\S]*Select a PDF file to upload\./,
+  "contractor document uploads should use shared PDF validation",
+);
+assert.match(
+  read("src/app/(portal)/invoices/actions.ts"),
+  /validatePdfUploadFile[\s\S]*Select the official invoice PDF\./,
+  "contractor invoice uploads should use shared PDF validation",
+);
+const pdfUploadHelper = read("src/lib/files/pdf-upload.ts");
+assert.match(
+  pdfUploadHelper,
+  /maxPdfUploadSizeBytes = 10 \* 1024 \* 1024/,
+  "PDF upload validation should keep the 10 MB limit",
+);
+assert.match(
+  pdfUploadHelper,
+  /value\.type !== "application\/pdf"[\s\S]*!value\.name\.toLowerCase\(\)\.endsWith\("\.pdf"\)/,
+  "PDF upload validation should keep MIME and extension checks",
+);
+assert.match(
+  pdfUploadHelper,
+  /slice\(0, 5\)[\s\S]*header !== "%PDF-"/,
+  "PDF upload validation should reject files without the PDF magic header",
 );
 const documentRequirements = read("src/lib/documents/requirements.ts");
 for (const requirement of [
@@ -682,7 +738,7 @@ const inviteCtaIndex = inviteEmailSection.indexOf(
   "Set password and access portal",
 );
 const inviteFallbackIndex = inviteEmailSection.indexOf(
-  '>${inviteLink}</a>',
+  '>${safeInviteLink}</a>',
 );
 const invitePurposeListIndex = inviteEmailSection.indexOf("<ul>");
 assert.ok(
@@ -717,13 +773,13 @@ assert.doesNotMatch(
   "password reset email should remain short without invitation-purpose bullets",
 );
 assert.ok(
-  resetEmailSection.indexOf('href="${resetLink}"') <
+  resetEmailSection.indexOf('href="${safeResetLink}"') <
     resetEmailSection.indexOf("If you did not request this"),
   "password reset HTML should show its secure link near the top",
 );
 assert.ok(
-  resetEmailSection.indexOf("${resetLink}") <
-    resetEmailSection.indexOf("If you did not request this"),
+  resetEmailSection.indexOf("${resetLink}", resetEmailSection.indexOf("text: `")) <
+    resetEmailSection.indexOf("If you did not request this", resetEmailSection.indexOf("text: `")),
   "password reset text should show its secure link near the top",
 );
 assert.match(
@@ -1087,6 +1143,9 @@ const outgoingMigration = read(
 const manualOutgoingMigration = read(
   "supabase/migrations/202606280006_manual_outgoing_invoices.sql",
 );
+const securityHardeningMigration = read(
+  "supabase/migrations/202606280007_security_hardening.sql",
+);
 for (const table of [
   "company_invoice_settings",
   "project_billing_details",
@@ -1155,6 +1214,26 @@ assert.match(
   /invoice_source = 'manual'[\s\S]*timesheet_id is null[\s\S]*contractor_id is null[\s\S]*project_id is not null[\s\S]*consultant_name/,
   "manual outgoing invoices should be project based and require consultant name",
 );
+assert.match(
+  securityHardeningMigration,
+  /create table if not exists public\.contractor_project_commercials[\s\S]*contractor_project_id uuid primary key[\s\S]*sales_rate numeric\(12, 2\)/,
+  "security migration should move sales rate into contractor_project_commercials",
+);
+assert.match(
+  securityHardeningMigration,
+  /insert into public\.contractor_project_commercials[\s\S]*from public\.contractor_projects[\s\S]*where sales_rate is not null[\s\S]*update public\.contractor_projects[\s\S]*set sales_rate = null/,
+  "security migration should backfill and then null old contractor_projects sales rates",
+);
+assert.match(
+  securityHardeningMigration,
+  /contractor_project_commercials_admin_all[\s\S]*public\.is_admin\(\)/,
+  "contractor project commercials should be admin-only",
+);
+assert.match(
+  securityHardeningMigration,
+  /drop policy if exists "contractors_select_allowed"[\s\S]*create policy "contractors_select_allowed"[\s\S]*public\.is_admin\(\)[\s\S]*profile_id = auth\.uid\(\)/,
+  "operations should not retain raw contractor row access with bank details",
+);
 
 const companySettingsAction = read(
   "src/app/(portal)/settings/company/actions.ts",
@@ -1205,6 +1284,33 @@ assert.match(
   "project billing form should render address line 1 and line 2",
 );
 
+const projectQueries = read("src/lib/projects/queries.ts");
+assert.doesNotMatch(
+  projectQueries,
+  /const assignmentColumns = `[\s\S]*sales_rate[\s\S]*`;/,
+  "project assignment base query must not select sales_rate from contractor_projects",
+);
+assert.match(
+  projectQueries,
+  /from\("contractor_project_commercials"\)[\s\S]*select\("contractor_project_id,sales_rate"\)/,
+  "admin assignment views should hydrate sales_rate from contractor_project_commercials",
+);
+assert.match(
+  projectBillingAction,
+  /saveAssignmentCommercialRate[\s\S]*from\("contractor_project_commercials"\)[\s\S]*upsert/,
+  "assignment create/edit actions should write sales_rate to the admin-only commercial table",
+);
+assert.doesNotMatch(
+  projectBillingAction.match(/from\("contractor_projects"\)[\s\S]*?\.select\("id"\)/)?.[0] ?? "",
+  /sales_rate: parsed\.data\.salesRate/,
+  "assignment create action must not write sales_rate into contractor_projects",
+);
+assert.doesNotMatch(
+  projectBillingAction.match(/from\("contractor_projects"\)[\s\S]*?\.eq\("id", parsed\.data\.assignmentId\)/)?.[0] ?? "",
+  /sales_rate: parsed\.data\.salesRate/,
+  "assignment edit action must not write sales_rate into contractor_projects",
+);
+
 const outgoingGenerator = read("src/lib/outgoing-invoices/generate.ts");
 for (const message of [
   "Complete company invoice settings",
@@ -1220,8 +1326,13 @@ for (const message of [
 }
 assert.match(
   outgoingGenerator,
-  /select\("id,start_date,end_date,sales_rate,currency"\)/,
-  "outgoing invoice generation should load sales rate",
+  /from\("contractor_project_commercials"\)[\s\S]*select\("contractor_project_id,sales_rate"\)/,
+  "outgoing invoice generation should load sales rate from admin-only commercial rows",
+);
+assert.doesNotMatch(
+  outgoingGenerator,
+  /from\("contractor_projects"\)\.select\("id,start_date,end_date,sales_rate,currency"\)/,
+  "outgoing invoice generation must not read sales_rate from contractor-readable assignment rows",
 );
 assert.match(
   outgoingGenerator,

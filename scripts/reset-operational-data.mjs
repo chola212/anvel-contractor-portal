@@ -35,6 +35,7 @@ const tables = [
   "timesheet_entries",
   "timesheets",
   "contractor_documents",
+  "contractor_project_commercials",
   "contractor_projects",
   "project_billing_details",
   "projects",

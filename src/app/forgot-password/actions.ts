@@ -15,6 +15,9 @@ const forgotPasswordSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
 });
 
+const neutralResetMessage =
+  "If this email exists in the portal, a password reset link has been sent.";
+
 export type ForgotPasswordState = {
   message: string | null;
   status: "idle" | "success" | "error";
@@ -44,21 +47,23 @@ export async function forgotPasswordAction(
   const requestHeaders = await headers();
   const origin = requestHeaders.get("origin");
 
-  if (!origin) {
+  let redirectTo: string;
+  try {
+    redirectTo = buildAuthCallbackUrl(origin);
+  } catch (error) {
+    console.error("Password reset URL configuration failed", error);
     return {
-      message: "Could not prepare a password reset link.",
-      status: "error",
+      message: neutralResetMessage,
+      status: "success",
       fieldErrors: {},
     };
   }
 
-  const redirectTo = buildAuthCallbackUrl(origin);
-
   if (!process.env.RESEND_API_KEY) {
     console.error("Password reset email provider is not configured");
     return {
-      message: "Password reset email is not configured. Contact ANVEL support.",
-      status: "error",
+      message: neutralResetMessage,
+      status: "success",
       fieldErrors: {},
     };
   }
@@ -70,8 +75,8 @@ export async function forgotPasswordAction(
   } catch (error) {
     console.error("Password reset service-role configuration is missing", error);
     return {
-      message: "Password reset email is not configured. Contact ANVEL support.",
-      status: "error",
+      message: neutralResetMessage,
+      status: "success",
       fieldErrors: {},
     };
   }
@@ -96,8 +101,8 @@ export async function forgotPasswordAction(
       error?.message ?? "Missing action link",
     );
     return {
-      message: "Could not prepare the password reset email. Contact ANVEL support.",
-      status: "error",
+      message: neutralResetMessage,
+      status: "success",
       fieldErrors: {},
     };
   }
@@ -111,15 +116,14 @@ export async function forgotPasswordAction(
   } catch (error) {
     console.error("Password reset email provider failed", error);
     return {
-      message: "Could not send the password reset email. Contact ANVEL support.",
-      status: "error",
+      message: neutralResetMessage,
+      status: "success",
       fieldErrors: {},
     };
   }
 
   return {
-    message:
-      "If this email exists in the portal, a password reset link has been sent.",
+    message: neutralResetMessage,
     status: "success",
     fieldErrors: {},
   };

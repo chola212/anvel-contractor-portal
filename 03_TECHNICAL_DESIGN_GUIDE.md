@@ -1413,7 +1413,8 @@ Supabase's default sender.
 
 Apply `202606280002_outgoing_client_invoices.sql` and
 `202606280006_manual_outgoing_invoices.sql` before deploying the outgoing
-invoice module. Then:
+invoice module. Apply `202606280007_security_hardening.sql` before using real
+contractor data in production. Then:
 
 1. Verify the `outgoing-invoices` Storage bucket is private and PDF-only.
 2. Sign in as admin and complete `/settings/company`.
@@ -1429,6 +1430,12 @@ details into snapshots. Later settings changes therefore do not rewrite issued
 invoice history. Client billing remains admin-only and has no automated payment
 integration. Manual outgoing invoices use `invoice_source = 'manual'`, keep
 `project_id` required, and leave `timesheet_id` and `contractor_id` empty.
+
+The security hardening migration stores assignment sales rates in
+`contractor_project_commercials`, which is protected by admin-only RLS.
+Contractor-readable assignment rows keep only contractor-facing assignment data
+such as `hourly_rate`. The same migration removes operations access to raw
+contractor rows because those rows include bank details.
 
 ### 23.3 Preview deployments
 

@@ -14,9 +14,9 @@ import {
   buildDocumentUploadedAdminEmail,
   getPortalBaseUrl,
 } from "@/lib/email/portal-email";
+import { validatePdfUploadFile } from "@/lib/files/pdf-upload";
 import { createClient } from "@/lib/supabase/server";
 
-const maxDocumentSizeBytes = 10 * 1024 * 1024;
 const documentBucket = "contractor-documents";
 
 const uploadSchema = z.object({
@@ -74,34 +74,6 @@ function safeFileName(value: string) {
   return `${safeBaseName || "document"}.pdf`;
 }
 
-function validateFile(value: FormDataEntryValue | null) {
-  if (!(value instanceof File) || value.size === 0) {
-    return {
-      file: null,
-      error: "Select a PDF file to upload.",
-    };
-  }
-
-  if (value.size > maxDocumentSizeBytes) {
-    return {
-      file: null,
-      error: "PDF files must be 10 MB or smaller.",
-    };
-  }
-
-  if (value.type !== "application/pdf" || !value.name.toLowerCase().endsWith(".pdf")) {
-    return {
-      file: null,
-      error: "Only PDF files are accepted.",
-    };
-  }
-
-  return {
-    file: value,
-    error: null,
-  };
-}
-
 export async function uploadContractorDocumentAction(
   _previousState: DocumentUploadState,
   formData: FormData,
@@ -153,7 +125,10 @@ export async function uploadContractorDocumentAction(
     };
   }
 
-  const fileValidation = validateFile(formData.get("file"));
+  const fileValidation = await validatePdfUploadFile({
+    value: formData.get("file"),
+    emptyMessage: "Select a PDF file to upload.",
+  });
 
   if (!parsed.success || fileValidation.error || !fileValidation.file) {
     const fieldErrors = parsed.success

@@ -28,7 +28,7 @@ async function loadPrerequisites(supabase: SupabaseClient, timesheet: TimesheetR
       supabase.from("project_billing_details").select("*").eq("project_id", timesheet.project_id).maybeSingle<ProjectBillingDetails>(),
       supabase.from("projects").select("id,name").eq("id", timesheet.project_id).maybeSingle<{ id: string; name: string }>(),
       supabase.from("contractors").select("id,legal_name,email").eq("id", timesheet.contractor_id).maybeSingle<{ id: string; legal_name: string; email: string }>(),
-      supabase.from("contractor_projects").select("id,start_date,end_date,sales_rate,currency").eq("project_id", timesheet.project_id).eq("contractor_id", timesheet.contractor_id).returns<{ id: string; start_date: string | null; end_date: string | null; sales_rate: number | string | null; currency: string }[]>(),
+      supabase.from("contractor_projects").select("id,start_date,end_date,currency").eq("project_id", timesheet.project_id).eq("contractor_id", timesheet.contractor_id).returns<{ id: string; start_date: string | null; end_date: string | null; currency: string }[]>(),
       supabase.from("timesheet_entries").select("work_date,hours").eq("timesheet_id", timesheet.id).returns<Pick<TimesheetEntryRecord, "work_date" | "hours">[]>(),
     ]);
 
@@ -39,7 +39,21 @@ async function loadPrerequisites(supabase: SupabaseClient, timesheet: TimesheetR
   if (!contractorResult.data) throw new Error("The consultant could not be loaded for outgoing billing.");
   if (entryResult.error || entryResult.data.length === 0) throw new Error("Approved timesheets need worked hours for outgoing billing.");
   if (assignmentResult.error || assignmentResult.data.length === 0) throw new Error("No assignment covers this timesheet for outgoing billing.");
-  if (assignmentResult.data.some((assignment) => assignment.sales_rate === null)) {
+  const assignmentIds = assignmentResult.data.map((assignment) => assignment.id);
+  const { data: commercials, error: commercialError } = await supabase
+    .from("contractor_project_commercials")
+    .select("contractor_project_id,sales_rate")
+    .in("contractor_project_id", assignmentIds)
+    .returns<{ contractor_project_id: string; sales_rate: number | string | null }[]>();
+  if (commercialError) throw new Error(`Could not load assignment sales rates: ${commercialError.message}`);
+
+  const salesRates = new Map(
+    commercials.map((commercial) => [
+      commercial.contractor_project_id,
+      commercial.sales_rate,
+    ]),
+  );
+  if (assignmentResult.data.some((assignment) => salesRates.get(assignment.id) === null || salesRates.get(assignment.id) === undefined)) {
     throw new Error("Set the assignment sales rate before approving this timesheet.");
   }
 
@@ -47,7 +61,7 @@ async function loadPrerequisites(supabase: SupabaseClient, timesheet: TimesheetR
     entryResult.data,
     assignmentResult.data.map((assignment) => ({
       ...assignment,
-      hourly_rate: assignment.sales_rate as number | string,
+      hourly_rate: salesRates.get(assignment.id) as number | string,
     })),
   );
   if (!rateSelection.ok) throw new Error(`Outgoing sales rate error: ${rateSelection.message}`);

@@ -87,6 +87,7 @@ Outgoing client invoicing requires:
 ```text
 supabase/migrations/202606280002_outgoing_client_invoices.sql
 supabase/migrations/202606280006_manual_outgoing_invoices.sql
+supabase/migrations/202606280007_security_hardening.sql
 ```
 
 Apply it before enabling approval-driven outgoing invoice generation. It adds
@@ -95,6 +96,11 @@ snapshots and lines, atomic invoice numbering, and the private outgoing PDF
 bucket. The manual outgoing invoice migration keeps the same invoice table and
 number sequence, but allows admin-created project-based drafts without a
 timesheet or contractor link.
+
+The security hardening migration moves assignment `sales_rate` values into an
+admin-only commercial table, clears the old contractor-readable assignment
+column, and removes operations access to raw contractor rows that contain bank
+details.
 
 Apply all unapplied migrations in order in the production Supabase SQL Editor,
 then run this verification query:

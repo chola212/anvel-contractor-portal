@@ -250,7 +250,6 @@ async function seedFakeData(adminClient, contractorUser) {
       contractor_id: ownContractor.id,
       project_id: seedIds.ownProject,
       hourly_rate: 50,
-      sales_rate: 80,
       status: "active",
     },
     {
@@ -258,8 +257,18 @@ async function seedFakeData(adminClient, contractorUser) {
       contractor_id: seedIds.otherContractor,
       project_id: seedIds.otherProject,
       hourly_rate: 55,
-      sales_rate: 90,
       status: "active",
+    },
+  ]);
+
+  await writeRows(adminClient, "contractor_project_commercials", [
+    {
+      contractor_project_id: seedIds.ownContractorProject,
+      sales_rate: 80,
+    },
+    {
+      contractor_project_id: seedIds.otherContractorProject,
+      sales_rate: 90,
     },
   ]);
 
@@ -506,6 +515,34 @@ async function runChecks(adminClient, contractorClient, context) {
     "Contractor can read only own assignment",
     sameMembers(contractorAssignments, [seedIds.ownContractorProject]),
     contractorAssignments.join(", "),
+  );
+
+  const { data: contractorAssignmentRates, error: assignmentRateError } =
+    await contractorClient
+      .from("contractor_projects")
+      .select("id,sales_rate")
+      .eq("id", seedIds.ownContractorProject);
+  if (assignmentRateError) {
+    throw new Error(`Could not query contractor assignment rates: ${assignmentRateError.message}`);
+  }
+  record(
+    results,
+    "Contractor assignment row does not expose sales rate",
+    contractorAssignmentRates.every((assignment) => assignment.sales_rate === null),
+    JSON.stringify(contractorAssignmentRates),
+  );
+
+  const contractorCommercials = await selectIds(
+    contractorClient,
+    "contractor_project_commercials",
+    "contractor_project_id",
+    [seedIds.ownContractorProject, seedIds.otherContractorProject],
+  );
+  record(
+    results,
+    "Contractor cannot read assignment commercial rows",
+    contractorCommercials.length === 0,
+    contractorCommercials.join(", "),
   );
 
   const contractorDocuments = await selectIds(

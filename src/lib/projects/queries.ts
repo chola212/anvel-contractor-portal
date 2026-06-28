@@ -29,7 +29,6 @@ const assignmentColumns = `
   project_id,
   hourly_rate,
   currency,
-  sales_rate,
   start_date,
   end_date,
   status,
@@ -126,8 +125,9 @@ async function hydrateAssignments(assignments: ContractorProjectRecord[]) {
   const supabase = await createClient();
   const contractorIds = [...new Set(assignments.map((assignment) => assignment.contractor_id))];
   const projectIds = [...new Set(assignments.map((assignment) => assignment.project_id))];
+  const assignmentIds = assignments.map((assignment) => assignment.id);
 
-  const [contractorResult, projectResult] = await Promise.all([
+  const [contractorResult, projectResult, commercialResult] = await Promise.all([
     supabase
       .from("contractors")
       .select("id,legal_name,email,status")
@@ -138,6 +138,11 @@ async function hydrateAssignments(assignments: ContractorProjectRecord[]) {
       .select("id,name,client_label,status")
       .in("id", projectIds)
       .returns<AssignmentProjectSummary[]>(),
+    supabase
+      .from("contractor_project_commercials")
+      .select("contractor_project_id,sales_rate")
+      .in("contractor_project_id", assignmentIds)
+      .returns<{ contractor_project_id: string; sales_rate: number | string | null }[]>(),
   ]);
 
   if (contractorResult.error) {
@@ -148,15 +153,26 @@ async function hydrateAssignments(assignments: ContractorProjectRecord[]) {
     throw new Error(`Could not load assignment projects: ${projectResult.error.message}`);
   }
 
+  if (commercialResult.error) {
+    throw new Error(`Could not load assignment commercial details: ${commercialResult.error.message}`);
+  }
+
   const contractors = new Map<string, AssignmentContractorSummary>(
     contractorResult.data.map((contractor) => [contractor.id, contractor]),
   );
   const projects = new Map<string, AssignmentProjectSummary>(
     projectResult.data.map((project) => [project.id, project]),
   );
+  const commercials = new Map(
+    commercialResult.data.map((commercial) => [
+      commercial.contractor_project_id,
+      commercial.sales_rate,
+    ]),
+  );
 
   return assignments.map<ProjectAssignment>((assignment) => ({
     ...assignment,
+    sales_rate: commercials.get(assignment.id) ?? null,
     contractor: contractors.get(assignment.contractor_id) ?? null,
     project: projects.get(assignment.project_id) ?? null,
   }));

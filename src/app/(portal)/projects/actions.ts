@@ -167,6 +167,22 @@ function changeLine(label: string, before: string | number | null | undefined, a
   return `* ${label}: ${displayValue(before)} -> ${displayValue(after)}`;
 }
 
+async function saveAssignmentCommercialRate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  assignmentId: string,
+  salesRate: number | null,
+) {
+  return supabase
+    .from("contractor_project_commercials")
+    .upsert(
+      {
+        contractor_project_id: assignmentId,
+        sales_rate: salesRate,
+      },
+      { onConflict: "contractor_project_id" },
+    );
+}
+
 async function notifyAssignmentChange({
   contractorEmail,
   contractorName,
@@ -622,7 +638,6 @@ export async function createAssignmentAction(
       project_id: parsed.data.projectId,
       contractor_id: parsed.data.contractorId,
       hourly_rate: parsed.data.hourlyRate,
-      sales_rate: parsed.data.salesRate,
       start_date: parsed.data.startDate,
       end_date: parsed.data.endDate,
       status: parsed.data.status,
@@ -639,6 +654,20 @@ export async function createAssignmentAction(
           : error?.code === "23514"
             ? "Assignment dates, rates or status do not match the database rules."
             : `Could not create the assignment: ${error?.message ?? "Unknown error"}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { error: commercialError } = await saveAssignmentCommercialRate(
+    supabase,
+    assignment.id,
+    parsed.data.salesRate,
+  );
+
+  if (commercialError) {
+    return {
+      message: `Assignment created, but the sales rate could not be saved securely: ${commercialError.message}`,
       status: "error",
       fieldErrors: {},
     };
@@ -739,14 +768,13 @@ export async function updateAssignmentStatusAction(
   const supabase = await createClient();
   const { data: currentAssignment, error: loadError } = await supabase
     .from("contractor_projects")
-    .select("id,contractor_id,project_id,hourly_rate,sales_rate,status,start_date,end_date")
+    .select("id,contractor_id,project_id,hourly_rate,status,start_date,end_date")
     .eq("id", parsed.data.assignmentId)
     .maybeSingle<{
       id: string;
       contractor_id: string;
       project_id: string;
       hourly_rate: number | string;
-      sales_rate: number | string | null;
       status: string;
       start_date: string | null;
       end_date: string | null;
@@ -755,6 +783,20 @@ export async function updateAssignmentStatusAction(
   if (loadError || !currentAssignment) {
     return {
       message: "This assignment could not be found.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const { data: currentCommercial, error: commercialLoadError } = await supabase
+    .from("contractor_project_commercials")
+    .select("sales_rate")
+    .eq("contractor_project_id", currentAssignment.id)
+    .maybeSingle<{ sales_rate: number | string | null }>();
+
+  if (commercialLoadError) {
+    return {
+      message: `Could not load assignment commercial details: ${commercialLoadError.message}`,
       status: "error",
       fieldErrors: {},
     };
@@ -811,7 +853,6 @@ export async function updateAssignmentStatusAction(
     .from("contractor_projects")
     .update({
       hourly_rate: parsed.data.hourlyRate,
-      sales_rate: parsed.data.salesRate,
       status: parsed.data.status,
       start_date: parsed.data.startDate,
       end_date: parsed.data.endDate,
@@ -829,6 +870,20 @@ export async function updateAssignmentStatusAction(
     };
   }
 
+  const { error: commercialUpdateError } = await saveAssignmentCommercialRate(
+    supabase,
+    currentAssignment.id,
+    parsed.data.salesRate,
+  );
+
+  if (commercialUpdateError) {
+    return {
+      message: `Assignment updated, but the sales rate could not be saved securely: ${commercialUpdateError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_profile_id: profile.id,
     action: "contractor_project_status_updated",
@@ -839,7 +894,7 @@ export async function updateAssignmentStatusAction(
       to_status: parsed.data.status,
       from_hourly_rate: currentAssignment.hourly_rate,
       to_hourly_rate: parsed.data.hourlyRate,
-      from_sales_rate: currentAssignment.sales_rate,
+      from_sales_rate: currentCommercial?.sales_rate ?? null,
       to_sales_rate: parsed.data.salesRate,
       from_start_date: currentAssignment.start_date,
       to_start_date: parsed.data.startDate,
