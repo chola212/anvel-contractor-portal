@@ -1,5 +1,6 @@
 type PortalEmailInput = {
   to: string;
+  cc?: string[];
   subject: string;
   html: string;
   text: string;
@@ -91,6 +92,7 @@ export async function sendPortalEmail(input: PortalEmailInput) {
     body: JSON.stringify({
       from,
       to: input.to,
+      cc: input.cc,
       subject: input.subject,
       html: input.html,
       text: input.text,
@@ -106,6 +108,52 @@ export async function sendPortalEmail(input: PortalEmailInput) {
   }
 
   return { sent: true as const };
+}
+
+export function buildOutgoingInvoiceEmail({
+  invoiceNumber,
+  consultantName,
+  monthLabel,
+  projectName,
+  poReference,
+  grossAmount,
+  dueDate,
+}: {
+  invoiceNumber: string;
+  consultantName: string;
+  monthLabel: string;
+  projectName: string;
+  poReference: string | null;
+  grossAmount: string;
+  dueDate: string;
+}) {
+  const subject = `Invoice ${invoiceNumber} - ${consultantName} - ${monthLabel}`;
+  const details = [
+    `Project: ${projectName}`,
+    `Consultant: ${consultantName}`,
+    `Period: ${monthLabel}`,
+    poReference ? `PO reference: ${poReference}` : null,
+    `Amount due: ${grossAmount} EUR`,
+    `Due date: ${dueDate}`,
+  ].filter(Boolean);
+  return {
+    subject,
+    html: wrapEmailHtml(
+      `Invoice ${invoiceNumber}`,
+      `<p>Hello,</p>
+       <p>Please find attached invoice ${invoiceNumber} for consulting services provided by ${consultantName} during ${monthLabel}.</p>
+       <p>${details.join("<br />")}</p>
+       <p>Kind regards,<br />ANVEL Consulting</p>`,
+    ),
+    text: `Hello,
+
+Please find attached invoice ${invoiceNumber} for consulting services provided by ${consultantName} during ${monthLabel}.
+
+${details.join("\n")}
+
+Kind regards,
+ANVEL Consulting`,
+  };
 }
 
 function wrapEmailHtml(title: string, body: string) {

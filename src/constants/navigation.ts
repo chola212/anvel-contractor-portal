@@ -54,6 +54,12 @@ export const primaryNavigation: NavigationItem[] = [
     allowedRoles: allRoles,
   },
   {
+    label: "Outgoing Invoices",
+    description: "Client billing drafts and payments",
+    href: "/outgoing-invoices",
+    allowedRoles: ["admin"],
+  },
+  {
     label: "Payments",
     description: "Manual payment tracking",
     href: "/payments",

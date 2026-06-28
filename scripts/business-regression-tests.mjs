@@ -847,4 +847,221 @@ assert.match(
   "authenticated smoke tests should verify malformed timesheet ids do not crash",
 );
 
+const outgoingMigration = read(
+  "supabase/migrations/202606280002_outgoing_client_invoices.sql",
+);
+for (const table of [
+  "company_invoice_settings",
+  "project_billing_details",
+  "outgoing_invoice_sequences",
+  "outgoing_invoices",
+  "outgoing_invoice_lines",
+]) {
+  assert.match(
+    outgoingMigration,
+    new RegExp(`create table public\\.${table}`),
+    `outgoing billing migration should create ${table}`,
+  );
+  assert.match(
+    outgoingMigration,
+    new RegExp(`alter table public\\.${table} enable row level security`),
+    `${table} should have RLS enabled`,
+  );
+}
+assert.match(
+  outgoingMigration,
+  /company_invoice_settings_admin_all[\s\S]*public\.is_admin\(\)/,
+  "company invoice settings should be admin-only",
+);
+assert.match(
+  outgoingMigration,
+  /project_billing_details_admin_all[\s\S]*public\.is_admin\(\)/,
+  "project billing details should be admin-only",
+);
+assert.match(
+  outgoingMigration,
+  /outgoing_invoices_admin_all[\s\S]*public\.is_admin\(\)/,
+  "outgoing invoices should be admin-only",
+);
+assert.match(
+  outgoingMigration,
+  /check \(due_date = invoice_date \+ 30\)/,
+  "database should enforce invoice date plus 30 calendar days",
+);
+assert.match(
+  outgoingMigration,
+  /ANVEL-%s-%s[\s\S]*lpad\(next_number::text, 4, '0'\)/,
+  "outgoing invoice numbering should use ANVEL-YYYY-0001 format",
+);
+assert.match(
+  outgoingMigration,
+  /timesheet_id uuid not null[\s\S]*unique/,
+  "one outgoing invoice should be allowed per timesheet",
+);
+assert.match(
+  outgoingMigration,
+  /'outgoing-invoices'[\s\S]*public = false|false,[\s\S]*array\['application\/pdf'\]/,
+  "outgoing invoice storage should be private and PDF-only",
+);
+
+const companySettingsAction = read(
+  "src/app/(portal)/settings/company/actions.ts",
+);
+assert.match(
+  companySettingsAction,
+  /requireRole\(\["admin"\]\)/,
+  "company invoice settings action should require admin",
+);
+assert.match(
+  companySettingsAction,
+  /default_payment_terms_days: 30[\s\S]*default_currency: "EUR"/,
+  "company invoice settings should fix Phase 1 terms and currency",
+);
+
+const projectBillingAction = read("src/app/(portal)/projects/actions.ts");
+assert.match(
+  projectBillingAction,
+  /billingVatNumber: z\.string\(\)\.trim\(\)\.min\(1, "Billing VAT number is required\."\)/,
+  "project billing details should require a VAT number",
+);
+assert.match(
+  projectBillingAction,
+  /saveProjectBillingDetailsAction[\s\S]*requireRole\(\["admin"\]\)/,
+  "project billing updates should require admin",
+);
+
+const outgoingGenerator = read("src/lib/outgoing-invoices/generate.ts");
+for (const message of [
+  "Complete company invoice settings",
+  "Complete project billing details",
+  "Add the project billing VAT number",
+  "Set the assignment sales rate",
+]) {
+  assert.match(
+    outgoingGenerator,
+    new RegExp(message),
+    `outgoing generation should block with: ${message}`,
+  );
+}
+assert.match(
+  outgoingGenerator,
+  /select\("id,start_date,end_date,sales_rate,currency"\)/,
+  "outgoing invoice generation should load sales rate",
+);
+assert.match(
+  outgoingGenerator,
+  /netAmount = roundMoney\(quantity \* context\.salesRate\)/,
+  "outgoing net amount should use sales rate",
+);
+assert.match(
+  outgoingGenerator,
+  /status: "draft"[\s\S]*company_legal_name[\s\S]*billing_legal_name[\s\S]*consultant_name/,
+  "outgoing invoice should store sender, recipient and consultant snapshots",
+);
+assert.match(
+  outgoingGenerator,
+  /eq\("timesheet_id", timesheet\.id\)[\s\S]*alreadyGenerated: true/,
+  "outgoing generation should reuse an existing timesheet invoice",
+);
+
+function addThirtyCalendarDays(value) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 30);
+  return date.toISOString().slice(0, 10);
+}
+assert.equal(
+  addThirtyCalendarDays("2026-01-31"),
+  "2026-03-02",
+  "due date should be exactly 30 calendar days after invoice date",
+);
+
+const outgoingPdf = read("src/lib/outgoing-invoices/pdf.ts");
+for (const section of [
+  "INVOICE",
+  "FROM",
+  "INVOICE TO",
+  "Project",
+  "Consultant",
+  "Description",
+  "Quantity",
+  "TOTAL DUE",
+  "BANK DETAILS",
+  "VAT No.",
+]) {
+  assert.match(
+    outgoingPdf,
+    new RegExp(section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `outgoing PDF should contain structured section: ${section}`,
+  );
+}
+assert.match(
+  outgoingPdf,
+  /invoice\.consultant_name/,
+  "outgoing PDF should include consultant name",
+);
+
+const outgoingActions = read(
+  "src/app/(portal)/outgoing-invoices/actions.ts",
+);
+assert.match(
+  outgoingActions,
+  /buildOutgoingInvoiceEmail[\s\S]*consultantName: invoice\.consultant_name/,
+  "outgoing invoice email should include consultant name",
+);
+assert.match(
+  outgoingActions,
+  /attachments:[\s\S]*filename: invoice\.pdf_file_name/,
+  "outgoing invoice email should attach the PDF",
+);
+assert.ok(
+  outgoingActions.indexOf("await sendPortalEmail") <
+    outgoingActions.indexOf('status: "sent"'),
+  "sent status should update only after email succeeds",
+);
+assert.match(
+  outgoingActions,
+  /markOutgoingInvoicePaidAction[\s\S]*status: "paid"[\s\S]*paid_at[\s\S]*paid_amount/,
+  "admin should be able to record manual outgoing invoice payment",
+);
+
+const outgoingRoute = read("src/app/(portal)/outgoing-invoices/page.tsx");
+const outgoingDetailRoute = read(
+  "src/app/(portal)/outgoing-invoices/[id]/page.tsx",
+);
+for (const route of [outgoingRoute, outgoingDetailRoute]) {
+  assert.match(
+    route,
+    /requireRole\(\["admin"\]\)/,
+    "outgoing invoice routes should require admin",
+  );
+}
+
+const outgoingFiles = [
+  outgoingMigration,
+  companySettingsAction,
+  read("src/components/settings/company-invoice-settings-form.tsx"),
+  projectBillingAction,
+  read("src/components/projects/project-billing-details-form.tsx"),
+  outgoingGenerator,
+  outgoingPdf,
+  outgoingActions,
+  outgoingRoute,
+  outgoingDetailRoute,
+].join("\n");
+assert.doesNotMatch(
+  outgoingFiles,
+  /tax[_ ]number/i,
+  "outgoing billing must not create or render a tax number",
+);
+assert.match(
+  read("src/app/(portal)/timesheets/actions.ts"),
+  /generateSelfBillingInvoiceForTimesheet[\s\S]*generateOutgoingInvoiceForTimesheet/,
+  "timesheet approval should preserve self-billing and create an outgoing draft",
+);
+assert.match(
+  read("src/constants/navigation.ts"),
+  /label: "Outgoing Invoices"[\s\S]*allowedRoles: \["admin"\]/,
+  "Outgoing Invoices navigation should be admin-only",
+);
+
 console.log("Business regression checks passed.");

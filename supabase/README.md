@@ -15,6 +15,8 @@ migrations/202606230001_contractor_self_profile_update.sql
 migrations/202606270001_document_requirement_defaults.sql
 migrations/202606270002_self_billing_invoice_metadata.sql
 migrations/202606270003_repair_self_billing_invoice_columns.sql
+migrations/202606280001_timesheet_comments_and_document_requirements.sql
+migrations/202606280002_outgoing_client_invoices.sql
 ```
 
 This migration creates:
@@ -76,6 +78,20 @@ production after earlier migrations. It repairs partial deployments, backfills
 existing invoices as `contractor_uploaded`, sets existing `email_status` values
 to `not_sent`, recreates the `timesheet_id` foreign key with `on delete set
 null`, and adds the self-billing uniqueness indexes.
+
+The Phase 1 outgoing client invoice migration creates:
+
+- admin-only singleton company invoice settings;
+- admin-only project billing recipient details;
+- immutable outgoing invoice headers and line snapshots;
+- atomic, year-based `ANVEL-YYYY-0001` numbering;
+- a private `outgoing-invoices` PDF bucket;
+- admin-only RLS and storage policies;
+- a database check enforcing due date as invoice date plus 30 days.
+
+Contractors and operations users receive no access to sender bank details,
+project billing details, outgoing invoice rows, line items, numbering state or
+outgoing PDF objects.
 
 Phase 12 accountant exports do not add a migration. The export reads existing
 invoice, payment statement, project, contractor and payment rows through the
@@ -213,6 +229,34 @@ order by indexname;
 ```
 
 Expected result: four rows.
+
+Check outgoing billing tables and RLS:
+
+```sql
+select tablename, rowsecurity
+from pg_tables
+where schemaname = 'public'
+  and tablename in (
+    'company_invoice_settings',
+    'project_billing_details',
+    'outgoing_invoice_sequences',
+    'outgoing_invoices',
+    'outgoing_invoice_lines'
+  )
+order by tablename;
+```
+
+Expected result: five rows with `rowsecurity = true`.
+
+Check the private outgoing invoice bucket:
+
+```sql
+select id, public, file_size_limit, allowed_mime_types
+from storage.buckets
+where id = 'outgoing-invoices';
+```
+
+Expected result: one private, PDF-only bucket.
 
 ## Development auth test users
 

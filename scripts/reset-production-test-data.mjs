@@ -30,6 +30,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const operationalTables = [
+  "outgoing_invoice_lines",
+  "outgoing_invoices",
   "payments",
   "invoices",
   "payment_statements",
@@ -37,6 +39,7 @@ const operationalTables = [
   "timesheets",
   "contractor_documents",
   "contractor_projects",
+  "project_billing_details",
   "projects",
   "audit_logs",
 ];
@@ -321,6 +324,7 @@ async function main() {
 
   const documentFiles = await clearBucket("contractor-documents");
   const invoiceFiles = await clearBucket("contractor-invoices");
+  const outgoingInvoiceFiles = await clearBucket("outgoing-invoices");
 
   for (const table of operationalTables) {
     await deleteAllRows(table);
@@ -333,6 +337,7 @@ async function main() {
 
   console.log(`Removed ${documentFiles} contractor document file(s).`);
   console.log(`Removed ${invoiceFiles} contractor invoice file(s).`);
+  console.log(`Removed ${outgoingInvoiceFiles} outgoing invoice file(s).`);
   console.log("Production test data reset complete.");
 }
 

@@ -69,6 +69,36 @@ const projectIdSchema = z.object({
   projectId: z.string().uuid("Project is missing."),
 });
 
+const billingDetailsSchema = z.object({
+  projectId: z.string().uuid("Project is missing."),
+  billingLegalName: z.string().trim().min(1, "Billing legal name is required.").max(200),
+  billingEmail: z.string().trim().email("Enter a valid billing email."),
+  billingCcEmails: z
+    .string()
+    .transform((value) =>
+      value
+        .split(",")
+        .map((email) => email.trim())
+        .filter(Boolean),
+    )
+    .refine(
+      (emails) => emails.every((email) => z.string().email().safeParse(email).success),
+      "Enter valid comma-separated CC email addresses.",
+    ),
+  billingAddress: z.string().trim().min(1, "Billing address is required.").max(500),
+  billingCountry: z.string().trim().min(1, "Billing country is required.").max(120),
+  billingVatNumber: z.string().trim().min(1, "Billing VAT number is required.").max(120),
+  poReference: optionalText,
+  vatTreatment: z.enum([
+    "cyprus_vat_19",
+    "eu_reverse_charge_0",
+    "non_eu_outside_scope",
+    "manual_review",
+  ]),
+  defaultInvoiceDescription: optionalText,
+  invoiceNotes: optionalText,
+});
+
 const createAssignmentSchema = z
   .object({
     projectId: z.string().uuid("Project is missing."),
@@ -121,6 +151,82 @@ export type ProjectCreateState = {
   status: "idle" | "success" | "error";
   fieldErrors: Record<string, string[] | undefined>;
 };
+
+export async function saveProjectBillingDetailsAction(
+  _previousState: ProjectCreateState,
+  formData: FormData,
+): Promise<ProjectCreateState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = billingDetailsSchema.safeParse({
+    projectId: formData.get("projectId"),
+    billingLegalName: formData.get("billingLegalName"),
+    billingEmail: formData.get("billingEmail"),
+    billingCcEmails: formData.get("billingCcEmails"),
+    billingAddress: formData.get("billingAddress"),
+    billingCountry: formData.get("billingCountry"),
+    billingVatNumber: formData.get("billingVatNumber"),
+    poReference: formData.get("poReference"),
+    vatTreatment: formData.get("vatTreatment"),
+    defaultInvoiceDescription: formData.get("defaultInvoiceDescription"),
+    invoiceNotes: formData.get("invoiceNotes"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the project billing details and try again.",
+      status: "error",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("project_billing_details")
+    .upsert(
+      {
+        project_id: parsed.data.projectId,
+        billing_legal_name: parsed.data.billingLegalName,
+        billing_email: parsed.data.billingEmail,
+        billing_cc_emails: parsed.data.billingCcEmails,
+        billing_address: parsed.data.billingAddress,
+        billing_country: parsed.data.billingCountry,
+        billing_vat_number: parsed.data.billingVatNumber,
+        po_reference: parsed.data.poReference,
+        vat_treatment: parsed.data.vatTreatment,
+        default_invoice_description: parsed.data.defaultInvoiceDescription,
+        invoice_notes: parsed.data.invoiceNotes,
+      },
+      { onConflict: "project_id" },
+    )
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !data) {
+    return {
+      message: `Could not save project billing details: ${error?.message ?? "Unknown error"}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "project_billing_details_updated",
+    entity_type: "project_billing_details",
+    entity_id: data.id,
+    metadata: {
+      project_id: parsed.data.projectId,
+      vat_treatment: parsed.data.vatTreatment,
+    },
+  });
+
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  return {
+    message: "Project billing details saved.",
+    status: "success",
+    fieldErrors: {},
+  };
+}
 
 export async function createProjectAction(
   _previousState: ProjectCreateState,

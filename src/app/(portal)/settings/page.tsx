@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth/profile";
+import Link from "next/link";
 
 type StatusItem = {
   label: string;
@@ -126,9 +127,8 @@ export default async function SettingsPage() {
           Settings
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Read-only operational configuration overview for the private portal.
-          Editable security, billing and production controls remain outside the
-          application until separately approved.
+          Operational configuration overview and admin-managed outgoing invoice
+          sender settings for the private portal.
         </p>
       </section>
 
@@ -153,6 +153,14 @@ export default async function SettingsPage() {
             {nodeEnvironment}
           </p>
         </div>
+      </section>
+
+      <section className="rounded-md border border-neutral-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-neutral-950">Invoice sender settings</h2>
+        <p className="mt-2 text-sm text-neutral-600">Manage company, VAT and bank details used for outgoing invoice snapshots.</p>
+        <Link href="/settings/company" className="mt-4 inline-flex rounded-md bg-teal-800 px-4 py-2 text-sm font-semibold text-white">
+          Open company invoice settings
+        </Link>
       </section>
 
       <SettingsSection

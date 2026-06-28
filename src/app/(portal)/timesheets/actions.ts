@@ -13,6 +13,10 @@ import {
   getPortalBaseUrl,
 } from "@/lib/email/portal-email";
 import { generateSelfBillingInvoiceForTimesheet } from "@/lib/self-billing/generate";
+import {
+  generateOutgoingInvoiceForTimesheet,
+  validateOutgoingInvoicePrerequisites,
+} from "@/lib/outgoing-invoices/generate";
 import { createClient } from "@/lib/supabase/server";
 import {
   dateIsWithinAssignment,
@@ -342,6 +346,7 @@ export async function approveTimesheetAction(
 
   try {
     await validateTimesheetEntriesWithinAssignments(supabase, timesheet);
+    await validateOutgoingInvoicePrerequisites({ supabase, timesheet });
   } catch (error) {
     return {
       message:
@@ -393,6 +398,7 @@ export async function approveTimesheetAction(
   }
 
   let selfBillingMessage = "Self-billing invoice generated and emailed.";
+  let outgoingInvoiceMessage = "Outgoing invoice draft generated.";
 
   try {
     const approvedAt = new Date().toISOString();
@@ -427,11 +433,40 @@ export async function approveTimesheetAction(
     };
   }
 
+  try {
+    const outgoingInvoice = await generateOutgoingInvoiceForTimesheet({
+      supabase,
+      timesheet: {
+        ...timesheet,
+        status: "approved",
+        approved_by: profile.id,
+        approved_at: new Date().toISOString(),
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+      },
+      actorProfileId: profile.id,
+    });
+    if (outgoingInvoice.alreadyGenerated) {
+      outgoingInvoiceMessage = "Outgoing invoice draft already existed.";
+    }
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? `Timesheet approved, but outgoing invoice generation failed: ${error.message}`
+          : "Timesheet approved, but outgoing invoice generation failed.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
   revalidatePath("/invoices");
   revalidatePath("/payments");
   revalidatePath("/exports");
+  revalidatePath("/outgoing-invoices");
   revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
   revalidatePath(`/contractors/${timesheet.contractor_id}/invoices`);
   revalidatePath(`/contractors/${timesheet.contractor_id}/payments`);
@@ -453,7 +488,7 @@ export async function approveTimesheetAction(
   }
 
   return {
-    message: `Timesheet approved. ${selfBillingMessage}`,
+    message: `Timesheet approved. ${selfBillingMessage} ${outgoingInvoiceMessage}`,
     status: "success",
     fieldErrors: {},
   };

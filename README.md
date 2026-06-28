@@ -82,6 +82,17 @@ Apply this migration before deploying code that saves timesheet comments. The
 timesheet routes tolerate the column being temporarily absent, but comments
 cannot be persisted until the migration is applied.
 
+Outgoing client invoicing requires:
+
+```text
+supabase/migrations/202606280002_outgoing_client_invoices.sql
+```
+
+Apply it before enabling approval-driven outgoing invoice generation. It adds
+admin-only company invoice settings, project billing details, outgoing invoice
+snapshots and lines, atomic invoice numbering, and the private outgoing PDF
+bucket.
+
 Apply all unapplied migrations in order in the production Supabase SQL Editor,
 then run this verification query:
 
@@ -170,6 +181,15 @@ notification's sender in `updateUser`.
 - Admin records invoice review and can mark an invoice as paid from the contractor profile payment section.
 - Contractor payment view shows clean pending status until payment is recorded.
 - Admin and contractor can upload contractor documents; admin uploads are linked to the contractor and visible to them.
+- Admin configures company invoice sender details under `/settings/company`.
+- Admin configures the billing recipient on each project.
+- Timesheet approval generates a separate outgoing invoice draft using the
+  assignment sales rate while preserving the existing contractor self-billing
+  workflow.
+- Admin reviews, downloads, manually sends and manually marks outgoing invoices
+  paid under `/outgoing-invoices`.
+- Outgoing invoices use EUR and a due date exactly 30 calendar days after the
+  invoice date. They do not use payment automation.
 - Accountant CSV export excludes bank details and private document links.
 - Admin Documents, Timesheets, Invoices and Payments workflows start by selecting a contractor, then managing that contractor's records.
 

@@ -12,6 +12,7 @@ const contractorEmail = process.env.SMOKE_CONTRACTOR_EMAIL;
 const contractorPassword = process.env.SMOKE_CONTRACTOR_PASSWORD;
 const smokeContractorId = process.env.SMOKE_CONTRACTOR_ID;
 const smokeTimesheetId = process.env.SMOKE_TIMESHEET_ID;
+const smokeOutgoingInvoiceId = process.env.SMOKE_OUTGOING_INVOICE_ID;
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabasePublishableKey =
@@ -27,9 +28,11 @@ const adminAccessibleRoutes = [
   { path: "/documents", expectedText: "Documents" },
   { path: "/timesheets", expectedText: "Timesheets" },
   { path: "/invoices", expectedText: "Invoices" },
+  { path: "/outgoing-invoices", expectedText: "Outgoing Invoices" },
   { path: "/payments", expectedText: "Payments" },
   { path: "/exports", expectedText: "Exports" },
   { path: "/settings", expectedText: "Settings" },
+  { path: "/settings/company", expectedText: "Company invoice settings" },
 ];
 
 const contractorAccessibleRoutes = [
@@ -59,11 +62,20 @@ if (smokeTimesheetId) {
   });
 }
 
+if (smokeOutgoingInvoiceId) {
+  adminAccessibleRoutes.push({
+    path: `/outgoing-invoices/${smokeOutgoingInvoiceId}`,
+    expectedText: "Billing recipient snapshot",
+  });
+}
+
 const contractorBlockedRoutes = [
   "/contractors",
   "/projects",
   "/exports",
   "/settings",
+  "/outgoing-invoices",
+  "/settings/company",
 ];
 
 function normalizeBaseUrl(value) {

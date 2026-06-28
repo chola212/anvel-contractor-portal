@@ -42,6 +42,7 @@ Run these on active working days when the portal is being used.
    - Documents
    - Timesheets
    - Invoices
+   - Outgoing Invoices
    - Payments
    - Exports
    - Settings
@@ -66,7 +67,8 @@ Run these once per week while the portal is in use.
 4. In Supabase production Storage, confirm these buckets are private:
    - `contractor-documents`
    - `contractor-invoices`
-5. Confirm both storage buckets allow PDF files only and keep the 10 MB file limit.
+   - `outgoing-invoices`
+5. Confirm all storage buckets allow PDF files only and keep the 10 MB file limit.
 6. If ANVEL intentionally keeps a controlled smoke-test contractor active, sign in with that account.
 7. Confirm the contractor can open:
    - Dashboard
@@ -85,6 +87,21 @@ Run these once per week while the portal is in use.
 If no controlled smoke-test contractor account is active, skip steps 6-8 and verify contractor access during the next approved contractor onboarding or release smoke test.
 
 ## Monthly Checks
+
+For each approved billable timesheet:
+
+1. Confirm company invoice settings are complete under `/settings/company`.
+2. Confirm the Project Billing details and assignment sales rate are correct.
+3. Approve the timesheet and confirm exactly one draft appears under
+   `/outgoing-invoices`.
+4. Review the recipient snapshot, consultant, hours, sales rate, VAT treatment,
+   invoice date and due date before sending.
+5. Download and inspect the PDF.
+6. Use **Send invoice** only after review; confirm email status becomes Sent.
+7. When payment is confirmed externally, record the paid date, amount and
+   optional reference manually.
+
+The portal must not trigger a bank payment or add a payment link.
 
 Run these at least once per month.
 

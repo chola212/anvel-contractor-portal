@@ -29,9 +29,11 @@ const protectedRoutes = [
   "/documents",
   "/timesheets",
   "/invoices",
+  "/outgoing-invoices",
   "/payments",
   "/exports",
   "/settings",
+  "/settings/company",
 ];
 
 const userAgent = "anvel-route-smoke-test/1.0";

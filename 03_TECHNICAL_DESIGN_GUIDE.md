@@ -1409,6 +1409,23 @@ the **Password changed** security notification or configure Resend under
 security template. Production must not leave this notification enabled with
 Supabase's default sender.
 
+### 23.2.1 Outgoing client invoice production setup
+
+Apply `202606280002_outgoing_client_invoices.sql` before deploying the outgoing
+invoice module. Then:
+
+1. Verify the `outgoing-invoices` Storage bucket is private and PDF-only.
+2. Sign in as admin and complete `/settings/company`.
+3. Complete Billing details on each billable Project.
+4. Confirm each assignment has an admin-only sales rate.
+5. Approve a fake-data timesheet and verify one draft invoice is created.
+6. Review the PDF before using the manual Send invoice action.
+
+The invoice copies sender, billing recipient, consultant, project, VAT and bank
+details into snapshots. Later settings changes therefore do not rewrite issued
+invoice history. Client billing remains admin-only and has no automated payment
+integration.
+
 ### 23.3 Preview deployments
 
 Use preview deployments for branches.
