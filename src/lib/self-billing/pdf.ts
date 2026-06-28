@@ -94,19 +94,100 @@ function vatLabel(vatTreatment: VatTreatment) {
         : "VAT (accountant review required)";
 }
 
-function splitAddressLines(
+function cleanAddressLine(value: string | null | undefined) {
+  const cleaned = (value ?? "").replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
+function appendUniqueLine(lines: string[], value: string | null | undefined) {
+  const cleaned = cleanAddressLine(value);
+  if (!cleaned) return;
+  const normalized = cleaned.toLowerCase();
+  if (!lines.some((line) => line.toLowerCase() === normalized)) {
+    lines.push(cleaned);
+  }
+}
+
+function splitLongAddressLine(value: string, maxLength = 42) {
+  if (value.length <= maxLength) return [value];
+
+  const words = value.split(/\s+/);
+  let firstLine = "";
+  const secondLineWords: string[] = [];
+
+  for (const word of words) {
+    if (secondLineWords.length > 0) {
+      secondLineWords.push(word);
+      continue;
+    }
+
+    const next = firstLine ? `${firstLine} ${word}` : word;
+    if (next.length > maxLength && firstLine) {
+      secondLineWords.push(word);
+    } else if (next.length > maxLength) {
+      firstLine = word.slice(0, maxLength);
+      secondLineWords.push(word.slice(maxLength));
+    } else {
+      firstLine = next;
+    }
+  }
+
+  return [firstLine, secondLineWords.join(" ")]
+    .map(cleanAddressLine)
+    .filter((line): line is string => Boolean(line))
+    .slice(0, 2);
+}
+
+function addressLines(
   line1: string | null | undefined,
   line2: string | null | undefined,
   fallback: string | null,
 ) {
   const fallbackLines = (fallback ?? "")
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  return [
-    line1?.trim() || fallbackLines[0] || null,
-    line2?.trim() || fallbackLines.slice(1).join(", ") || null,
-  ].filter(Boolean);
+    .map(cleanAddressLine)
+    .filter((line): line is string => Boolean(line));
+  const explicitLine1 = cleanAddressLine(line1);
+  const explicitLine2 = cleanAddressLine(line2);
+  const lines: string[] = [];
+
+  if (explicitLine1 || explicitLine2) {
+    const firstLineParts =
+      explicitLine1 && !explicitLine2
+        ? splitLongAddressLine(explicitLine1)
+        : explicitLine1
+          ? [explicitLine1]
+          : [];
+    firstLineParts.forEach((line) => appendUniqueLine(lines, line));
+    appendUniqueLine(lines, explicitLine2);
+  } else if (fallbackLines.length === 1) {
+    splitLongAddressLine(fallbackLines[0]).forEach((line) =>
+      appendUniqueLine(lines, line),
+    );
+  } else {
+    fallbackLines.forEach((line) => appendUniqueLine(lines, line));
+  }
+
+  return lines.slice(0, 2);
+}
+
+function locationLine(...parts: Array<string | null | undefined>) {
+  const line = parts.map(cleanAddressLine).filter(Boolean).join(", ");
+  return line || null;
+}
+
+function addressBlockLines(
+  lines: string[],
+  location: string | null | undefined,
+) {
+  const blockLines: string[] = [];
+  lines.forEach((line) => appendUniqueLine(blockLines, line));
+  appendUniqueLine(blockLines, location);
+  return blockLines;
+}
+
+function renderLines(lines: string[], x: number, startY: number, lineHeight = 14) {
+  return lines.map((line, index) => text(line, x, startY - index * lineHeight));
 }
 
 export function createSelfBillingInvoicePdf(input: SelfBillingPdfInput) {
@@ -118,23 +199,24 @@ export function createSelfBillingInvoicePdf(input: SelfBillingPdfInput) {
     86,
     3,
   );
-  const customerLocation = [input.companyCityRegion, input.companyCountry]
-    .filter(Boolean)
-    .join(", ");
-  const supplierAddressLines = splitAddressLines(
-    input.contractorAddressLine1,
-    input.contractorAddressLine2,
-    input.contractorAddress,
+  const supplierAddressLines = addressBlockLines(
+    addressLines(
+      input.contractorAddressLine1,
+      input.contractorAddressLine2,
+      input.contractorAddress,
+    ),
+    input.contractorCountry,
   );
-  const customerAddressLines = splitAddressLines(
-    input.companyAddressLine1,
-    input.companyAddressLine2,
-    input.companyAddress,
+  const customerAddressLines = addressBlockLines(
+    addressLines(
+      input.companyAddressLine1,
+      input.companyAddressLine2,
+      input.companyAddress,
+    ),
+    locationLine(input.companyCityRegion, input.companyCountry),
   );
-  const supplierCountryY = supplierAddressLines[1] ? 642 : 654;
-  const supplierVatY = input.contractorCountry
-    ? supplierCountryY - 12
-    : supplierCountryY;
+  const supplierVatY = 666 - supplierAddressLines.length * 12;
+  const customerVatY = 677 - customerAddressLines.length * 14;
   const supplierVat = input.contractorVatNumber
     ? [`VAT No.: ${input.contractorVatNumber}`]
     : [];
@@ -151,16 +233,12 @@ export function createSelfBillingInvoicePdf(input: SelfBillingPdfInput) {
     text("FROM / SUPPLIER", 55, 710, 9, true),
     text(input.contractorLegalName, 55, 692, 10, true),
     text(`Email: ${input.contractorEmail}`, 55, 678),
-    ...(supplierAddressLines[0] ? [text(supplierAddressLines[0], 55, 666)] : []),
-    ...(supplierAddressLines[1] ? [text(supplierAddressLines[1], 55, 654)] : []),
-    ...(input.contractorCountry ? [text(input.contractorCountry, 55, supplierCountryY)] : []),
+    ...renderLines(supplierAddressLines, 55, 666, 12),
     ...supplierVat.map((value, index) => text(value, 55, supplierVatY - index * 14)),
     text("INVOICE TO / CUSTOMER", 320, 710, 9, true),
     text(input.companyLegalName, 320, 692, 10, true),
-    text(customerAddressLines[0] ?? "", 320, 677),
-    ...(customerAddressLines[1] ? [text(customerAddressLines[1], 320, 663)] : []),
-    text(customerLocation, 320, customerAddressLines[1] ? 649 : 663),
-    text(`VAT No.: ${input.companyVatNumber}`, 320, customerAddressLines[1] ? 635 : 649),
+    ...renderLines(customerAddressLines, 320, 677),
+    text(`VAT No.: ${input.companyVatNumber}`, 320, customerVatY),
     rule(45, 618, 550, 618),
     box(45, 552, 505, 62, true),
     "0 0 0 rg",

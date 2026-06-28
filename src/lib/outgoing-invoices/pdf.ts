@@ -48,30 +48,122 @@ function wrapDescription(value: string, maxLength = 54) {
   return lines.slice(0, 2);
 }
 
-function splitAddressLines(
+function cleanAddressLine(value: string | null | undefined) {
+  const cleaned = (value ?? "").replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
+function appendUniqueLine(lines: string[], value: string | null | undefined) {
+  const cleaned = cleanAddressLine(value);
+  if (!cleaned) return;
+  const normalized = cleaned.toLowerCase();
+  if (!lines.some((line) => line.toLowerCase() === normalized)) {
+    lines.push(cleaned);
+  }
+}
+
+function splitLongAddressLine(value: string, maxLength = 42) {
+  if (value.length <= maxLength) return [value];
+
+  const words = value.split(/\s+/);
+  let firstLine = "";
+  const secondLineWords: string[] = [];
+
+  for (const word of words) {
+    if (secondLineWords.length > 0) {
+      secondLineWords.push(word);
+      continue;
+    }
+
+    const next = firstLine ? `${firstLine} ${word}` : word;
+    if (next.length > maxLength && firstLine) {
+      secondLineWords.push(word);
+    } else if (next.length > maxLength) {
+      firstLine = word.slice(0, maxLength);
+      secondLineWords.push(word.slice(maxLength));
+    } else {
+      firstLine = next;
+    }
+  }
+
+  return [firstLine, secondLineWords.join(" ")]
+    .map(cleanAddressLine)
+    .filter((line): line is string => Boolean(line))
+    .slice(0, 2);
+}
+
+function addressLines(
   line1: string | null | undefined,
   line2: string | null | undefined,
   fallback: string,
 ) {
-  const fallbackLines = fallback.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  return [
-    line1?.trim() || fallbackLines[0] || fallback,
-    line2?.trim() || fallbackLines.slice(1).join(", "),
-  ].filter(Boolean);
+  const explicitLine1 = cleanAddressLine(line1);
+  const explicitLine2 = cleanAddressLine(line2);
+  const fallbackLines = fallback
+    .split(/\r?\n/)
+    .map(cleanAddressLine)
+    .filter((line): line is string => Boolean(line));
+  const lines: string[] = [];
+
+  if (explicitLine1 || explicitLine2) {
+    const firstLineParts =
+      explicitLine1 && !explicitLine2
+        ? splitLongAddressLine(explicitLine1)
+        : explicitLine1
+          ? [explicitLine1]
+          : [];
+    firstLineParts.forEach((line) => appendUniqueLine(lines, line));
+    appendUniqueLine(lines, explicitLine2);
+  } else if (fallbackLines.length === 1) {
+    splitLongAddressLine(fallbackLines[0]).forEach((line) =>
+      appendUniqueLine(lines, line),
+    );
+  } else {
+    fallbackLines.forEach((line) => appendUniqueLine(lines, line));
+  }
+
+  return lines.slice(0, 2);
+}
+
+function locationLine(...parts: Array<string | null | undefined>) {
+  const line = parts.map(cleanAddressLine).filter(Boolean).join(", ");
+  return line || null;
+}
+
+function addressBlockLines(
+  lines: string[],
+  location: string | null | undefined,
+) {
+  const blockLines: string[] = [];
+  lines.forEach((line) => appendUniqueLine(blockLines, line));
+  appendUniqueLine(blockLines, location);
+  return blockLines;
+}
+
+function renderLines(lines: string[], x: number, startY: number, lineHeight = 14) {
+  return lines.map((line, index) => text(line, x, startY - index * lineHeight));
 }
 
 export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
   const line = invoice.lines[0];
-  const companyAddressLines = splitAddressLines(
-    invoice.company_address_line_1,
-    invoice.company_address_line_2,
-    invoice.company_address,
+  const companyAddressLines = addressBlockLines(
+    addressLines(
+      invoice.company_address_line_1,
+      invoice.company_address_line_2,
+      invoice.company_address,
+    ),
+    locationLine(invoice.company_city_region, invoice.company_country),
   );
-  const billingAddressLines = splitAddressLines(
-    invoice.billing_address_line_1,
-    invoice.billing_address_line_2,
-    invoice.billing_address,
+  const billingAddressLines = addressBlockLines(
+    addressLines(
+      invoice.billing_address_line_1,
+      invoice.billing_address_line_2,
+      invoice.billing_address,
+    ),
+    invoice.billing_country,
   );
+  const companyVatY = 677 - companyAddressLines.length * 14;
+  const billingVatY = 677 - billingAddressLines.length * 14;
   const descriptionLines = wrapDescription(
     line?.description ?? "Consultancy fees",
   );
@@ -94,20 +186,12 @@ export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
     right(`Due date: ${invoice.due_date}`, 530, 746, 9),
     text("FROM", 55, 710, 9, true),
     text(invoice.company_legal_name, 55, 692, 10, true),
-    text(companyAddressLines[0] ?? "", 55, 677),
-    ...(companyAddressLines[1] ? [text(companyAddressLines[1], 55, 663)] : []),
-    text(
-      [invoice.company_city_region, invoice.company_country].filter(Boolean).join(", "),
-      55,
-      companyAddressLines[1] ? 649 : 663,
-    ),
-    text(`VAT No.: ${invoice.company_vat_number}`, 55, companyAddressLines[1] ? 635 : 649),
+    ...renderLines(companyAddressLines, 55, 677),
+    text(`VAT No.: ${invoice.company_vat_number}`, 55, companyVatY),
     text("INVOICE TO", 320, 710, 9, true),
     text(invoice.billing_legal_name, 320, 692, 10, true),
-    text(billingAddressLines[0] ?? "", 320, 677),
-    ...(billingAddressLines[1] ? [text(billingAddressLines[1], 320, 663)] : []),
-    text(invoice.billing_country, 320, billingAddressLines[1] ? 649 : 663),
-    text(`VAT No.: ${invoice.billing_vat_number}`, 320, billingAddressLines[1] ? 635 : 649),
+    ...renderLines(billingAddressLines, 320, 677),
+    text(`VAT No.: ${invoice.billing_vat_number}`, 320, billingVatY),
     rule(45, 630, 550, 630),
     box(45, 552, 505, 62, true),
     "0 0 0 rg",

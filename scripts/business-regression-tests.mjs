@@ -889,6 +889,11 @@ assert.match(
   /select\("id,legal_name,email,vat_treatment,vat_number,fiscal_address,fiscal_address_line_1,fiscal_address_line_2,country"\)/,
   "self-billing generation should load contractor supplier address fields",
 );
+assert.match(
+  selfBilling,
+  /contractorAddressLine1: contractor\.fiscal_address_line_1[\s\S]*contractorAddressLine2: contractor\.fiscal_address_line_2[\s\S]*companyAddressLine1: settings\.company_address_line_1[\s\S]*companyAddressLine2: settings\.company_address_line_2/,
+  "self-billing generation should pass supplier and company address line 2 fields into the PDF",
+);
 assert.doesNotMatch(
   selfBilling,
   /sales_rate|salesRate/,
@@ -928,6 +933,11 @@ assert.match(
   selfBillingPdf,
   /contractorAddressLine1[\s\S]*contractorAddressLine2[\s\S]*companyAddressLine1[\s\S]*companyAddressLine2/,
   "self-billing PDF should render split supplier and customer address lines",
+);
+assert.match(
+  selfBillingPdf,
+  /function addressLines[\s\S]*split\(\/\\r\?\\n\/\)[\s\S]*splitLongAddressLine[\s\S]*appendUniqueLine/,
+  "self-billing PDF should fall back to legacy address lines, split long single-line addresses and avoid duplicate rows",
 );
 assert.doesNotMatch(
   selfBillingPdf,
@@ -1215,6 +1225,11 @@ assert.match(
   /eq\("timesheet_id", timesheet\.id\)[\s\S]*neq\("status", "cancelled"\)/,
   "outgoing generation should ignore cancelled historical invoices",
 );
+assert.match(
+  outgoingGenerator,
+  /company_address_line_1:[\s\S]*context\.settings\.company_address_line_1 \?\? context\.settings\.company_address[\s\S]*company_address_line_2: context\.settings\.company_address_line_2[\s\S]*billing_address_line_1:[\s\S]*context\.billing\.billing_address_line_1 \?\? context\.billing\.billing_address[\s\S]*billing_address_line_2: context\.billing\.billing_address_line_2/,
+  "outgoing generation should snapshot company and billing address line 2 fields",
+);
 
 function addThirtyCalendarDays(value) {
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -1256,6 +1271,16 @@ assert.match(
   /company_address_line_1[\s\S]*company_address_line_2[\s\S]*billing_address_line_1[\s\S]*billing_address_line_2/,
   "outgoing PDF should render split company and billing address lines",
 );
+assert.match(
+  outgoingPdf,
+  /function addressLines[\s\S]*split\(\/\\r\?\\n\/\)[\s\S]*splitLongAddressLine[\s\S]*appendUniqueLine/,
+  "outgoing PDF should fall back to legacy address lines, split long single-line addresses and avoid duplicate rows",
+);
+assert.match(
+  outgoingPdf,
+  /renderLines\(companyAddressLines, 55, 677\)[\s\S]*renderLines\(billingAddressLines, 320, 677\)/,
+  "outgoing PDF should render company and billing address line 2 blocks without fixed blank rows",
+);
 
 const outgoingActions = read(
   "src/app/(portal)/outgoing-invoices/actions.ts",
@@ -1284,6 +1309,11 @@ assert.match(
   outgoingActions,
   /createReplacementOutgoingInvoiceDraftAction[\s\S]*replaces_invoice_id[\s\S]*replaced_by_invoice_id/,
   "cancelled outgoing invoices should support replacement draft creation",
+);
+assert.match(
+  outgoingActions,
+  /company_address_line_1: original\.company_address_line_1[\s\S]*company_address_line_2: original\.company_address_line_2[\s\S]*billing_address_line_1: original\.billing_address_line_1[\s\S]*billing_address_line_2: original\.billing_address_line_2/,
+  "replacement outgoing invoices should preserve company and billing address line 2 snapshots",
 );
 assert.match(
   outgoingActions,
