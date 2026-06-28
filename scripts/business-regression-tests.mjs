@@ -610,6 +610,152 @@ assert.match(
   /createSignedUrl\(document\.file_path,[\s\S]*download: document\.file_name/,
   "document download route should request a named private signed download",
 );
+
+const projectDocumentsMigration = read(
+  "supabase/migrations/202606280008_project_documents.sql",
+);
+const projectDocumentActions = read(
+  "src/app/(portal)/project-documents/actions.ts",
+);
+const projectDocumentsPage = read(
+  "src/app/(portal)/project-documents/page.tsx",
+);
+const projectDocumentList = read(
+  "src/components/project-documents/project-document-list.tsx",
+);
+const projectDocumentUploadForm = read(
+  "src/components/project-documents/project-document-upload-form.tsx",
+);
+const projectDocumentDownloadRoute = read(
+  "src/app/(portal)/project-documents/[id]/download/route.ts",
+);
+assert.match(
+  projectDocumentsMigration,
+  /create table if not exists public\.project_documents[\s\S]*project_id uuid not null references public\.projects\(id\) on delete cascade[\s\S]*contractor_id uuid references public\.contractors\(id\) on delete set null/,
+  "project documents migration should create a project-linked table separate from contractor documents",
+);
+assert.match(
+  projectDocumentsMigration,
+  /alter table public\.project_documents enable row level security[\s\S]*project_documents_admin_all[\s\S]*public\.is_admin\(\)/,
+  "project documents table should be admin-only through RLS",
+);
+assert.doesNotMatch(
+  projectDocumentsMigration,
+  /operations|profile_id = auth\.uid\(\)/,
+  "project documents migration must not grant operations or contractor access",
+);
+assert.match(
+  projectDocumentsMigration,
+  /'project-documents'[\s\S]*false[\s\S]*10485760[\s\S]*array\['application\/pdf'\]/,
+  "project documents migration should create a private PDF-only 10 MB bucket",
+);
+assert.match(
+  projectDocumentsMigration,
+  /project_documents_storage_admin_all[\s\S]*bucket_id = 'project-documents'[\s\S]*public\.is_admin\(\)/,
+  "project document storage should be admin-only",
+);
+assert.doesNotMatch(
+  projectDocumentActions,
+  /sendAdminNotification|sendContractorNotification|contractor-documents|contractor_documents/,
+  "project document actions must not reuse contractor document email logic or buckets",
+);
+assert.match(
+  projectDocumentActions,
+  /projectDocumentBucket = "project-documents"/,
+  "project document actions should use the project-documents bucket",
+);
+assert.match(
+  projectDocumentActions,
+  /validatePdfUploadFile[\s\S]*Select a PDF file to upload\./,
+  "project document uploads should reuse shared PDF validation and reject fake PDFs",
+);
+assert.match(
+  projectDocumentActions,
+  /uploadProjectDocumentSchema[\s\S]*projectId: z\.string\(\)\.uuid\("Select a project\."\)/,
+  "project document uploads should require project_id",
+);
+assert.match(
+  projectDocumentActions,
+  /projects\/\$\{parsed\.data\.projectId\}\/documents\/\$\{documentId\}-\$\{fileName\}/,
+  "project document uploads should store files under the project document path",
+);
+for (const actionName of [
+  "uploadProjectDocumentAction",
+  "updateProjectDocumentMetadataAction",
+  "archiveProjectDocumentAction",
+  "unarchiveProjectDocumentAction",
+  "deleteProjectDocumentAction",
+]) {
+  assert.match(
+    projectDocumentActions,
+    new RegExp(`export async function ${actionName}`),
+    `project documents should expose ${actionName}`,
+  );
+}
+for (const auditAction of [
+  "project_document_uploaded",
+  "project_document_updated",
+  "project_document_archived",
+  "project_document_unarchived",
+  "project_document_deleted",
+]) {
+  assert.match(
+    projectDocumentActions,
+    new RegExp(auditAction),
+    `project document action should audit ${auditAction}`,
+  );
+}
+assert.match(
+  projectDocumentsPage,
+  /requireRole\(\["admin"\]\)[\s\S]*ProjectDocumentUploadForm[\s\S]*ProjectDocumentList/,
+  "project documents page should be admin-only and render upload/list UI",
+);
+assert.match(
+  projectDocumentsPage,
+  /name="projectId"[\s\S]*name="contractorId"[\s\S]*name="status"/,
+  "project documents page should provide project, contractor and status filters",
+);
+assert.match(
+  projectDocumentUploadForm,
+  /Admin-only\. Contractors cannot access these files\.[\s\S]*accept="application\/pdf,\.pdf"/,
+  "project document upload UI should clearly remain admin-only and PDF-only",
+);
+assert.match(
+  projectDocumentList,
+  /href=\{`\/project-documents\/\$\{document\.id\}\/download`\}/,
+  "project document list should expose project document download links",
+);
+for (const listAction of [
+  "archiveProjectDocumentAction",
+  "unarchiveProjectDocumentAction",
+  "deleteProjectDocumentAction",
+]) {
+  assert.match(
+    projectDocumentList,
+    new RegExp(listAction),
+    `project document list should expose ${listAction}`,
+  );
+}
+assert.match(
+  projectDocumentList,
+  /Archive[\s\S]*Unarchive[\s\S]*Delete|Delete[\s\S]*Archive[\s\S]*Unarchive/,
+  "project document list should expose archive, unarchive and delete UI",
+);
+assert.match(
+  projectDocumentDownloadRoute,
+  /profile\.role !== "admin"[\s\S]*status: 403[\s\S]*from\(projectDocumentBucket\)[\s\S]*createSignedUrl\(document\.file_path,[\s\S]*download: document\.file_name/,
+  "project document download route should check admin before creating a named signed URL",
+);
+assert.match(
+  read("src/app/(portal)/projects/[id]/page.tsx"),
+  /getProjectDocuments\(\{ projectId: project\.id \}\)[\s\S]*Open project documents/,
+  "project detail should link admins to project documents for the selected project",
+);
+assert.match(
+  read("src/constants/navigation.ts"),
+  /label: "Project Documents"[\s\S]*href: "\/project-documents"[\s\S]*allowedRoles: \["admin"\]/,
+  "Project Documents navigation should be admin-only",
+);
 assert.match(
   read("src/components/invoices/invoice-list.tsx"),
   /href=\{`\/invoices\/\$\{invoice\.id\}\/download`\}[\s\S]*target="_blank"[\s\S]*rel="noopener noreferrer"/,

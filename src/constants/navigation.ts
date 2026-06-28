@@ -36,6 +36,12 @@ export const primaryNavigation: NavigationItem[] = [
     allowedRoles: internalRoles,
   },
   {
+    label: "Project Documents",
+    description: "Project files",
+    href: "/project-documents",
+    allowedRoles: ["admin"],
+  },
+  {
     label: "Documents",
     description: "Documents",
     href: "/documents",

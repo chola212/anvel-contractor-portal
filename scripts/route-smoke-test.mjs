@@ -26,6 +26,7 @@ const protectedRoutes = [
   "/profile",
   "/contractors",
   "/projects",
+  "/project-documents",
   "/documents",
   "/timesheets",
   "/invoices",

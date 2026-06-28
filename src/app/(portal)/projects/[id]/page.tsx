@@ -10,6 +10,7 @@ import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { ProjectUpdateForm } from "@/components/projects/project-update-form";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
+import { getProjectDocuments } from "@/lib/project-documents/queries";
 import { formatDate } from "@/lib/projects/format";
 import { getProjectBillingDetails } from "@/lib/outgoing-invoices/queries";
 import {
@@ -39,6 +40,10 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     profile.role === "admin"
       ? await getProjectBillingDetails(project.id)
       : null;
+  const projectDocuments =
+    profile.role === "admin"
+      ? await getProjectDocuments({ projectId: project.id })
+      : [];
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -93,6 +98,30 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           projectId={project.id}
           details={billingDetails}
         />
+      ) : null}
+      {profile.role === "admin" ? (
+        <section className="rounded-md border border-neutral-200 bg-white p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-neutral-950">
+                Project Documents
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-neutral-600">
+                {projectDocuments.length === 0
+                  ? "No project documents uploaded yet."
+                  : `${projectDocuments.length} project document${
+                      projectDocuments.length === 1 ? "" : "s"
+                    } linked to this project.`}
+              </p>
+            </div>
+            <Link
+              href={`/project-documents?projectId=${project.id}`}
+              className="inline-flex min-h-9 items-center justify-center rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-900 transition-colors hover:border-teal-300 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+            >
+              Open project documents
+            </Link>
+          </div>
+        </section>
       ) : null}
       {profile.role === "admin" ? <ProjectRemoveForm project={project} /> : null}
 
