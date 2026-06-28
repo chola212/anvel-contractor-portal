@@ -144,8 +144,22 @@ function renderLines(lines: string[], x: number, startY: number, lineHeight = 14
   return lines.map((line, index) => text(line, x, startY - index * lineHeight));
 }
 
+function periodLabel(invoice: OutgoingInvoiceDetail) {
+  if (invoice.period_label?.trim()) return invoice.period_label.trim();
+  if (invoice.invoice_source === "manual") return "";
+  if (invoice.month >= 1 && invoice.month <= 12) {
+    return new Intl.DateTimeFormat("en-GB", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(invoice.year, invoice.month - 1, 1)));
+  }
+  return "";
+}
+
 export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
   const line = invoice.lines[0];
+  const invoicePeriodLabel = periodLabel(invoice);
   const companyAddressLines = addressBlockLines(
     addressLines(
       invoice.company_address_line_1,
@@ -200,15 +214,7 @@ export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
     text("Consultant", 300, 596, 8, true),
     text(invoice.consultant_name, 300, 579),
     text("Period", 405, 596, 8, true),
-    text(
-      new Intl.DateTimeFormat("en-GB", {
-        month: "long",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(Date.UTC(invoice.year, invoice.month - 1, 1))),
-      405,
-      579,
-    ),
+    text(invoicePeriodLabel, 405, 579),
     text("Currency", 500, 596, 8, true),
     text("EUR", 500, 579),
     ...(invoice.po_reference

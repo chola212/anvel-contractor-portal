@@ -86,12 +86,15 @@ Outgoing client invoicing requires:
 
 ```text
 supabase/migrations/202606280002_outgoing_client_invoices.sql
+supabase/migrations/202606280006_manual_outgoing_invoices.sql
 ```
 
 Apply it before enabling approval-driven outgoing invoice generation. It adds
 admin-only company invoice settings, project billing details, outgoing invoice
 snapshots and lines, atomic invoice numbering, and the private outgoing PDF
-bucket.
+bucket. The manual outgoing invoice migration keeps the same invoice table and
+number sequence, but allows admin-created project-based drafts without a
+timesheet or contractor link.
 
 Apply all unapplied migrations in order in the production Supabase SQL Editor,
 then run this verification query:
@@ -186,6 +189,9 @@ notification's sender in `updateUser`.
 - Timesheet approval generates a separate outgoing invoice draft using the
   assignment sales rate while preserving the existing contractor self-billing
   workflow.
+- Admin can also create a manual project-based outgoing invoice from an active
+  in-force project. The invoice snapshots that project's billing details and
+  defaults the consultant name to Andres Velasco.
 - Admin reviews, downloads, manually sends and manually marks outgoing invoices
   paid under `/outgoing-invoices`.
 - Outgoing invoices use EUR and a due date exactly 30 calendar days after the

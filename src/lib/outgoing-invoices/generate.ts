@@ -116,6 +116,8 @@ export async function generateOutgoingInvoiceForTimesheet({
   const filePath = `invoices/${invoiceId}/${fileName}`;
   const payload = {
     id: invoiceId,
+    invoice_source: "timesheet",
+    period_label: null,
     timesheet_id: timesheet.id,
     project_id: timesheet.project_id,
     contractor_id: timesheet.contractor_id,

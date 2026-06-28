@@ -1,10 +1,14 @@
 import Link from "next/link";
 
+import { ManualOutgoingInvoiceCreateForm } from "@/components/outgoing-invoices/manual-outgoing-invoice-create-form";
 import { OutgoingInvoiceStatusBadge } from "@/components/outgoing-invoices/outgoing-invoice-status-badge";
 import { requireRole } from "@/lib/auth/profile";
 import { getContractorsForStaff } from "@/lib/contractors/queries";
 import { formatCurrency, formatDate } from "@/lib/invoices/format";
-import { getOutgoingInvoices } from "@/lib/outgoing-invoices/queries";
+import {
+  getManualOutgoingInvoiceProjectOptions,
+  getOutgoingInvoices,
+} from "@/lib/outgoing-invoices/queries";
 import { getProjectsForStaff } from "@/lib/projects/queries";
 import { formatTimesheetMonth } from "@/lib/timesheets/format";
 
@@ -12,6 +16,17 @@ type SearchParams = Record<string, string | string[] | undefined>;
 function value(params: SearchParams, key: string) {
   const item = params[key];
   return Array.isArray(item) ? item[0] ?? "" : item ?? "";
+}
+
+function invoicePeriodLabel(invoice: {
+  invoice_source: string;
+  period_label: string | null;
+  year: number;
+  month: number;
+}) {
+  if (invoice.period_label) return invoice.period_label;
+  if (invoice.invoice_source === "manual") return "Not set";
+  return formatTimesheetMonth(invoice.year, invoice.month);
 }
 
 export default async function OutgoingInvoicesPage({
@@ -30,10 +45,11 @@ export default async function OutgoingInvoicesPage({
     billingLegalName: value(params, "billingLegalName"),
     invoiceNumber: value(params, "invoiceNumber"),
   };
-  const [invoices, projects, contractors] = await Promise.all([
+  const [invoices, projects, contractors, manualProjectOptions] = await Promise.all([
     getOutgoingInvoices(filters),
     getProjectsForStaff(),
     getContractorsForStaff(),
+    getManualOutgoingInvoiceProjectOptions(),
   ]);
 
   return (
@@ -42,6 +58,7 @@ export default async function OutgoingInvoicesPage({
         <h1 className="text-3xl font-semibold text-neutral-950">Outgoing Invoices</h1>
         <p className="mt-2 text-neutral-600">Admin review, manual sending and payment tracking for client billing.</p>
       </section>
+      <ManualOutgoingInvoiceCreateForm projects={manualProjectOptions} />
       <form className="grid gap-3 rounded-md border border-neutral-200 bg-white p-4 md:grid-cols-4">
         <select name="status" defaultValue={filters.status} className="rounded-md border border-neutral-300 px-3 py-2 text-sm">
           <option value="">All statuses</option>
@@ -64,22 +81,23 @@ export default async function OutgoingInvoicesPage({
       {invoices.length === 0 ? (
         <section className="rounded-md border border-neutral-200 bg-white p-5">
           <h2 className="font-semibold">No outgoing invoices found</h2>
-          <p className="mt-2 text-sm text-neutral-600">Drafts are created when an eligible timesheet is approved.</p>
+          <p className="mt-2 text-sm text-neutral-600">Drafts are created when an eligible timesheet is approved or when an admin creates a manual project invoice.</p>
         </section>
       ) : (
         <div className="overflow-x-auto rounded-md border border-neutral-200 bg-white">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
-              <tr>{["Invoice", "Billing legal name", "Project", "Consultant", "Period", "Net", "VAT", "Gross", "Status", "Due date", "Email"].map((label) => <th key={label} className="px-4 py-3">{label}</th>)}</tr>
+              <tr>{["Invoice", "Source", "Billing legal name", "Project", "Consultant", "Period", "Net", "VAT", "Gross", "Status", "Due date", "Email"].map((label) => <th key={label} className="px-4 py-3">{label}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {invoices.map((invoice) => (
                 <tr key={invoice.id}>
                   <td className="px-4 py-3 font-medium"><Link className="text-teal-800 hover:underline" href={`/outgoing-invoices/${invoice.id}`}>{invoice.invoice_number}</Link></td>
+                  <td className="px-4 py-3 capitalize">{invoice.invoice_source}</td>
                   <td className="px-4 py-3">{invoice.billing_legal_name}</td>
                   <td className="px-4 py-3">{invoice.project_name}</td>
                   <td className="px-4 py-3">{invoice.consultant_name}</td>
-                  <td className="px-4 py-3">{formatTimesheetMonth(invoice.year, invoice.month)}</td>
+                  <td className="px-4 py-3">{invoicePeriodLabel(invoice)}</td>
                   <td className="px-4 py-3">{formatCurrency(invoice.net_amount)}</td>
                   <td className="px-4 py-3">{formatCurrency(invoice.vat_amount)}</td>
                   <td className="px-4 py-3 font-medium">{formatCurrency(invoice.gross_amount)}</td>

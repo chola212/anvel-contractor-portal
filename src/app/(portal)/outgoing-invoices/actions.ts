@@ -13,10 +13,31 @@ import { formatTimesheetMonth } from "@/lib/timesheets/format";
 import { createClient } from "@/lib/supabase/server";
 import { getOutgoingInvoiceById } from "@/lib/outgoing-invoices/queries";
 import { createOutgoingInvoicePdf } from "@/lib/outgoing-invoices/pdf";
+import type {
+  CompanyInvoiceSettings,
+  OutgoingInvoice,
+  ProjectBillingDetails,
+} from "@/lib/outgoing-invoices/types";
 
 const invoiceIdSchema = z.object({
   invoiceId: z.string().uuid("Invoice is missing."),
 });
+const optionalText = z.string().trim().max(1000).transform((value) => value || null);
+const DEFAULT_MANUAL_CONSULTANT_NAME = "Andres Velasco";
+const manualInvoiceDraftSchema = z.object({
+  projectId: z.string().uuid("Select a project."),
+  consultantName: z.string().trim().min(1, "Enter a consultant name.").max(160),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter an invoice date."),
+  periodLabel: z.string().trim().max(80, "Keep the period label under 80 characters.").transform((value) => value || null),
+  description: z.string().trim().min(1, "Enter an invoice description.").max(500),
+  quantity: z.coerce.number().nonnegative("Quantity cannot be negative."),
+  unitLabel: z.string().trim().min(1, "Enter a unit.").max(40),
+  unitRate: z.coerce.number().nonnegative("Rate cannot be negative."),
+  invoiceNotes: optionalText,
+});
+const updateManualInvoiceDraftSchema = manualInvoiceDraftSchema
+  .omit({ projectId: true, invoiceDate: true })
+  .extend(invoiceIdSchema.shape);
 const paidSchema = invoiceIdSchema.extend({
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a paid date."),
   paidAmount: z.coerce.number().nonnegative("Paid amount cannot be negative."),
@@ -34,6 +55,7 @@ export type OutgoingInvoiceActionState = {
   status: "idle" | "success" | "error";
   message: string | null;
   fieldErrors: Record<string, string[] | undefined>;
+  invoiceId?: string;
 };
 
 function errorState(message: string): OutgoingInvoiceActionState {
@@ -44,6 +66,87 @@ function addThirtyDays(dateKey: string) {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + 30);
   return date.toISOString().slice(0, 10);
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function vatRateForTreatment(vatTreatment: string) {
+  return vatTreatment === "cyprus_vat_19" ? 19 : 0;
+}
+
+function isProjectInForce(project: {
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    project.status === "active"
+    && (!project.start_date || project.start_date <= today)
+    && (!project.end_date || project.end_date >= today)
+  );
+}
+
+function hasCompleteProjectBillingDetails(billing: ProjectBillingDetails | null) {
+  if (!billing) return false;
+  return [
+    billing.billing_legal_name,
+    billing.billing_email,
+    billing.billing_address,
+    billing.billing_country,
+    billing.billing_vat_number,
+  ].every((value) => value.trim().length > 0);
+}
+
+function outgoingInvoicePeriodLabel(
+  invoice: Pick<OutgoingInvoice, "invoice_source" | "period_label" | "year" | "month">,
+) {
+  if (invoice.period_label?.trim()) return invoice.period_label.trim();
+  if (invoice.invoice_source === "manual") return null;
+  return formatTimesheetMonth(invoice.year, invoice.month);
+}
+
+async function loadManualInvoiceContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string,
+) {
+  const [settingsResult, projectResult, billingResult] = await Promise.all([
+    supabase.from("company_invoice_settings").select("*").limit(1).maybeSingle<CompanyInvoiceSettings>(),
+    supabase
+      .from("projects")
+      .select("id,name,status,start_date,end_date")
+      .eq("id", projectId)
+      .maybeSingle<{
+        id: string;
+        name: string;
+        status: string;
+        start_date: string | null;
+        end_date: string | null;
+      }>(),
+    supabase
+      .from("project_billing_details")
+      .select("*")
+      .eq("project_id", projectId)
+      .maybeSingle<ProjectBillingDetails>(),
+  ]);
+
+  if (!settingsResult.data) {
+    throw new Error("Complete company invoice settings before creating a manual invoice.");
+  }
+  if (!projectResult.data || !isProjectInForce(projectResult.data)) {
+    throw new Error("Select an active in-force project.");
+  }
+  if (!billingResult.data || !hasCompleteProjectBillingDetails(billingResult.data)) {
+    throw new Error("Project billing details are incomplete.");
+  }
+
+  return {
+    settings: settingsResult.data,
+    project: projectResult.data,
+    billing: billingResult.data,
+  };
 }
 
 function parseSequenceInvoiceNumber(value: string, fallbackYear: number) {
@@ -109,6 +212,258 @@ async function uploadOutgoingInvoicePdf(
     .update({ pdf_file_path: filePath, pdf_file_name: fileName })
     .eq("id", invoice.id);
   if (updateError) throw new Error(`Could not save PDF metadata: ${updateError.message}`);
+}
+
+export async function createManualOutgoingInvoiceAction(
+  _state: OutgoingInvoiceActionState,
+  formData: FormData,
+): Promise<OutgoingInvoiceActionState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = manualInvoiceDraftSchema.safeParse({
+    projectId: formData.get("projectId"),
+    consultantName: formData.get("consultantName") || DEFAULT_MANUAL_CONSULTANT_NAME,
+    invoiceDate: formData.get("invoiceDate"),
+    periodLabel: formData.get("periodLabel"),
+    description: formData.get("description"),
+    quantity: formData.get("quantity"),
+    unitLabel: formData.get("unitLabel"),
+    unitRate: formData.get("unitRate"),
+    invoiceNotes: formData.get("invoiceNotes"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: "Check the manual invoice details.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  let context: Awaited<ReturnType<typeof loadManualInvoiceContext>>;
+  try {
+    context = await loadManualInvoiceContext(supabase, parsed.data.projectId);
+  } catch (error) {
+    return errorState(error instanceof Error ? error.message : "Could not load project billing details.");
+  }
+
+  const invoiceDate = parsed.data.invoiceDate;
+  const dueDate = addThirtyDays(invoiceDate);
+  const year = Number(invoiceDate.slice(0, 4));
+  const month = Number(invoiceDate.slice(5, 7));
+  const { data: invoiceNumber, error: numberError } = await supabase.rpc(
+    "next_outgoing_invoice_number",
+    { invoice_year: year },
+  );
+  if (numberError || !invoiceNumber) {
+    return errorState(`Could not allocate outgoing invoice number: ${numberError?.message ?? "Unknown error"}`);
+  }
+
+  const quantity = roundMoney(parsed.data.quantity);
+  const unitRate = roundMoney(parsed.data.unitRate);
+  const netAmount = roundMoney(quantity * unitRate);
+  const vatRate = vatRateForTreatment(context.billing.vat_treatment);
+  const vatAmount = roundMoney(netAmount * (vatRate / 100));
+  const grossAmount = roundMoney(netAmount + vatAmount);
+  const invoiceId = crypto.randomUUID();
+  const payload = {
+    id: invoiceId,
+    invoice_source: "manual",
+    period_label: parsed.data.periodLabel,
+    timesheet_id: null,
+    project_id: context.project.id,
+    contractor_id: null,
+    invoice_number: String(invoiceNumber),
+    invoice_number_manually_edited: false,
+    invoice_number_edited_at: null,
+    invoice_number_edited_by: null,
+    previous_invoice_number: null,
+    replaces_invoice_id: null,
+    replaced_by_invoice_id: null,
+    invoice_date: invoiceDate,
+    due_date: dueDate,
+    year,
+    month,
+    status: "draft",
+    currency: "EUR",
+    company_legal_name: context.settings.company_legal_name,
+    company_trading_name: context.settings.trading_name,
+    company_address: context.settings.company_address,
+    company_address_line_1:
+      context.settings.company_address_line_1 ?? context.settings.company_address,
+    company_address_line_2: context.settings.company_address_line_2,
+    company_city_region: context.settings.company_city_region,
+    company_country: context.settings.company_country,
+    company_vat_number: context.settings.company_vat_number,
+    company_bank_name: context.settings.bank_name,
+    company_bank_account_name: context.settings.bank_account_name,
+    company_iban: context.settings.iban,
+    company_swift_bic: context.settings.swift_bic,
+    company_invoice_notes: context.settings.default_invoice_notes,
+    billing_legal_name: context.billing.billing_legal_name,
+    billing_email: context.billing.billing_email,
+    billing_cc_emails: context.billing.billing_cc_emails,
+    billing_address: context.billing.billing_address,
+    billing_address_line_1:
+      context.billing.billing_address_line_1 ?? context.billing.billing_address,
+    billing_address_line_2: context.billing.billing_address_line_2,
+    billing_country: context.billing.billing_country,
+    billing_vat_number: context.billing.billing_vat_number,
+    po_reference: context.billing.po_reference,
+    billing_invoice_notes: parsed.data.invoiceNotes ?? context.billing.invoice_notes,
+    project_name: context.project.name,
+    consultant_name: parsed.data.consultantName,
+    consultant_email: null,
+    quantity,
+    unit_label: parsed.data.unitLabel,
+    sales_rate: unitRate,
+    net_amount: netAmount,
+    vat_treatment: context.billing.vat_treatment,
+    vat_rate: vatRate,
+    vat_amount: vatAmount,
+    gross_amount: grossAmount,
+    email_status: "not_sent",
+    cancellation_email_status: "not_required",
+    cancellation_emailed_at: null,
+    cancellation_reason: null,
+    cancelled_at: null,
+    cancelled_by: null,
+    created_by: profile.id,
+  };
+
+  const { error: insertError } = await supabase.from("outgoing_invoices").insert(payload);
+  if (insertError) return errorState(`Could not create manual invoice: ${insertError.message}`);
+
+  const { error: lineError } = await supabase.from("outgoing_invoice_lines").insert({
+    outgoing_invoice_id: invoiceId,
+    description: parsed.data.description,
+    quantity,
+    unit_label: parsed.data.unitLabel,
+    unit_rate: unitRate,
+    net_amount: netAmount,
+    sort_order: 1,
+  });
+  if (lineError) return errorState(`Manual invoice was created, but its line could not be saved: ${lineError.message}`);
+
+  try {
+    await uploadOutgoingInvoicePdf(supabase, invoiceId);
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error
+        ? `Manual invoice draft created, but PDF generation failed: ${error.message}`
+        : "Manual invoice draft created, but PDF generation failed.",
+      fieldErrors: {},
+      invoiceId,
+    };
+  }
+
+  await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "manual_outgoing_invoice_created",
+    entity_type: "outgoing_invoice",
+    entity_id: invoiceId,
+    metadata: {
+      invoice_number: invoiceNumber,
+      project_id: context.project.id,
+      consultant_name: parsed.data.consultantName,
+    },
+  });
+  revalidatePath("/outgoing-invoices");
+  return {
+    status: "success",
+    message: `Manual invoice draft ${invoiceNumber} created.`,
+    fieldErrors: {},
+    invoiceId,
+  };
+}
+
+export async function updateManualOutgoingInvoiceDraftAction(
+  _state: OutgoingInvoiceActionState,
+  formData: FormData,
+): Promise<OutgoingInvoiceActionState> {
+  const profile = await requireRole(["admin"]);
+  const parsed = updateManualInvoiceDraftSchema.safeParse({
+    invoiceId: formData.get("invoiceId"),
+    consultantName: formData.get("consultantName") || DEFAULT_MANUAL_CONSULTANT_NAME,
+    periodLabel: formData.get("periodLabel"),
+    description: formData.get("description"),
+    quantity: formData.get("quantity"),
+    unitLabel: formData.get("unitLabel"),
+    unitRate: formData.get("unitRate"),
+    invoiceNotes: formData.get("invoiceNotes"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: "Check the manual invoice details.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const invoice = await getOutgoingInvoiceById(parsed.data.invoiceId);
+  if (!invoice) return errorState("Outgoing invoice not found.");
+  if (invoice.invoice_source !== "manual") return errorState("Only manual invoices can be edited here.");
+  if (invoice.status !== "draft") return errorState("Only draft manual invoices can be edited.");
+
+  const supabase = await createClient();
+  const quantity = roundMoney(parsed.data.quantity);
+  const unitRate = roundMoney(parsed.data.unitRate);
+  const netAmount = roundMoney(quantity * unitRate);
+  const vatRate = vatRateForTreatment(invoice.vat_treatment);
+  const vatAmount = roundMoney(netAmount * (vatRate / 100));
+  const grossAmount = roundMoney(netAmount + vatAmount);
+
+  const { error: updateError } = await supabase.from("outgoing_invoices").update({
+    consultant_name: parsed.data.consultantName,
+    period_label: parsed.data.periodLabel,
+    quantity,
+    unit_label: parsed.data.unitLabel,
+    sales_rate: unitRate,
+    net_amount: netAmount,
+    vat_rate: vatRate,
+    vat_amount: vatAmount,
+    gross_amount: grossAmount,
+    billing_invoice_notes: parsed.data.invoiceNotes,
+  }).eq("id", invoice.id);
+  if (updateError) return errorState(`Could not update manual invoice: ${updateError.message}`);
+
+  const { error: lineError } = await supabase
+    .from("outgoing_invoice_lines")
+    .update({
+      description: parsed.data.description,
+      quantity,
+      unit_label: parsed.data.unitLabel,
+      unit_rate: unitRate,
+      net_amount: netAmount,
+    })
+    .eq("outgoing_invoice_id", invoice.id)
+    .eq("sort_order", 1);
+  if (lineError) return errorState(`Manual invoice updated, but its line could not be saved: ${lineError.message}`);
+
+  try {
+    await uploadOutgoingInvoicePdf(supabase, invoice.id);
+  } catch (error) {
+    return errorState(
+      error instanceof Error
+        ? `Manual invoice updated, but PDF regeneration failed: ${error.message}`
+        : "Manual invoice updated, but PDF regeneration failed.",
+    );
+  }
+
+  await supabase.from("audit_logs").insert({
+    actor_profile_id: profile.id,
+    action: "manual_outgoing_invoice_updated",
+    entity_type: "outgoing_invoice",
+    entity_id: invoice.id,
+    metadata: {
+      invoice_number: invoice.invoice_number,
+      consultant_name: parsed.data.consultantName,
+      net_amount: netAmount,
+    },
+  });
+  revalidatePath("/outgoing-invoices");
+  revalidatePath(`/outgoing-invoices/${invoice.id}`);
+  return { status: "success", message: "Manual invoice draft updated.", fieldErrors: {} };
 }
 
 export async function regenerateOutgoingInvoicePdfAction(
@@ -255,7 +610,7 @@ export async function sendOutgoingInvoiceAction(
     const email = buildOutgoingInvoiceEmail({
       invoiceNumber: invoice.invoice_number,
       consultantName: invoice.consultant_name,
-      monthLabel: formatTimesheetMonth(invoice.year, invoice.month),
+      monthLabel: outgoingInvoicePeriodLabel(invoice),
       projectName: invoice.project_name,
       poReference: invoice.po_reference,
       grossAmount: Number(invoice.gross_amount).toFixed(2),
@@ -408,7 +763,7 @@ export async function cancelOutgoingInvoiceAction(
       const email = buildOutgoingInvoiceCancellationEmail({
         invoiceNumber: invoice.invoice_number,
         consultantName: invoice.consultant_name,
-        monthLabel: formatTimesheetMonth(invoice.year, invoice.month),
+        monthLabel: outgoingInvoicePeriodLabel(invoice),
         projectName: invoice.project_name,
         reason: parsed.data.cancellationReason,
       });
@@ -493,6 +848,8 @@ export async function createReplacementOutgoingInvoiceDraftAction(
   const replacementId = crypto.randomUUID();
   const replacementPayload = {
     id: replacementId,
+    invoice_source: original.invoice_source,
+    period_label: original.period_label,
     timesheet_id: original.timesheet_id,
     project_id: original.project_id,
     contractor_id: original.contractor_id,

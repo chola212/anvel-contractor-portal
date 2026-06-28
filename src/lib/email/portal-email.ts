@@ -121,33 +121,35 @@ export function buildOutgoingInvoiceEmail({
 }: {
   invoiceNumber: string;
   consultantName: string;
-  monthLabel: string;
+  monthLabel: string | null;
   projectName: string;
   poReference: string | null;
   grossAmount: string;
   dueDate: string;
 }) {
-  const subject = `Invoice ${invoiceNumber} - ${consultantName} - ${monthLabel}`;
+  const periodSuffix = monthLabel ? ` - ${monthLabel}` : "";
+  const subject = `Invoice ${invoiceNumber} - ${consultantName}${periodSuffix}`;
   const details = [
     `Project: ${projectName}`,
     `Consultant: ${consultantName}`,
-    `Period: ${monthLabel}`,
+    monthLabel ? `Period: ${monthLabel}` : null,
     poReference ? `PO reference: ${poReference}` : null,
     `Amount due: ${grossAmount} EUR`,
     `Due date: ${dueDate}`,
   ].filter(Boolean);
+  const servicePeriod = monthLabel ? ` during ${monthLabel}` : "";
   return {
     subject,
     html: wrapEmailHtml(
       `Invoice ${invoiceNumber}`,
       `<p>Hello,</p>
-       <p>Please find attached invoice ${invoiceNumber} for consulting services provided by ${consultantName} during ${monthLabel}.</p>
+       <p>Please find attached invoice ${invoiceNumber} for consulting services provided by ${consultantName}${servicePeriod}.</p>
        <p>${details.join("<br />")}</p>
        <p>Kind regards,<br />ANVEL Consulting</p>`,
     ),
     text: `Hello,
 
-Please find attached invoice ${invoiceNumber} for consulting services provided by ${consultantName} during ${monthLabel}.
+Please find attached invoice ${invoiceNumber} for consulting services provided by ${consultantName}${servicePeriod}.
 
 ${details.join("\n")}
 
@@ -165,23 +167,24 @@ export function buildOutgoingInvoiceCancellationEmail({
 }: {
   invoiceNumber: string;
   consultantName: string;
-  monthLabel: string;
+  monthLabel: string | null;
   projectName: string;
   reason: string;
 }) {
   const safeInvoiceNumber = escapeEmailHtml(invoiceNumber);
   const safeConsultantName = escapeEmailHtml(consultantName);
-  const safeMonthLabel = escapeEmailHtml(monthLabel);
+  const safeMonthLabel = monthLabel ? escapeEmailHtml(monthLabel) : null;
   const safeProjectName = escapeEmailHtml(projectName);
   const safeReason = escapeEmailHtml(reason);
+  const periodSuffix = monthLabel ? ` - ${monthLabel}` : "";
 
   return {
-    subject: `Cancelled invoice ${invoiceNumber} - ${consultantName} - ${monthLabel}`,
+    subject: `Cancelled invoice ${invoiceNumber} - ${consultantName}${periodSuffix}`,
     html: wrapEmailHtml(
       `Invoice ${safeInvoiceNumber} cancelled`,
       `<p>Hello,</p>
        <p>Invoice <strong>${safeInvoiceNumber}</strong> is no longer valid.</p>
-       <p>Consultant: ${safeConsultantName}<br />Project: ${safeProjectName}<br />Period: ${safeMonthLabel}</p>
+       <p>Consultant: ${safeConsultantName}<br />Project: ${safeProjectName}${safeMonthLabel ? `<br />Period: ${safeMonthLabel}` : ""}</p>
        <p>Reason: ${safeReason}</p>
        <p>Please disregard the previous invoice and do not process it for payment. A replacement invoice will be issued if required.</p>
        <p>Kind regards,<br />ANVEL Consulting</p>`,
@@ -192,8 +195,7 @@ Invoice ${invoiceNumber} is no longer valid.
 
 Consultant: ${consultantName}
 Project: ${projectName}
-Period: ${monthLabel}
-Reason: ${reason}
+${monthLabel ? `Period: ${monthLabel}\n` : ""}Reason: ${reason}
 
 Please disregard the previous invoice and do not process it for payment. A replacement invoice will be issued if required.
 

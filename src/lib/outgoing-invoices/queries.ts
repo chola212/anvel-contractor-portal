@@ -19,6 +19,46 @@ export type OutgoingInvoiceFilters = {
   invoiceNumber?: string;
 };
 
+export type ManualOutgoingInvoiceProjectOption = {
+  id: string;
+  name: string;
+  client_label: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  hasCompleteBillingDetails: boolean;
+};
+
+function hasCompleteProjectBillingDetails(
+  billing: Pick<
+    ProjectBillingDetails,
+    | "billing_legal_name"
+    | "billing_email"
+    | "billing_address"
+    | "billing_country"
+    | "billing_vat_number"
+  > | null,
+) {
+  if (!billing) return false;
+  return [
+    billing.billing_legal_name,
+    billing.billing_email,
+    billing.billing_address,
+    billing.billing_country,
+    billing.billing_vat_number,
+  ].every((value) => value.trim().length > 0);
+}
+
+function isProjectInForce(project: {
+  start_date: string | null;
+  end_date: string | null;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    (!project.start_date || project.start_date <= today)
+    && (!project.end_date || project.end_date >= today)
+  );
+}
+
 export async function getCompanyInvoiceSettings() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -32,6 +72,75 @@ export async function getCompanyInvoiceSettings() {
   }
 
   return data;
+}
+
+export async function getManualOutgoingInvoiceProjectOptions() {
+  const supabase = await createClient();
+  const { data: projects, error: projectError } = await supabase
+    .from("projects")
+    .select("id,name,client_label,start_date,end_date,status")
+    .eq("status", "active")
+    .order("name", { ascending: true })
+    .returns<
+      {
+        id: string;
+        name: string;
+        client_label: string | null;
+        start_date: string | null;
+        end_date: string | null;
+        status: string;
+      }[]
+    >();
+
+  if (projectError) {
+    throw new Error(`Could not load projects for manual invoices: ${projectError.message}`);
+  }
+
+  const inForceProjects = projects.filter(isProjectInForce);
+  if (inForceProjects.length === 0) return [];
+
+  const projectIds = inForceProjects.map((project) => project.id);
+  const { data: billingRows, error: billingError } = await supabase
+    .from("project_billing_details")
+    .select("project_id,billing_legal_name,billing_email,billing_address,billing_country,billing_vat_number")
+    .in("project_id", projectIds)
+    .returns<
+      Pick<
+        ProjectBillingDetails,
+        | "project_id"
+        | "billing_legal_name"
+        | "billing_email"
+        | "billing_address"
+        | "billing_country"
+        | "billing_vat_number"
+      >[]
+    >();
+
+  if (billingError) {
+    throw new Error(`Could not load project billing details: ${billingError.message}`);
+  }
+
+  const billingByProject = new Map(
+    billingRows.map((billing) => [billing.project_id, billing]),
+  );
+
+  return inForceProjects
+    .map<ManualOutgoingInvoiceProjectOption>((project) => ({
+      id: project.id,
+      name: project.name,
+      client_label: project.client_label,
+      start_date: project.start_date,
+      end_date: project.end_date,
+      hasCompleteBillingDetails: hasCompleteProjectBillingDetails(
+        billingByProject.get(project.id) ?? null,
+      ),
+    }))
+    .sort((left, right) => {
+      if (left.hasCompleteBillingDetails !== right.hasCompleteBillingDetails) {
+        return left.hasCompleteBillingDetails ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name);
+    });
 }
 
 export async function getProjectBillingDetails(projectId: string) {

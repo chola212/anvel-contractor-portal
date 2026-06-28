@@ -11,6 +11,8 @@ export type OutgoingInvoiceStatus =
   | "overdue"
   | "cancelled";
 
+export type OutgoingInvoiceSource = "timesheet" | "manual";
+
 export type CompanyInvoiceSettings = {
   id: string;
   company_legal_name: string;
@@ -54,9 +56,11 @@ export type ProjectBillingDetails = {
 
 export type OutgoingInvoice = {
   id: string;
-  timesheet_id: string;
+  invoice_source: OutgoingInvoiceSource;
+  period_label: string | null;
+  timesheet_id: string | null;
   project_id: string;
-  contractor_id: string;
+  contractor_id: string | null;
   invoice_number: string;
   invoice_number_manually_edited: boolean;
   invoice_number_edited_at: string | null;

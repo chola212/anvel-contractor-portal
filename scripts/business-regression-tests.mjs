@@ -1084,6 +1084,9 @@ assert.match(
 const outgoingMigration = read(
   "supabase/migrations/202606280002_outgoing_client_invoices.sql",
 );
+const manualOutgoingMigration = read(
+  "supabase/migrations/202606280006_manual_outgoing_invoices.sql",
+);
 for (const table of [
   "company_invoice_settings",
   "project_billing_details",
@@ -1136,6 +1139,21 @@ assert.match(
   outgoingMigration,
   /'outgoing-invoices'[\s\S]*public = false|false,[\s\S]*array\['application\/pdf'\]/,
   "outgoing invoice storage should be private and PDF-only",
+);
+assert.match(
+  manualOutgoingMigration,
+  /invoice_source text not null default 'timesheet'[\s\S]*period_label text/,
+  "manual outgoing migration should add invoice source and optional period label",
+);
+assert.match(
+  manualOutgoingMigration,
+  /alter column timesheet_id drop not null[\s\S]*alter column contractor_id drop not null/,
+  "manual outgoing invoices should allow nullable timesheet and contractor links",
+);
+assert.match(
+  manualOutgoingMigration,
+  /invoice_source = 'manual'[\s\S]*timesheet_id is null[\s\S]*contractor_id is null[\s\S]*project_id is not null[\s\S]*consultant_name/,
+  "manual outgoing invoices should be project based and require consultant name",
 );
 
 const companySettingsAction = read(
@@ -1217,6 +1235,11 @@ assert.match(
 );
 assert.match(
   outgoingGenerator,
+  /invoice_source: "timesheet"[\s\S]*period_label: null[\s\S]*timesheet_id: timesheet\.id[\s\S]*contractor_id: timesheet\.contractor_id/,
+  "timesheet-based outgoing generation should keep explicit timesheet source links",
+);
+assert.match(
+  outgoingGenerator,
   /eq\("timesheet_id", timesheet\.id\)[\s\S]*alreadyGenerated: true/,
   "outgoing generation should reuse an existing timesheet invoice",
 );
@@ -1287,6 +1310,41 @@ const outgoingActions = read(
 );
 assert.match(
   outgoingActions,
+  /DEFAULT_MANUAL_CONSULTANT_NAME = "Andres Velasco"/,
+  "manual outgoing invoices should default consultant name to Andres Velasco",
+);
+assert.match(
+  outgoingActions,
+  /createManualOutgoingInvoiceAction[\s\S]*requireRole\(\["admin"\]\)[\s\S]*loadManualInvoiceContext/,
+  "manual outgoing invoice creation should be admin-only and load project context",
+);
+assert.match(
+  outgoingActions,
+  /Select an active in-force project/,
+  "manual outgoing invoice creation should require an active in-force project",
+);
+assert.match(
+  outgoingActions,
+  /Project billing details are incomplete\./,
+  "manual outgoing invoice creation should block incomplete project billing details clearly",
+);
+assert.match(
+  outgoingActions,
+  /createManualOutgoingInvoiceAction[\s\S]*next_outgoing_invoice_number[\s\S]*invoice_source: "manual"[\s\S]*timesheet_id: null[\s\S]*project_id: context\.project\.id[\s\S]*contractor_id: null/,
+  "manual outgoing invoices should use the shared number sequence and store manual source links",
+);
+assert.match(
+  outgoingActions,
+  /billing_legal_name: context\.billing\.billing_legal_name[\s\S]*billing_email: context\.billing\.billing_email[\s\S]*billing_cc_emails: context\.billing\.billing_cc_emails[\s\S]*billing_address_line_1[\s\S]*billing_address_line_2[\s\S]*billing_country: context\.billing\.billing_country[\s\S]*billing_vat_number: context\.billing\.billing_vat_number[\s\S]*po_reference: context\.billing\.po_reference/,
+  "manual outgoing invoices should snapshot selected project billing details",
+);
+assert.match(
+  outgoingActions,
+  /updateManualOutgoingInvoiceDraftAction[\s\S]*invoice\.invoice_source !== "manual"[\s\S]*invoice\.status !== "draft"[\s\S]*consultant_name[\s\S]*period_label[\s\S]*quantity[\s\S]*unit_label[\s\S]*sales_rate[\s\S]*billing_invoice_notes/,
+  "manual outgoing invoice drafts should allow editing consultant, concept, quantity, unit, rate and notes only while draft",
+);
+assert.match(
+  outgoingActions,
   /updateOutgoingInvoiceNumberAction[\s\S]*Only draft invoice numbers can be edited/,
   "admin should be able to edit outgoing invoice numbers only while draft",
 );
@@ -1324,6 +1382,20 @@ assert.match(
   outgoingActions,
   /buildOutgoingInvoiceEmail[\s\S]*consultantName: invoice\.consultant_name/,
   "outgoing invoice email should include consultant name",
+);
+assert.match(
+  outgoingActions,
+  /buildOutgoingInvoiceEmail[\s\S]*monthLabel: outgoingInvoicePeriodLabel\(invoice\)[\s\S]*to: invoice\.billing_email[\s\S]*cc: invoice\.billing_cc_emails/,
+  "manual outgoing invoice email should reuse the client invoice template and project billing recipients",
+);
+const outgoingEmailTemplate = portalEmail.slice(
+  portalEmail.indexOf("export function buildOutgoingInvoiceEmail"),
+  portalEmail.indexOf("export function buildOutgoingInvoiceCancellationEmail"),
+);
+assert.doesNotMatch(
+  outgoingEmailTemplate,
+  /timesheet|contractor/i,
+  "outgoing client invoice email template should not mention timesheets or contractors",
 );
 assert.match(
   outgoingActions,
@@ -1412,9 +1484,50 @@ for (const route of [outgoingRoute, outgoingDetailRoute]) {
     "outgoing invoice routes should require admin",
   );
 }
+assert.match(
+  outgoingRoute,
+  /ManualOutgoingInvoiceCreateForm[\s\S]*getManualOutgoingInvoiceProjectOptions/,
+  "outgoing invoice list should expose manual invoice creation from active project options",
+);
+assert.match(
+  outgoingDetailRoute,
+  /ManualOutgoingInvoiceDraftForm[\s\S]*invoice_source === "manual" \? "Manual project invoice"/,
+  "outgoing invoice detail should expose manual draft editing and source display",
+);
+
+const outgoingQueries = read("src/lib/outgoing-invoices/queries.ts");
+assert.match(
+  outgoingQueries,
+  /getManualOutgoingInvoiceProjectOptions[\s\S]*eq\("status", "active"\)[\s\S]*isProjectInForce[\s\S]*hasCompleteBillingDetails/,
+  "manual invoice project selector should only load active in-force projects and prefer complete billing details",
+);
+
+const manualCreateForm = read(
+  "src/components/outgoing-invoices/manual-outgoing-invoice-create-form.tsx",
+);
+assert.match(
+  manualCreateForm,
+  /Create manual invoice[\s\S]*defaultValue="Andres Velasco"/,
+  "manual invoice form should default Andres Velasco",
+);
+assert.match(
+  manualCreateForm,
+  /billing incomplete/,
+  "manual invoice form should flag incomplete billing projects",
+);
+
+const manualDraftForm = read(
+  "src/components/outgoing-invoices/manual-outgoing-invoice-draft-form.tsx",
+);
+assert.match(
+  manualDraftForm,
+  /invoice\.invoice_source !== "manual"[\s\S]*invoice\.status !== "draft"[\s\S]*Save manual draft/,
+  "manual invoice draft form should only render for manual draft invoices",
+);
 
 const outgoingFiles = [
   outgoingMigration,
+  manualOutgoingMigration,
   companySettingsAction,
   read("src/components/settings/company-invoice-settings-form.tsx"),
   projectBillingAction,
@@ -1424,6 +1537,9 @@ const outgoingFiles = [
   outgoingActions,
   outgoingRoute,
   outgoingDetailRoute,
+  outgoingQueries,
+  manualCreateForm,
+  manualDraftForm,
 ].join("\n");
 assert.doesNotMatch(
   outgoingFiles,

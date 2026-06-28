@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DetailField } from "@/components/contractors/detail-field";
+import { ManualOutgoingInvoiceDraftForm } from "@/components/outgoing-invoices/manual-outgoing-invoice-draft-form";
 import { OutgoingInvoiceActions } from "@/components/outgoing-invoices/outgoing-invoice-actions";
 import { OutgoingInvoiceStatusBadge } from "@/components/outgoing-invoices/outgoing-invoice-status-badge";
 import { requireRole } from "@/lib/auth/profile";
@@ -14,6 +15,17 @@ import { formatTimesheetMonth } from "@/lib/timesheets/format";
 
 function addressValue(line1: string | null, line2: string | null, fallback: string) {
   return [line1 ?? fallback, line2].filter(Boolean).join("\n");
+}
+
+function invoicePeriodLabel(invoice: {
+  invoice_source: string;
+  period_label: string | null;
+  year: number;
+  month: number;
+}) {
+  if (invoice.period_label) return invoice.period_label;
+  if (invoice.invoice_source === "manual") return "Not set";
+  return formatTimesheetMonth(invoice.year, invoice.month);
 }
 
 export default async function OutgoingInvoiceDetailPage({
@@ -34,7 +46,7 @@ export default async function OutgoingInvoiceDetailPage({
         <div className="mt-4 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold">{invoice.invoice_number}</h1>
-            <p className="mt-2 text-neutral-600">{invoice.billing_legal_name} - {formatTimesheetMonth(invoice.year, invoice.month)}</p>
+            <p className="mt-2 text-neutral-600">{invoice.billing_legal_name} - {invoicePeriodLabel(invoice)}</p>
           </div>
           <OutgoingInvoiceStatusBadge status={invoice.status} />
         </div>
@@ -90,14 +102,17 @@ export default async function OutgoingInvoiceDetailPage({
       <section className="rounded-md border border-neutral-200 bg-white p-5">
         <h2 className="font-semibold">Source and commercial calculation</h2>
         <dl className="mt-2 grid gap-x-6 md:grid-cols-2">
+          <DetailField label="Source" value={invoice.invoice_source === "manual" ? "Manual project invoice" : "Timesheet invoice"} />
           <DetailField label="Project" value={invoice.project_name} />
           <DetailField label="Consultant" value={invoice.consultant_name} />
-          <DetailField label="Approved hours" value={String(invoice.quantity)} />
-          <DetailField label="Sales rate" value={formatCurrency(invoice.sales_rate)} />
+          <DetailField label="Period" value={invoicePeriodLabel(invoice)} />
+          <DetailField label={invoice.invoice_source === "manual" ? "Quantity" : "Approved hours"} value={String(invoice.quantity)} />
+          <DetailField label={invoice.invoice_source === "manual" ? "Unit rate" : "Sales rate"} value={formatCurrency(invoice.sales_rate)} />
           <DetailField label="VAT treatment" value={invoice.vat_treatment.replaceAll("_", " ")} />
         </dl>
         {invoice.lines.map((line) => <p key={line.id} className="mt-3 rounded-md bg-neutral-50 p-3 text-sm">{line.description}</p>)}
       </section>
+      <ManualOutgoingInvoiceDraftForm invoice={invoice} />
       <section className="rounded-md border border-neutral-200 bg-white p-5">
         <h2 className="font-semibold">PDF, email and payment</h2>
         <div className="mt-3 flex flex-wrap gap-3">
@@ -118,7 +133,7 @@ export default async function OutgoingInvoiceDetailPage({
       <section className="rounded-md border border-neutral-200 bg-white p-5">
         <h2 className="font-semibold">Advanced details</h2>
         <dl className="mt-3 grid gap-x-6 md:grid-cols-2">
-          <DetailField label="Timesheet ID" value={invoice.timesheet_id} />
+          <DetailField label="Timesheet ID" value={invoice.timesheet_id ?? "Not set"} />
           <DetailField label="Cancelled at" value={formatDateTime(invoice.cancelled_at)} />
           <DetailField label="Cancellation emailed at" value={formatDateTime(invoice.cancellation_emailed_at)} />
           <DetailField label="Replaces invoice" value={invoice.replaces_invoice_id ?? "Not set"} />
