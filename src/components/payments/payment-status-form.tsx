@@ -81,6 +81,15 @@ export function PaymentStatusForm({ row }: PaymentStatusFormProps) {
     }
   }, [router, state.status]);
 
+  if (row.invoice.status === "cancelled") {
+    return (
+      <p className="max-w-xs text-xs leading-5 text-neutral-600">
+        Cancelled invoices are retained for history and cannot receive payment
+        updates.
+      </p>
+    );
+  }
+
   return (
     <div className="min-w-72 space-y-3">
       <form action={markInvoicePaidAction} className="flex justify-end">

@@ -8,6 +8,7 @@ export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
   approved_for_payment: "Approved for payment",
   paid: "Paid",
   on_hold: "On hold",
+  cancelled: "Cancelled",
 };
 
 export function formatCurrency(

@@ -93,6 +93,14 @@ export type OutgoingInvoice = {
   pdf_file_path: string | null;
   pdf_file_name: string | null;
   email_status: "not_sent" | "sent" | "failed";
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  cancellation_email_status:
+    | "not_required"
+    | "sent"
+    | "failed";
+  cancellation_emailed_at: string | null;
   sent_at: string | null;
   paid_at: string | null;
   paid_amount: number | string | null;

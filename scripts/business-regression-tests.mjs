@@ -239,6 +239,24 @@ assert.match(
   /revalidatePath\("\/"\)/,
   "project and assignment changes should refresh dashboard status data",
 );
+const projectDetail = read("src/app/(portal)/projects/[id]/page.tsx");
+for (const expected of [
+  "getProjectById",
+  "ProjectUpdateForm",
+  "ProjectBillingDetailsForm",
+  "getProjectBillingDetails",
+]) {
+  assert.match(
+    projectDetail,
+    new RegExp(expected),
+    `project detail should load and render ${expected} after current migrations`,
+  );
+}
+assert.match(
+  projectActions,
+  /updateProjectAction[\s\S]*from\("projects"\)[\s\S]*\.update\(nextProject\)/,
+  "admin project updates should remain wired to the projects table",
+);
 
 const contractorActions = read("src/app/(portal)/contractors/actions.ts");
 assert.match(
@@ -314,6 +332,8 @@ for (const expectedBuilder of [
   "buildTimesheetSubmittedAdminEmail",
   "buildDocumentUploadedAdminEmail",
   "buildInvoiceUploadedAdminEmail",
+  "buildSelfBillingCancellationEmail",
+  "buildOutgoingInvoiceCancellationEmail",
   "ADMIN_NOTIFICATION_EMAIL",
 ]) {
   assert.match(
@@ -400,6 +420,68 @@ assert.match(
   "migration should add optional whole-timesheet comments safely",
 );
 
+const reopenMigration = read(
+  "supabase/migrations/202606280003_timesheet_reopen_invoice_cancellation.sql",
+);
+assert.match(
+  reopenMigration,
+  /using \([\s\S]*status in \('draft', 'rejected', 'reopened'\)[\s\S]*with check \([\s\S]*status in \('draft', 'rejected', 'reopened', 'submitted'\)/,
+  "contractor timesheet RLS should allow editable source states and submitted as a destination",
+);
+assert.match(
+  reopenMigration,
+  /create table if not exists public\.timesheet_reopen_events[\s\S]*reason text not null[\s\S]*between 5 and 1000/,
+  "reopen history should retain a validated mandatory reason",
+);
+assert.match(
+  reopenMigration,
+  /reopen_timesheet_with_invoice_cancellation[\s\S]*update public\.invoices[\s\S]*status = 'cancelled'[\s\S]*update public\.outgoing_invoices[\s\S]*status = 'cancelled'/,
+  "the transactional reopen RPC should cancel both linked invoice types",
+);
+assert.match(
+  reopenMigration,
+  /invoices_self_billing_timesheet_unique_idx[\s\S]*status <> 'cancelled'[\s\S]*outgoing_invoices_active_timesheet_unique_idx[\s\S]*status <> 'cancelled'/,
+  "replacement invoice uniqueness should ignore cancelled historical records",
+);
+assert.match(
+  reopenMigration,
+  /pg_notify\('pgrst', 'reload schema'\)/,
+  "the schema cache should reload after the migration",
+);
+
+const reviewForm = read(
+  "src/components/timesheets/timesheet-review-form.tsx",
+);
+assert.match(
+  reviewForm,
+  /name="reopenReason"[\s\S]*required[\s\S]*minLength=\{5\}[\s\S]*maxLength=\{1000\}/,
+  "the reopen UI should require a 5 to 1000 character reason",
+);
+assert.match(
+  timesheetActions,
+  /reopen_timesheet_with_invoice_cancellation[\s\S]*sendReopenCancellationEmails/,
+  "the reopen action should use the transactional RPC and then send cancellation notices",
+);
+const reopenActionSection =
+  timesheetActions.match(
+    /export async function reopenTimesheetAction[\s\S]*?async function getEditableOwnTimesheet/,
+  )?.[0] ?? "";
+assert.ok(
+  reopenActionSection.indexOf('"reopen_timesheet_with_invoice_cancellation"') <
+    reopenActionSection.indexOf("sendReopenCancellationEmails({"),
+  "invoice cancellation must commit before external email delivery is attempted",
+);
+assert.match(
+  timesheetActions,
+  /cancellationEmailFailures > 0[\s\S]*warningParts[\s\S]*status: "success"/,
+  "cancellation email failures should warn without rolling back the reopen",
+);
+assert.match(
+  timesheetActions,
+  /commentsError\?\.code === "42501"[\s\S]*migration 202606280003 has not been applied/,
+  "a missing comments RLS migration should produce a clear warning",
+);
+
 const documentActions = read("src/app/(portal)/documents/actions.ts");
 assert.match(
   documentActions,
@@ -464,6 +546,19 @@ assert.match(
   invoiceActions,
   /\.min\(1, "Enter the invoice number\."\)/,
   "invoice number validation should allow one-character invoice numbers",
+);
+assert.match(
+  invoiceActions,
+  /invoice\.status === "cancelled"[\s\S]*Cancelled invoices cannot be reviewed or restored/,
+  "cancelled contractor invoices should be immutable in the review action",
+);
+const cancellationPaymentActions = read(
+  "src/app/(portal)/payments/actions.ts",
+);
+assert.match(
+  cancellationPaymentActions,
+  /invoice\.status === "cancelled"[\s\S]*Cancelled invoices cannot receive payment updates/,
+  "cancelled contractor invoices should reject payment updates server-side",
 );
 
 const resetPasswordForm = read(
@@ -699,6 +794,11 @@ assert.match(
   selfBilling,
   /existingInvoice/,
   "self-billing generation should check for existing invoice first",
+);
+assert.match(
+  selfBilling,
+  /eq\("invoice_type", "self_billing"\)[\s\S]*neq\("status", "cancelled"\)/,
+  "self-billing generation should ignore cancelled historical invoices",
 );
 assert.match(
   selfBilling,
@@ -963,6 +1063,11 @@ assert.match(
   /eq\("timesheet_id", timesheet\.id\)[\s\S]*alreadyGenerated: true/,
   "outgoing generation should reuse an existing timesheet invoice",
 );
+assert.match(
+  outgoingGenerator,
+  /eq\("timesheet_id", timesheet\.id\)[\s\S]*neq\("status", "cancelled"\)/,
+  "outgoing generation should ignore cancelled historical invoices",
+);
 
 function addThirtyCalendarDays(value) {
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -1022,6 +1127,11 @@ assert.match(
   outgoingActions,
   /markOutgoingInvoicePaidAction[\s\S]*status: "paid"[\s\S]*paid_at[\s\S]*paid_amount/,
   "admin should be able to record manual outgoing invoice payment",
+);
+assert.match(
+  outgoingActions,
+  /cancellation_reason[\s\S]*cancelled after a timesheet reopen cannot be restored/,
+  "an outgoing invoice cancelled by a timesheet reopen must not be restored",
 );
 
 const outgoingRoute = read("src/app/(portal)/outgoing-invoices/page.tsx");

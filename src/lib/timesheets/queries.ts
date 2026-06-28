@@ -7,6 +7,7 @@ import type {
   TimesheetEntryRecord,
   TimesheetProjectSummary,
   TimesheetRecord,
+  TimesheetReopenEvent,
   TimesheetSummary,
 } from "./types";
 
@@ -23,6 +24,9 @@ const timesheetCoreColumns = `
   rejected_by,
   rejected_at,
   rejection_reason,
+  reopened_by,
+  reopened_at,
+  reopen_reason,
   created_at,
   updated_at
 `;
@@ -155,6 +159,82 @@ export async function getTimesheetById(id: string) {
     ...summary,
     entries,
   } satisfies TimesheetDetail;
+}
+
+export async function getTimesheetReopenEvents(timesheetId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("timesheet_reopen_events")
+    .select(
+      "id,timesheet_id,reopened_by,reopened_at,reason,previous_status,created_at",
+    )
+    .eq("timesheet_id", timesheetId)
+    .order("reopened_at", { ascending: false })
+    .returns<TimesheetReopenEvent[]>();
+
+  if (error) {
+    throw new Error(`Could not load timesheet reopen history: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getTimesheetInvoiceLifecycle(timesheetId: string) {
+  const supabase = await createClient();
+  const [selfBillingResult, outgoingResult] = await Promise.all([
+    supabase
+      .from("invoices")
+      .select(
+        "id,invoice_number,status,cancelled_at,cancellation_reason,cancellation_email_status",
+      )
+      .eq("timesheet_id", timesheetId)
+      .eq("invoice_type", "self_billing")
+      .order("created_at", { ascending: false })
+      .returns<
+        {
+          id: string;
+          invoice_number: string;
+          status: string;
+          cancelled_at: string | null;
+          cancellation_reason: string | null;
+          cancellation_email_status: string;
+        }[]
+      >(),
+    supabase
+      .from("outgoing_invoices")
+      .select(
+        "id,invoice_number,status,cancelled_at,cancellation_reason,cancellation_email_status",
+      )
+      .eq("timesheet_id", timesheetId)
+      .order("created_at", { ascending: false })
+      .returns<
+        {
+          id: string;
+          invoice_number: string;
+          status: string;
+          cancelled_at: string | null;
+          cancellation_reason: string | null;
+          cancellation_email_status: string;
+        }[]
+      >(),
+  ]);
+
+  if (selfBillingResult.error) {
+    throw new Error(
+      `Could not load related self-billing invoices: ${selfBillingResult.error.message}`,
+    );
+  }
+
+  if (outgoingResult.error) {
+    throw new Error(
+      `Could not load related outgoing invoices: ${outgoingResult.error.message}`,
+    );
+  }
+
+  return {
+    selfBilling: selfBillingResult.data,
+    outgoing: outgoingResult.data,
+  };
 }
 
 async function addTimesheetComments(

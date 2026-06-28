@@ -167,6 +167,14 @@ export async function updatePaymentStatusAction(
     };
   }
 
+  if (invoice.status === "cancelled") {
+    return {
+      message: "Cancelled invoices cannot receive payment updates.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   const { data: existingPayment, error: existingPaymentError } = await supabase
     .from("payments")
     .select("id,status")

@@ -9,8 +9,11 @@ import { requireRole } from "@/lib/auth/profile";
 import { getContractorByProfileId } from "@/lib/contractors/queries";
 import { sendAdminNotification, sendContractorNotification } from "@/lib/email/notifications";
 import {
+  buildOutgoingInvoiceCancellationEmail,
+  buildSelfBillingCancellationEmail,
   buildTimesheetSubmittedAdminEmail,
   getPortalBaseUrl,
+  sendPortalEmail,
 } from "@/lib/email/portal-email";
 import { generateSelfBillingInvoiceForTimesheet } from "@/lib/self-billing/generate";
 import {
@@ -85,6 +88,14 @@ const rejectTimesheetSchema = z.object({
     .max(600, "Keep the correction reason under 600 characters."),
 });
 
+const reopenTimesheetSchema = timesheetIdSchema.extend({
+  reopenReason: z
+    .string()
+    .trim()
+    .min(5, "Enter a reopen reason of at least 5 characters.")
+    .max(1000, "Keep the reopen reason under 1,000 characters."),
+});
+
 export type TimesheetActionState = {
   message: string | null;
   status: "idle" | "success" | "error";
@@ -102,6 +113,12 @@ type TimesheetNotificationContext = {
   contractorEmail: string;
   projectName: string | null;
   totalHours: number;
+};
+
+type ReopenTimesheetResult = {
+  reopened_at: string;
+  self_billing_invoice_ids: string[];
+  outgoing_invoice_ids: string[];
 };
 
 type AuditAction =
@@ -126,7 +143,7 @@ async function getAdminReviewTimesheet(
   const { data: timesheet, error } = await supabase
     .from("timesheets")
     .select(
-      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at",
+      "id,contractor_id,project_id,year,month,status,submitted_at,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,reopened_by,reopened_at,reopen_reason,created_at,updated_at",
     )
     .eq("id", timesheetId)
     .maybeSingle<TimesheetRecord>();
@@ -268,6 +285,173 @@ async function loadTimesheetNotificationContext(
     projectName: projectResult.data?.name ?? null,
     totalHours,
   } satisfies TimesheetNotificationContext;
+}
+
+async function recordCancellationEmailResult({
+  supabase,
+  actorProfileId,
+  table,
+  entityType,
+  invoiceId,
+  emailStatus,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  actorProfileId: string;
+  table: "invoices" | "outgoing_invoices";
+  entityType: "invoice" | "outgoing_invoice";
+  invoiceId: string;
+  emailStatus: "sent" | "failed";
+}) {
+  const emailedAt = emailStatus === "sent" ? new Date().toISOString() : null;
+  const { error: updateError } = await supabase
+    .from(table)
+    .update({
+      cancellation_email_status: emailStatus,
+      cancellation_emailed_at: emailedAt,
+    })
+    .eq("id", invoiceId)
+    .eq("status", "cancelled");
+
+  if (updateError) {
+    console.error("Could not store invoice cancellation email result", updateError);
+  }
+
+  const { error: auditError } = await supabase.from("audit_logs").insert({
+    actor_profile_id: actorProfileId,
+    action: `${entityType}_cancellation_email_${emailStatus}`,
+    entity_type: entityType,
+    entity_id: invoiceId,
+    metadata: { email_status: emailStatus },
+  });
+
+  if (auditError) {
+    console.error("Could not audit invoice cancellation email result", auditError);
+  }
+}
+
+async function sendReopenCancellationEmails({
+  supabase,
+  profileId,
+  timesheet,
+  notificationTarget,
+  result,
+  reason,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  profileId: string;
+  timesheet: TimesheetRecord;
+  notificationTarget: TimesheetNotificationContext | null;
+  result: ReopenTimesheetResult;
+  reason: string;
+}) {
+  let failures = 0;
+  const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
+
+  if (result.self_billing_invoice_ids.length > 0 && notificationTarget) {
+    const { data: invoices, error } = await supabase
+      .from("invoices")
+      .select("id,invoice_number,email_status")
+      .in("id", result.self_billing_invoice_ids)
+      .eq("email_status", "sent")
+      .returns<
+        {
+          id: string;
+          invoice_number: string;
+          email_status: "sent";
+        }[]
+      >();
+
+    if (error) {
+      console.error("Could not load cancelled self-billing invoices", error);
+      failures += 1;
+    } else {
+      for (const invoice of invoices) {
+        let emailStatus: "sent" | "failed" = "failed";
+        try {
+          const email = buildSelfBillingCancellationEmail({
+            contractorName: notificationTarget.contractorName,
+            invoiceNumber: invoice.invoice_number,
+            monthLabel,
+            reason,
+          });
+          const sent = await sendPortalEmail({
+            to: notificationTarget.contractorEmail,
+            ...email,
+          });
+          emailStatus = sent.sent ? "sent" : "failed";
+        } catch (error) {
+          console.error("Self-billing cancellation email failed", error);
+        }
+
+        if (emailStatus === "failed") failures += 1;
+        await recordCancellationEmailResult({
+          supabase,
+          actorProfileId: profileId,
+          table: "invoices",
+          entityType: "invoice",
+          invoiceId: invoice.id,
+          emailStatus,
+        });
+      }
+    }
+  }
+
+  if (result.outgoing_invoice_ids.length > 0) {
+    const { data: invoices, error } = await supabase
+      .from("outgoing_invoices")
+      .select(
+        "id,invoice_number,billing_email,billing_cc_emails,consultant_name,email_status",
+      )
+      .in("id", result.outgoing_invoice_ids)
+      .eq("email_status", "sent")
+      .returns<
+        {
+          id: string;
+          invoice_number: string;
+          billing_email: string;
+          billing_cc_emails: string[];
+          consultant_name: string;
+          email_status: "sent";
+        }[]
+      >();
+
+    if (error) {
+      console.error("Could not load cancelled outgoing invoices", error);
+      failures += 1;
+    } else {
+      for (const invoice of invoices) {
+        let emailStatus: "sent" | "failed" = "failed";
+        try {
+          const email = buildOutgoingInvoiceCancellationEmail({
+            invoiceNumber: invoice.invoice_number,
+            consultantName: invoice.consultant_name,
+            monthLabel,
+            reason,
+          });
+          const sent = await sendPortalEmail({
+            to: invoice.billing_email,
+            cc: invoice.billing_cc_emails,
+            ...email,
+          });
+          emailStatus = sent.sent ? "sent" : "failed";
+        } catch (error) {
+          console.error("Outgoing invoice cancellation email failed", error);
+        }
+
+        if (emailStatus === "failed") failures += 1;
+        await recordCancellationEmailResult({
+          supabase,
+          actorProfileId: profileId,
+          table: "outgoing_invoices",
+          entityType: "outgoing_invoice",
+          invoiceId: invoice.id,
+          emailStatus,
+        });
+      }
+    }
+  }
+
+  return failures;
 }
 
 function isFutureTimesheetMonth(year: number, month: number, now = new Date()) {
@@ -589,13 +773,14 @@ export async function reopenTimesheetAction(
   _previousState: TimesheetActionState,
   formData: FormData,
 ): Promise<TimesheetActionState> {
-  const parsed = timesheetIdSchema.safeParse({
+  const parsed = reopenTimesheetSchema.safeParse({
     timesheetId: formData.get("timesheetId"),
+    reopenReason: formData.get("reopenReason"),
   });
 
   if (!parsed.success) {
     return {
-      message: "Timesheet is missing.",
+      message: "Check the reopen reason and try again.",
       status: "error",
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
@@ -610,48 +795,36 @@ export async function reopenTimesheetAction(
     return state;
   }
 
-  const { error } = await supabase
-    .from("timesheets")
-    .update({
-      status: "reopened",
-      approved_by: null,
-      approved_at: null,
-      rejected_by: null,
-      rejected_at: null,
-      rejection_reason: null,
-    })
-    .eq("id", timesheet.id);
+  const { data, error } = await supabase.rpc(
+    "reopen_timesheet_with_invoice_cancellation",
+    {
+      p_timesheet_id: timesheet.id,
+      p_reason: parsed.data.reopenReason,
+    },
+  );
 
   if (error) {
     return {
-      message: `Could not reopen the timesheet: ${error.message}`,
+      message:
+        error.code === "PGRST202" || error.code === "42883"
+          ? "Could not reopen the timesheet because migration 202606280003 has not been applied."
+          : `Could not reopen the timesheet: ${error.message}`,
       status: "error",
       fieldErrors: {},
     };
   }
 
-  try {
-    await recordTimesheetAuditLog(
-      supabase,
-      profile.id,
-      "timesheet_reopened",
-      timesheet,
-      "reopened",
-    );
-  } catch (error) {
-    return {
-      message:
-        error instanceof Error
-          ? error.message
-          : "Timesheet reopened, but the audit log could not be recorded.",
-      status: "error",
-      fieldErrors: {},
-    };
-  }
+  const result = data as unknown as ReopenTimesheetResult;
 
   revalidatePath(`/timesheets/${timesheet.id}`);
   revalidatePath("/timesheets");
+  revalidatePath("/invoices");
+  revalidatePath("/payments");
+  revalidatePath("/exports");
+  revalidatePath("/outgoing-invoices");
   revalidatePath(`/contractors/${timesheet.contractor_id}/timesheets`);
+  revalidatePath(`/contractors/${timesheet.contractor_id}/invoices`);
+  revalidatePath(`/contractors/${timesheet.contractor_id}/payments`);
   revalidatePath("/");
 
   const notificationTarget = await loadTimesheetNotificationContext(
@@ -659,17 +832,41 @@ export async function reopenTimesheetAction(
     timesheet,
   );
 
+  const cancellationEmailFailures = await sendReopenCancellationEmails({
+    supabase,
+    profileId: profile.id,
+    timesheet,
+    notificationTarget,
+    result,
+    reason: parsed.data.reopenReason,
+  });
+  let reopenEmailFailed = false;
+
   if (notificationTarget) {
     const monthLabel = formatTimesheetMonth(timesheet.year, timesheet.month);
-    await sendContractorNotification({
+    const sent = await sendContractorNotification({
       to: notificationTarget.contractorEmail,
       subject: `Timesheet reopened - ${monthLabel}`,
-      body: `Your timesheet for ${monthLabel}${notificationTarget.projectName ? ` for ${notificationTarget.projectName}` : ""} has been reopened for correction.`,
+      body: `Your timesheet for ${monthLabel}${notificationTarget.projectName ? ` for ${notificationTarget.projectName}` : ""} has been reopened for correction.\n\nReason: ${parsed.data.reopenReason}`,
     });
+    reopenEmailFailed = !sent;
+  }
+
+  const warningParts = [];
+  if (cancellationEmailFailures > 0) {
+    warningParts.push(
+      `${cancellationEmailFailures} cancellation email${cancellationEmailFailures === 1 ? "" : "s"} failed; each failure status was recorded`,
+    );
+  }
+  if (reopenEmailFailed) {
+    warningParts.push("the contractor reopen notification failed");
   }
 
   return {
-    message: "Timesheet reopened for correction.",
+    message:
+      warningParts.length > 0
+        ? `Timesheet reopened and linked invoices cancelled, but ${warningParts.join(" and ")}.`
+        : "Timesheet reopened and linked invoices cancelled.",
     status: "success",
     fieldErrors: {},
   };
@@ -1089,6 +1286,10 @@ export async function saveTimesheetCalendarAction(
   if (commentsError?.code === "42703") {
     warnings.push(
       "comments were not saved because the latest database migration is pending",
+    );
+  } else if (commentsError?.code === "42501") {
+    warnings.push(
+      "comments were not saved because migration 202606280003 has not been applied",
     );
   } else if (commentsError) {
     return {

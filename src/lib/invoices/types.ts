@@ -8,10 +8,15 @@ export type InvoiceStatus =
   | "correction_required"
   | "approved_for_payment"
   | "paid"
-  | "on_hold";
+  | "on_hold"
+  | "cancelled";
 
 export type InvoiceType = "self_billing" | "contractor_uploaded";
 export type InvoiceEmailStatus = "not_sent" | "sent" | "failed";
+export type CancellationEmailStatus =
+  | "not_required"
+  | "sent"
+  | "failed";
 
 export type InvoiceRecord = {
   id: string;
@@ -35,6 +40,11 @@ export type InvoiceRecord = {
   generated_at: string | null;
   emailed_at: string | null;
   email_status: InvoiceEmailStatus;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  cancellation_email_status: CancellationEmailStatus;
+  cancellation_emailed_at: string | null;
   created_at: string;
   updated_at: string;
 };

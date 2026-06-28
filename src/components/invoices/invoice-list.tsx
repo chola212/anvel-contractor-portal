@@ -129,6 +129,16 @@ export function InvoiceList({
                       {invoice.review_comment}
                     </p>
                   ) : null}
+                  {invoice.status === "cancelled" ? (
+                    <div className="mt-2 max-w-xs text-xs leading-5 text-red-800">
+                      <p className="font-medium">
+                        No longer valid. Retained for audit history.
+                      </p>
+                      {invoice.cancellation_reason ? (
+                        <p>{invoice.cancellation_reason}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-5 py-4 align-top text-neutral-700">
                   <p>{showFileName ? invoice.file_name : "Hidden for this role"}</p>
@@ -147,7 +157,13 @@ export function InvoiceList({
                 </td>
                 {canReview ? (
                   <td className="px-5 py-4 align-top">
-                    <InvoiceReviewForm invoice={invoice} />
+                    {invoice.status === "cancelled" ? (
+                      <p className="text-xs leading-5 text-neutral-600">
+                        Cancelled invoices cannot be reviewed or restored.
+                      </p>
+                    ) : (
+                      <InvoiceReviewForm invoice={invoice} />
+                    )}
                   </td>
                 ) : null}
               </tr>

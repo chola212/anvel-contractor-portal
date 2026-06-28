@@ -12,6 +12,7 @@ export const accountantExportStatuses = [
   "approved_for_payment",
   "paid",
   "on_hold",
+  "cancelled",
 ] as const;
 
 export type AccountantExportStatus = (typeof accountantExportStatuses)[number];

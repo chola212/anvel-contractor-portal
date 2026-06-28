@@ -86,6 +86,7 @@ export async function generateOutgoingInvoiceForTimesheet({
     .from("outgoing_invoices")
     .select("id")
     .eq("timesheet_id", timesheet.id)
+    .neq("status", "cancelled")
     .maybeSingle<{ id: string }>();
   if (existingError) throw new Error(`Could not check outgoing invoice: ${existingError.message}`);
   if (existing) return { invoiceId: existing.id, alreadyGenerated: true };
@@ -165,6 +166,7 @@ export async function generateOutgoingInvoiceForTimesheet({
         .from("outgoing_invoices")
         .select("id")
         .eq("timesheet_id", timesheet.id)
+        .neq("status", "cancelled")
         .maybeSingle<{ id: string }>();
       if (data) {
         return { invoiceId: data.id, alreadyGenerated: true };

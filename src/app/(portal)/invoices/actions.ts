@@ -364,6 +364,14 @@ export async function reviewInvoiceAction(
     };
   }
 
+  if (invoice.status === "cancelled") {
+    return {
+      message: "Cancelled invoices cannot be reviewed or restored.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
   const { error: updateError } = await supabase
     .from("invoices")
     .update({

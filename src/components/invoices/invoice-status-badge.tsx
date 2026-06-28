@@ -13,6 +13,7 @@ const statusClasses: Record<InvoiceStatus, string> = {
   approved_for_payment: "border-teal-200 bg-teal-50 text-teal-800",
   paid: "border-emerald-200 bg-emerald-50 text-emerald-800",
   on_hold: "border-rose-200 bg-rose-50 text-rose-800",
+  cancelled: "border-neutral-300 bg-neutral-100 text-neutral-700",
 };
 
 export function InvoiceStatusBadge({ status }: InvoiceStatusBadgeProps) {

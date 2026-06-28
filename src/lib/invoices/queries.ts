@@ -31,6 +31,11 @@ const invoiceColumns = `
   generated_at,
   emailed_at,
   email_status,
+  cancelled_at,
+  cancelled_by,
+  cancellation_reason,
+  cancellation_email_status,
+  cancellation_emailed_at,
   created_at,
   updated_at
 `;
@@ -63,6 +68,11 @@ type LegacyInvoiceRecord = Omit<
   | "generated_at"
   | "emailed_at"
   | "email_status"
+  | "cancelled_at"
+  | "cancelled_by"
+  | "cancellation_reason"
+  | "cancellation_email_status"
+  | "cancellation_emailed_at"
 > &
   Partial<
     Pick<
@@ -73,6 +83,11 @@ type LegacyInvoiceRecord = Omit<
       | "generated_at"
       | "emailed_at"
       | "email_status"
+      | "cancelled_at"
+      | "cancelled_by"
+      | "cancellation_reason"
+      | "cancellation_email_status"
+      | "cancellation_emailed_at"
     >
   >;
 
@@ -142,6 +157,11 @@ function isMissingSelfBillingInvoiceColumn(error: {
       "generated_at",
       "emailed_at",
       "email_status",
+      "cancelled_at",
+      "cancelled_by",
+      "cancellation_reason",
+      "cancellation_email_status",
+      "cancellation_emailed_at",
     ].some((column) => message.includes(column))
   );
 }
@@ -155,6 +175,12 @@ function normalizeInvoiceRecord(invoice: LegacyInvoiceRecord): InvoiceRecord {
     generated_at: invoice.generated_at ?? null,
     emailed_at: invoice.emailed_at ?? null,
     email_status: invoice.email_status ?? "not_sent",
+    cancelled_at: invoice.cancelled_at ?? null,
+    cancelled_by: invoice.cancelled_by ?? null,
+    cancellation_reason: invoice.cancellation_reason ?? null,
+    cancellation_email_status:
+      invoice.cancellation_email_status ?? "not_required",
+    cancellation_emailed_at: invoice.cancellation_emailed_at ?? null,
   };
 }
 

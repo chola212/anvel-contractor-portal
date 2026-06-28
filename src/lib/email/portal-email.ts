@@ -156,6 +156,48 @@ ANVEL Consulting`,
   };
 }
 
+export function buildOutgoingInvoiceCancellationEmail({
+  invoiceNumber,
+  consultantName,
+  monthLabel,
+  reason,
+}: {
+  invoiceNumber: string;
+  consultantName: string;
+  monthLabel: string;
+  reason: string;
+}) {
+  const safeInvoiceNumber = escapeEmailHtml(invoiceNumber);
+  const safeConsultantName = escapeEmailHtml(consultantName);
+  const safeMonthLabel = escapeEmailHtml(monthLabel);
+  const safeReason = escapeEmailHtml(reason);
+
+  return {
+    subject: `Cancelled invoice ${invoiceNumber} - ${consultantName} - ${monthLabel}`,
+    html: wrapEmailHtml(
+      `Invoice ${safeInvoiceNumber} cancelled`,
+      `<p>Hello,</p>
+       <p>Invoice <strong>${safeInvoiceNumber}</strong> is no longer valid because its source timesheet was reopened for correction.</p>
+       <p>Consultant: ${safeConsultantName}<br />Period: ${safeMonthLabel}</p>
+       <p>Reason: ${safeReason}</p>
+       <p>Please do not process the cancelled invoice. A replacement will be issued after the corrected timesheet is approved.</p>
+       <p>Kind regards,<br />ANVEL Consulting</p>`,
+    ),
+    text: `Hello,
+
+Invoice ${invoiceNumber} is no longer valid because its source timesheet was reopened for correction.
+
+Consultant: ${consultantName}
+Period: ${monthLabel}
+Reason: ${reason}
+
+Please do not process the cancelled invoice. A replacement will be issued after the corrected timesheet is approved.
+
+Kind regards,
+ANVEL Consulting`,
+  };
+}
+
 function wrapEmailHtml(title: string, body: string) {
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
@@ -169,6 +211,15 @@ function wrapEmailHtml(title: string, body: string) {
       </p>
     </div>
   `;
+}
+
+function escapeEmailHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 export function buildInviteEmail(contractorName: string, inviteLink: string) {
@@ -270,6 +321,44 @@ Please find attached your self-billing invoice for ${monthLabel}${projectName ? 
 Invoice number: ${invoiceNumber}
 
 This invoice has been generated based on the approved timesheet for the corresponding month.
+
+Kind regards,
+ANVEL Consulting`,
+  };
+}
+
+export function buildSelfBillingCancellationEmail({
+  contractorName,
+  invoiceNumber,
+  monthLabel,
+  reason,
+}: {
+  contractorName: string;
+  invoiceNumber: string;
+  monthLabel: string;
+  reason: string;
+}) {
+  const safeContractorName = escapeEmailHtml(contractorName);
+  const safeInvoiceNumber = escapeEmailHtml(invoiceNumber);
+  const safeReason = escapeEmailHtml(reason);
+
+  return {
+    subject: `Self-billing invoice cancelled - ${invoiceNumber} - ${monthLabel}`,
+    html: wrapEmailHtml(
+      `Self-billing invoice ${safeInvoiceNumber} cancelled`,
+      `<p>Hello ${safeContractorName},</p>
+       <p>Your self-billing invoice <strong>${safeInvoiceNumber}</strong> is no longer valid because the source timesheet was reopened for correction.</p>
+       <p>Reason: ${safeReason}</p>
+       <p>Please update and resubmit the timesheet in the portal. A replacement invoice will be generated after the corrected timesheet is approved.</p>
+       <p>Kind regards,<br />ANVEL Consulting</p>`,
+    ),
+    text: `Hello ${contractorName},
+
+Your self-billing invoice ${invoiceNumber} is no longer valid because the source timesheet was reopened for correction.
+
+Reason: ${reason}
+
+Please update and resubmit the timesheet in the portal. A replacement invoice will be generated after the corrected timesheet is approved.
 
 Kind regards,
 ANVEL Consulting`,

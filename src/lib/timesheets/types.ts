@@ -22,9 +22,22 @@ export type TimesheetRecord = {
   rejected_by: string | null;
   rejected_at: string | null;
   rejection_reason: string | null;
+  reopened_by: string | null;
+  reopened_at: string | null;
+  reopen_reason: string | null;
   comments: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type TimesheetReopenEvent = {
+  id: string;
+  timesheet_id: string;
+  reopened_by: string | null;
+  reopened_at: string;
+  reason: string;
+  previous_status: "approved" | "rejected";
+  created_at: string;
 };
 
 export type TimesheetEntryRecord = {

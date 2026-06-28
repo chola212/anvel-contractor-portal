@@ -93,6 +93,10 @@ export default async function OutgoingInvoiceDetailPage({
           <DetailField label="Paid amount" value={formatCurrency(invoice.paid_amount)} />
           <DetailField label="Payment reference" value={invoice.payment_reference ?? "Not set"} />
           <DetailField label="Internal note" value={invoice.internal_note ?? "Not set"} />
+          <DetailField label="Cancelled at" value={formatDateTime(invoice.cancelled_at)} />
+          <DetailField label="Cancellation reason" value={invoice.cancellation_reason ?? "Not set"} />
+          <DetailField label="Cancellation email" value={invoice.cancellation_email_status.replace("_", " ")} />
+          <DetailField label="Cancellation emailed at" value={formatDateTime(invoice.cancellation_emailed_at)} />
         </dl>
       </section>
       <OutgoingInvoiceActions invoice={invoice} />

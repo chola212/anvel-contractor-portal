@@ -162,14 +162,24 @@ async function setDraftOrCancelled(
   const supabase = await createClient();
   const { data: invoice } = await supabase
     .from("outgoing_invoices")
-    .select("id,status,sent_at")
+    .select("id,status,sent_at,cancellation_reason")
     .eq("id", invoiceId)
-    .maybeSingle<{ id: string; status: string; sent_at: string | null }>();
+    .maybeSingle<{
+      id: string;
+      status: string;
+      sent_at: string | null;
+      cancellation_reason: string | null;
+    }>();
   if (!invoice) return errorState("Outgoing invoice not found.");
   if (nextStatus === "cancelled" && invoice.status === "paid") return errorState("Paid invoices cannot be cancelled.");
   if (nextStatus === "draft" && invoice.status !== "cancelled") return errorState("Only cancelled invoices can be reopened to draft.");
   if (nextStatus === "draft" && invoice.sent_at) {
     return errorState("A previously sent invoice cannot be reopened to draft.");
+  }
+  if (nextStatus === "draft" && invoice.cancellation_reason) {
+    return errorState(
+      "An invoice cancelled after a timesheet reopen cannot be restored. Approve the corrected timesheet to create a replacement.",
+    );
   }
   const { error } = await supabase.from("outgoing_invoices").update({ status: nextStatus }).eq("id", invoice.id);
   if (error) return errorState(`Could not update invoice status: ${error.message}`);

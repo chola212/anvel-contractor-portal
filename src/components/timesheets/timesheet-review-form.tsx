@@ -170,9 +170,38 @@ export function TimesheetReviewForm({
             Reopen for contractor correction
           </p>
           <p className="mt-2 text-sm leading-6 text-neutral-600">
-            Reopening clears the current review decision and allows the
-            contractor to edit daily entries again.
+            Reopening this timesheet will cancel any related self-billing and
+            outgoing client invoices. A corrected invoice will be generated
+            after the timesheet is resubmitted and approved again.
           </p>
+          <label
+            htmlFor="reopenReason"
+            className="mt-4 block text-sm font-medium text-neutral-950"
+          >
+            Reopen reason
+          </label>
+          <textarea
+            id="reopenReason"
+            name="reopenReason"
+            rows={4}
+            required
+            minLength={5}
+            maxLength={1000}
+            aria-describedby="reopen-reason-help"
+            className="mt-2 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+          />
+          <p
+            id="reopen-reason-help"
+            className="mt-2 text-xs leading-5 text-neutral-600"
+          >
+            Required, 5–1,000 characters. The contractor will receive this
+            reason by email and see it in the reopen history.
+          </p>
+          {reopenState.fieldErrors.reopenReason?.map((error) => (
+            <p key={error} className="mt-2 text-sm text-red-700">
+              {error}
+            </p>
+          ))}
           <div className="mt-4">
             <ReviewButton tone="reopen">Reopen timesheet</ReviewButton>
           </div>

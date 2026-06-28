@@ -188,6 +188,7 @@ export async function generateSelfBillingInvoiceForTimesheet({
     .select("id,email_status")
     .eq("timesheet_id", timesheet.id)
     .eq("invoice_type", "self_billing")
+    .neq("status", "cancelled")
     .maybeSingle<{ id: string; email_status: string }>();
 
   if (existingInvoiceError) {

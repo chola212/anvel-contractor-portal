@@ -17,6 +17,7 @@ migrations/202606270002_self_billing_invoice_metadata.sql
 migrations/202606270003_repair_self_billing_invoice_columns.sql
 migrations/202606280001_timesheet_comments_and_document_requirements.sql
 migrations/202606280002_outgoing_client_invoices.sql
+migrations/202606280003_timesheet_reopen_invoice_cancellation.sql
 ```
 
 This migration creates:
@@ -92,6 +93,21 @@ The Phase 1 outgoing client invoice migration creates:
 Contractors and operations users receive no access to sender bank details,
 project billing details, outgoing invoice rows, line items, numbering state or
 outgoing PDF objects.
+
+The timesheet reopen and invoice cancellation migration:
+
+- repairs contractor updates so comments and submission work from `draft`,
+  `rejected`, and `reopened` states without permitting edits to submitted,
+  approved, or locked timesheets;
+- records the latest reopen reason on the timesheet and retains full reopen
+  history in `timesheet_reopen_events`;
+- reopens a timesheet and cancels its active self-billing and outgoing invoices
+  in one database transaction;
+- preserves cancelled invoice rows, PDF paths, invoice numbers, and audit
+  history;
+- permits one non-cancelled invoice of each type per timesheet, so corrected
+  reapproval creates replacement invoices with new numbers;
+- reloads the PostgREST schema cache after the new columns and RPC are created.
 
 Phase 12 accountant exports do not add a migration. The export reads existing
 invoice, payment statement, project, contractor and payment rows through the
@@ -257,6 +273,77 @@ where id = 'outgoing-invoices';
 ```
 
 Expected result: one private, PDF-only bucket.
+
+Check the contractor timesheet update policy after applying
+`202606280003_timesheet_reopen_invoice_cancellation.sql`:
+
+```sql
+select policyname, cmd, qual, with_check
+from pg_policies
+where schemaname = 'public'
+  and tablename = 'timesheets'
+  and policyname = 'timesheets_update_own_unapproved';
+```
+
+Expected result: `qual` permits owned `draft`, `rejected`, and `reopened`
+rows. `with_check` permits those same states plus `submitted`.
+
+Check reopen and cancellation columns:
+
+```sql
+select table_name, column_name
+from information_schema.columns
+where table_schema = 'public'
+  and (
+    (table_name = 'timesheets'
+      and column_name in ('reopened_by', 'reopened_at', 'reopen_reason'))
+    or
+    (table_name in ('invoices', 'outgoing_invoices')
+      and column_name in (
+        'cancelled_at',
+        'cancelled_by',
+        'cancellation_reason',
+        'cancellation_email_status',
+        'cancellation_emailed_at'
+      ))
+  )
+order by table_name, column_name;
+```
+
+Expected result: three timesheet columns and five cancellation columns on each
+invoice table.
+
+Check the replacement-invoice uniqueness indexes:
+
+```sql
+select tablename, indexname, indexdef
+from pg_indexes
+where schemaname = 'public'
+  and indexname in (
+    'invoices_self_billing_timesheet_unique_idx',
+    'outgoing_invoices_active_timesheet_unique_idx'
+  )
+order by indexname;
+```
+
+Expected result: both indexes are unique and include
+`status <> 'cancelled'` in their predicate.
+
+Check the transactional reopen function and history table:
+
+```sql
+select proname
+from pg_proc
+where proname = 'reopen_timesheet_with_invoice_cancellation';
+
+select tablename, rowsecurity
+from pg_tables
+where schemaname = 'public'
+  and tablename = 'timesheet_reopen_events';
+```
+
+Expected result: one function row and one history-table row with
+`rowsecurity = true`.
 
 ## Development auth test users
 
