@@ -12,6 +12,7 @@ import {
   buildInviteEmail,
   sendPortalEmail,
 } from "@/lib/email/portal-email";
+import { sendContractorNotification } from "@/lib/email/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -119,6 +120,46 @@ function maskIbanForAudit(value: string | null) {
   }
 
   return `ending ${value.replace(/\s/g, "").slice(-4)}`;
+}
+
+function displayValue(value: string | number | null | undefined) {
+  return value === null || value === undefined || value === "" ? "Not set" : String(value);
+}
+
+function changeLine(label: string, before: string | number | null | undefined, after: string | number | null | undefined) {
+  if (displayValue(before) === displayValue(after)) return null;
+  return `* ${label}: ${displayValue(before)} -> ${displayValue(after)}`;
+}
+
+async function notifyContractorOfAdminChange({
+  contractorEmail,
+  contractorName,
+  subject,
+  intro,
+  changes,
+}: {
+  contractorEmail: string;
+  contractorName: string;
+  subject: string;
+  intro: string;
+  changes: string[];
+}) {
+  if (changes.length === 0) return true;
+  return sendContractorNotification({
+    to: contractorEmail,
+    subject,
+    body: `Hello ${contractorName},
+
+${intro}
+
+Changes:
+
+${changes.join("\n")}
+
+Updated by: ANVEL admin
+
+You can review the latest information in the portal.`,
+  });
 }
 
 async function findAuthUserByEmail(
@@ -606,12 +647,34 @@ export async function updateContractorAction(
     };
   }
 
+  const notified = await notifyContractorOfAdminChange({
+    contractorEmail: parsed.data.email,
+    contractorName: parsed.data.legalName,
+    subject: "Your contractor details were updated",
+    intro: "An ANVEL admin updated your contractor details.",
+    changes: [
+      changeLine("Legal name", currentContractor.legal_name, nextContractor.legal_name),
+      changeLine("Email", currentContractor.email, nextContractor.email),
+      changeLine("Trading name", currentContractor.trading_name, nextContractor.trading_name),
+      changeLine("Phone", currentContractor.phone, nextContractor.phone),
+      changeLine("Country", currentContractor.country, nextContractor.country),
+      changeLine("Supplier type", currentContractor.supplier_type, nextContractor.supplier_type),
+      changeLine("Company registration number", currentContractor.company_registration_number, nextContractor.company_registration_number),
+      changeLine("VAT number", currentContractor.vat_number, nextContractor.vat_number),
+      changeLine("Fiscal address", currentContractor.fiscal_address, nextContractor.fiscal_address),
+      changeLine("VAT treatment", currentContractor.vat_treatment, nextContractor.vat_treatment),
+      changeLine("Status", currentContractor.status, nextContractor.status),
+    ].filter((line): line is string => Boolean(line)),
+  });
+
   revalidatePath(`/contractors/${currentContractor.id}`);
   revalidatePath("/contractors");
   revalidatePath("/profile");
 
   return {
-    message: "Contractor updated.",
+    message: notified
+      ? "Contractor updated."
+      : "Contractor updated, but the contractor notification email failed.",
     status: "success",
     fieldErrors: {},
   };
@@ -637,9 +700,15 @@ export async function offboardContractorAction(
   const supabase = await createClient();
   const { data: contractor, error: loadError } = await supabase
     .from("contractors")
-    .select("id,profile_id,status")
+    .select("id,profile_id,status,legal_name,email")
     .eq("id", parsed.data.contractorId)
-    .maybeSingle<{ id: string; profile_id: string | null; status: string }>();
+    .maybeSingle<{
+      id: string;
+      profile_id: string | null;
+      status: string;
+      legal_name: string;
+      email: string;
+    }>();
 
   if (loadError || !contractor) {
     return {
@@ -709,8 +778,20 @@ export async function offboardContractorAction(
   revalidatePath(`/contractors/${contractor.id}`);
   revalidatePath("/contractors");
 
+  const notified = await notifyContractorOfAdminChange({
+    contractorEmail: contractor.email,
+    contractorName: contractor.legal_name,
+    subject: "Your contractor status was updated",
+    intro: "An ANVEL admin updated your contractor status.",
+    changes: [changeLine("Status", contractor.status, "offboarded")].filter(
+      (line): line is string => Boolean(line),
+    ),
+  });
+
   return {
-    message: "Contractor offboarded and account access disabled.",
+    message: notified
+      ? "Contractor offboarded and account access disabled."
+      : "Contractor offboarded, but the contractor notification email failed.",
     status: "success",
     fieldErrors: {},
   };
@@ -869,10 +950,12 @@ export async function updateContractorBankDetailsAction(
   const supabase = await createClient();
   const { data: currentContractor, error: loadError } = await supabase
     .from("contractors")
-    .select("id,bank_account_holder,iban,swift_bic,bank_currency")
+    .select("id,legal_name,email,bank_account_holder,iban,swift_bic,bank_currency")
     .eq("id", parsed.data.contractorId)
     .maybeSingle<{
       id: string;
+      legal_name: string;
+      email: string;
       bank_account_holder: string | null;
       iban: string | null;
       swift_bic: string | null;
@@ -942,8 +1025,23 @@ export async function updateContractorBankDetailsAction(
   revalidatePath(`/contractors/${currentContractor.id}`);
   revalidatePath("/contractors");
 
+  const notified = await notifyContractorOfAdminChange({
+    contractorEmail: currentContractor.email,
+    contractorName: currentContractor.legal_name,
+    subject: "Your bank details were updated",
+    intro: "An ANVEL admin updated your contractor bank details.",
+    changes: [
+      changeLine("Account holder", currentContractor.bank_account_holder, nextBankDetails.bank_account_holder),
+      changeLine("IBAN", maskIbanForAudit(currentContractor.iban), maskIbanForAudit(nextBankDetails.iban)),
+      changeLine("SWIFT/BIC", currentContractor.swift_bic, nextBankDetails.swift_bic),
+      changeLine("Currency", currentContractor.bank_currency, nextBankDetails.bank_currency),
+    ].filter((line): line is string => Boolean(line)),
+  });
+
   return {
-    message: "Bank details updated.",
+    message: notified
+      ? "Bank details updated."
+      : "Bank details updated, but the contractor notification email failed.",
     status: "success",
     fieldErrors: {},
   };

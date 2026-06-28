@@ -2,8 +2,7 @@ import type { DocumentRequirementRecord } from "./types";
 
 export const contractorDocumentRequirementNames = [
   "Contractor Agreement",
-  "NDA",
-  "Assignment Schedule",
+  "Signed NDA",
   "Other",
 ] as const;
 

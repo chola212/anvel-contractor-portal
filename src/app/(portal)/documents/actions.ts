@@ -9,7 +9,7 @@ import { getContractorByProfileId } from "@/lib/contractors/queries";
 import type { SupplierType } from "@/lib/contractors/types";
 import type { DocumentStatus } from "@/lib/documents/types";
 import { normaliseDocumentType } from "@/lib/documents/requirements";
-import { sendAdminNotification } from "@/lib/email/notifications";
+import { sendAdminNotification, sendContractorNotification } from "@/lib/email/notifications";
 import {
   buildDocumentUploadedAdminEmail,
   getPortalBaseUrl,
@@ -261,6 +261,23 @@ export async function uploadContractorDocumentAction(
         fieldErrors: {},
       };
     }
+
+    await sendContractorNotification({
+      to: contractor.email,
+      subject: "A contractor document was uploaded",
+      body: `Hello ${contractor.legal_name},
+
+An ANVEL admin uploaded a document to your contractor profile.
+
+Changes:
+
+* Document: ${requirement.name}
+* Status: uploaded
+
+Updated by: ANVEL admin
+
+You can review the latest information in the portal.`,
+    });
   }
 
   if (profile.role === "contractor") {
@@ -320,9 +337,14 @@ export async function reviewContractorDocumentAction(
   const supabase = await createClient();
   const { data: document, error: documentError } = await supabase
     .from("contractor_documents")
-    .select("id,status,contractor_id")
+    .select("id,status,contractor_id,document_requirement_id")
     .eq("id", parsed.data.documentId)
-    .maybeSingle<{ id: string; status: DocumentStatus; contractor_id: string }>();
+    .maybeSingle<{
+      id: string;
+      status: DocumentStatus;
+      contractor_id: string;
+      document_requirement_id: string | null;
+    }>();
 
   if (documentError || !document) {
     return {
@@ -371,13 +393,50 @@ export async function reviewContractorDocumentAction(
     };
   }
 
+  const [contractorResult, requirementResult] = await Promise.all([
+    supabase
+      .from("contractors")
+      .select("legal_name,email")
+      .eq("id", document.contractor_id)
+      .maybeSingle<{ legal_name: string; email: string }>(),
+    document.document_requirement_id
+      ? supabase
+          .from("document_requirements")
+          .select("name")
+          .eq("id", document.document_requirement_id)
+          .maybeSingle<{ name: string }>()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  const contractor = contractorResult.data;
+  const requirementName = requirementResult.data?.name ?? "Document";
+  const notified = contractor
+    ? await sendContractorNotification({
+        to: contractor.email,
+        subject: "Your document status was updated",
+        body: `Hello ${contractor.legal_name},
+
+An ANVEL admin updated a document status.
+
+Changes:
+
+* Document: ${requirementName}
+* Status: ${document.status} -> ${parsed.data.status}${parsed.data.reviewComment ? `\n* Review comment: ${parsed.data.reviewComment}` : ""}
+
+Updated by: ANVEL admin
+
+You can review the latest information in the portal.`,
+      })
+    : false;
+
   revalidatePath("/documents");
   revalidatePath(`/contractors/${document.contractor_id}/documents`);
   revalidatePath(`/contractors/${document.contractor_id}`);
   revalidatePath("/");
 
   return {
-    message: "Document review saved.",
+    message: notified
+      ? "Document review saved."
+      : "Document review saved, but the contractor notification email failed.",
     status: "success",
     fieldErrors: {},
   };

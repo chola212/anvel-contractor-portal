@@ -97,6 +97,10 @@ export default async function OutgoingInvoiceDetailPage({
           <DetailField label="Cancellation reason" value={invoice.cancellation_reason ?? "Not set"} />
           <DetailField label="Cancellation email" value={invoice.cancellation_email_status.replace("_", " ")} />
           <DetailField label="Cancellation emailed at" value={formatDateTime(invoice.cancellation_emailed_at)} />
+          <DetailField label="Replaces invoice" value={invoice.replaces_invoice_id ?? "Not set"} />
+          <DetailField label="Replaced by invoice" value={invoice.replaced_by_invoice_id ?? "Not set"} />
+          <DetailField label="Number manually edited" value={invoice.invoice_number_manually_edited ? "Yes" : "No"} />
+          <DetailField label="Previous invoice number" value={invoice.previous_invoice_number ?? "Not set"} />
         </dl>
       </section>
       <OutgoingInvoiceActions invoice={invoice} />

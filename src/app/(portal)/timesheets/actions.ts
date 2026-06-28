@@ -400,7 +400,7 @@ async function sendReopenCancellationEmails({
     const { data: invoices, error } = await supabase
       .from("outgoing_invoices")
       .select(
-        "id,invoice_number,billing_email,billing_cc_emails,consultant_name,email_status",
+        "id,invoice_number,billing_email,billing_cc_emails,consultant_name,project_name,email_status",
       )
       .in("id", result.outgoing_invoice_ids)
       .eq("email_status", "sent")
@@ -411,6 +411,7 @@ async function sendReopenCancellationEmails({
           billing_email: string;
           billing_cc_emails: string[];
           consultant_name: string;
+          project_name: string;
           email_status: "sent";
         }[]
       >();
@@ -426,6 +427,7 @@ async function sendReopenCancellationEmails({
             invoiceNumber: invoice.invoice_number,
             consultantName: invoice.consultant_name,
             monthLabel,
+            projectName: invoice.project_name,
             reason,
           });
           const sent = await sendPortalEmail({

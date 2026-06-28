@@ -1,9 +1,9 @@
 import { buildSelfBillingInvoiceEmail, sendPortalEmail } from "@/lib/email/portal-email";
-import { formatCurrency } from "@/lib/invoices/format";
+import type { CompanyInvoiceSettings } from "@/lib/outgoing-invoices/types";
 import { selectSingleStatementRate } from "@/lib/payment-statements/rate-selection";
 import type { VatTreatment } from "@/lib/contractors/types";
 import { createClient } from "@/lib/supabase/server";
-import { formatTimesheetMonth, formatHours } from "@/lib/timesheets/format";
+import { formatTimesheetMonth } from "@/lib/timesheets/format";
 import type { TimesheetEntryRecord, TimesheetRecord } from "@/lib/timesheets/types";
 
 import { createSelfBillingInvoicePdf } from "./pdf";
@@ -18,7 +18,8 @@ type ContractorForSelfBilling = {
   email: string;
   vat_treatment: VatTreatment | null;
   vat_number: string | null;
-  tax_number: string | null;
+  fiscal_address: string | null;
+  country: string | null;
 };
 
 type ProjectForSelfBilling = {
@@ -203,10 +204,15 @@ export async function generateSelfBillingInvoiceForTimesheet({
     };
   }
 
-  const [contractorResult, projectResult] = await Promise.all([
+  const [settingsResult, contractorResult, projectResult] = await Promise.all([
+    supabase
+      .from("company_invoice_settings")
+      .select("*")
+      .limit(1)
+      .maybeSingle<CompanyInvoiceSettings>(),
     supabase
       .from("contractors")
-      .select("id,legal_name,email,vat_treatment,vat_number,tax_number")
+      .select("id,legal_name,email,vat_treatment,vat_number,fiscal_address,country")
       .eq("id", timesheet.contractor_id)
       .maybeSingle<ContractorForSelfBilling>(),
     supabase
@@ -215,6 +221,14 @@ export async function generateSelfBillingInvoiceForTimesheet({
       .eq("id", timesheet.project_id)
       .maybeSingle<ProjectForSelfBilling>(),
   ]);
+
+  if (settingsResult.error) {
+    throw new Error(`Could not load company invoice settings: ${settingsResult.error.message}`);
+  }
+
+  if (!settingsResult.data) {
+    throw new Error("Complete company invoice settings before approving this timesheet for self-billing.");
+  }
 
   if (contractorResult.error || !contractorResult.data) {
     throw new Error("The contractor profile could not be loaded for self-billing.");
@@ -226,6 +240,7 @@ export async function generateSelfBillingInvoiceForTimesheet({
 
   const contractor = contractorResult.data;
   const project = projectResult.data;
+  const settings = settingsResult.data;
   const statement = await getOrCreatePaymentStatement(
     supabase,
     timesheet,
@@ -247,16 +262,26 @@ export async function generateSelfBillingInvoiceForTimesheet({
     invoiceDate,
     contractorLegalName: contractor.legal_name,
     contractorEmail: contractor.email,
+    contractorAddress: contractor.fiscal_address,
+    contractorCountry: contractor.country,
     contractorVatNumber: contractor.vat_number,
-    contractorTaxNumber: contractor.tax_number,
+    companyLegalName: settings.company_legal_name,
+    companyTradingName: settings.trading_name,
+    companyAddress: settings.company_address,
+    companyCityRegion: settings.company_city_region,
+    companyCountry: settings.company_country,
+    companyVatNumber: settings.company_vat_number,
     projectName: project.name,
+    contractorName: contractor.legal_name,
     monthLabel,
-    totalHours: formatHours(statement.total_hours),
-    hourlyRate: formatCurrency(statement.hourly_rate, statement.currency),
-    netAmount: formatCurrency(statement.net_amount, statement.currency),
+    timesheetReference: timesheet.id,
+    quantity: statement.total_hours,
+    unitLabel: "hours",
+    hourlyRate: statement.hourly_rate,
+    netAmount: statement.net_amount,
     vatTreatment: statement.vat_treatment,
-    vatAmount: formatCurrency(statement.vat_amount, statement.currency),
-    grossAmount: formatCurrency(statement.gross_amount, statement.currency),
+    vatAmount: statement.vat_amount,
+    grossAmount: statement.gross_amount,
     currency: statement.currency,
   });
 

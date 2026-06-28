@@ -54,6 +54,12 @@ export type OutgoingInvoice = {
   project_id: string;
   contractor_id: string;
   invoice_number: string;
+  invoice_number_manually_edited: boolean;
+  invoice_number_edited_at: string | null;
+  invoice_number_edited_by: string | null;
+  previous_invoice_number: string | null;
+  replaces_invoice_id: string | null;
+  replaced_by_invoice_id: string | null;
   invoice_date: string;
   due_date: string;
   year: number;

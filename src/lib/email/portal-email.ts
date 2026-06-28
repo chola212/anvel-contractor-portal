@@ -160,16 +160,19 @@ export function buildOutgoingInvoiceCancellationEmail({
   invoiceNumber,
   consultantName,
   monthLabel,
+  projectName,
   reason,
 }: {
   invoiceNumber: string;
   consultantName: string;
   monthLabel: string;
+  projectName: string;
   reason: string;
 }) {
   const safeInvoiceNumber = escapeEmailHtml(invoiceNumber);
   const safeConsultantName = escapeEmailHtml(consultantName);
   const safeMonthLabel = escapeEmailHtml(monthLabel);
+  const safeProjectName = escapeEmailHtml(projectName);
   const safeReason = escapeEmailHtml(reason);
 
   return {
@@ -177,21 +180,22 @@ export function buildOutgoingInvoiceCancellationEmail({
     html: wrapEmailHtml(
       `Invoice ${safeInvoiceNumber} cancelled`,
       `<p>Hello,</p>
-       <p>Invoice <strong>${safeInvoiceNumber}</strong> is no longer valid because its source timesheet was reopened for correction.</p>
-       <p>Consultant: ${safeConsultantName}<br />Period: ${safeMonthLabel}</p>
+       <p>Invoice <strong>${safeInvoiceNumber}</strong> is no longer valid.</p>
+       <p>Consultant: ${safeConsultantName}<br />Project: ${safeProjectName}<br />Period: ${safeMonthLabel}</p>
        <p>Reason: ${safeReason}</p>
-       <p>Please do not process the cancelled invoice. A replacement will be issued after the corrected timesheet is approved.</p>
+       <p>Please disregard the previous invoice and do not process it for payment. A replacement invoice will be issued if required.</p>
        <p>Kind regards,<br />ANVEL Consulting</p>`,
     ),
     text: `Hello,
 
-Invoice ${invoiceNumber} is no longer valid because its source timesheet was reopened for correction.
+Invoice ${invoiceNumber} is no longer valid.
 
 Consultant: ${consultantName}
+Project: ${projectName}
 Period: ${monthLabel}
 Reason: ${reason}
 
-Please do not process the cancelled invoice. A replacement will be issued after the corrected timesheet is approved.
+Please disregard the previous invoice and do not process it for payment. A replacement invoice will be issued if required.
 
 Kind regards,
 ANVEL Consulting`,
@@ -242,7 +246,7 @@ export function buildInviteEmail(contractorName: string, inviteLink: string) {
         <p>This portal is used to:</p>
         <ul>
           <li>keep your contractor profile and company details up to date;</li>
-          <li>upload and review required documents such as the Contractor Agreement, NDA and Assignment Schedule;</li>
+          <li>upload and review required documents such as the Contractor Agreement, Signed NDA and Other documents;</li>
           <li>create and submit monthly timesheets;</li>
           <li>receive self-billing invoices generated from approved timesheets;</li>
           <li>track payment status.</li>
@@ -261,7 +265,7 @@ If the link does not open, copy and paste the secure URL above into your browser
 
 This portal is used to:
 - keep your contractor profile and company details up to date;
-- upload and review required documents such as the Contractor Agreement, NDA and Assignment Schedule;
+- upload and review required documents such as the Contractor Agreement, Signed NDA and Other documents;
 - create and submit monthly timesheets;
 - receive self-billing invoices generated from approved timesheets;
 - track payment status.

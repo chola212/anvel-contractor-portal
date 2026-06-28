@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/profile";
+import { sendContractorNotification } from "@/lib/email/notifications";
 import { createClient } from "@/lib/supabase/server";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -151,6 +152,46 @@ export type ProjectCreateState = {
   status: "idle" | "success" | "error";
   fieldErrors: Record<string, string[] | undefined>;
 };
+
+function displayValue(value: string | number | null | undefined) {
+  return value === null || value === undefined || value === "" ? "Not set" : String(value);
+}
+
+function changeLine(label: string, before: string | number | null | undefined, after: string | number | null | undefined) {
+  if (displayValue(before) === displayValue(after)) return null;
+  return `* ${label}: ${displayValue(before)} -> ${displayValue(after)}`;
+}
+
+async function notifyAssignmentChange({
+  contractorEmail,
+  contractorName,
+  subject,
+  intro,
+  changes,
+}: {
+  contractorEmail: string;
+  contractorName: string;
+  subject: string;
+  intro: string;
+  changes: string[];
+}) {
+  if (changes.length === 0) return true;
+  return sendContractorNotification({
+    to: contractorEmail,
+    subject,
+    body: `Hello ${contractorName},
+
+${intro}
+
+Changes:
+
+${changes.join("\n")}
+
+Updated by: ANVEL admin
+
+You can review the latest information in the portal.`,
+  });
+}
 
 export async function saveProjectBillingDetailsAction(
   _previousState: ProjectCreateState,
@@ -612,6 +653,37 @@ export async function createAssignmentAction(
     };
   }
 
+  const [contractorResult, projectResult] = await Promise.all([
+    supabase
+      .from("contractors")
+      .select("legal_name,email")
+      .eq("id", parsed.data.contractorId)
+      .maybeSingle<{ legal_name: string; email: string }>(),
+    supabase
+      .from("projects")
+      .select("name")
+      .eq("id", parsed.data.projectId)
+      .maybeSingle<{ name: string }>(),
+  ]);
+  const contractor = contractorResult.data;
+  const project = projectResult.data;
+  const notified =
+    contractor && project
+      ? await notifyAssignmentChange({
+          contractorEmail: contractor.email,
+          contractorName: contractor.legal_name,
+          subject: "Your project assignment was created",
+          intro: `An ANVEL admin assigned you to ${project.name}.`,
+          changes: [
+            `* Project: ${project.name}`,
+            `* Status: ${parsed.data.status}`,
+            `* Start date: ${displayValue(parsed.data.startDate)}`,
+            `* End date: ${displayValue(parsed.data.endDate)}`,
+            `* Hourly rate: ${parsed.data.hourlyRate} EUR`,
+          ],
+        })
+      : false;
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/contractors/${parsed.data.contractorId}`);
   revalidatePath(`/contractors/${parsed.data.contractorId}/timesheets`);
@@ -620,7 +692,9 @@ export async function createAssignmentAction(
   revalidatePath("/");
 
   return {
-    message: "Assignment created.",
+    message: notified
+      ? "Assignment created."
+      : "Assignment created, but the contractor notification email failed.",
     status: "success",
     fieldErrors: {},
   };
@@ -771,6 +845,37 @@ export async function updateAssignmentStatusAction(
     };
   }
 
+  const [contractorResult, projectResult] = await Promise.all([
+    supabase
+      .from("contractors")
+      .select("legal_name,email")
+      .eq("id", parsed.data.contractorId)
+      .maybeSingle<{ legal_name: string; email: string }>(),
+    supabase
+      .from("projects")
+      .select("name")
+      .eq("id", parsed.data.projectId)
+      .maybeSingle<{ name: string }>(),
+  ]);
+  const changes = [
+    changeLine("Status", currentAssignment.status, parsed.data.status),
+    changeLine("Start date", currentAssignment.start_date, parsed.data.startDate),
+    changeLine("End date", currentAssignment.end_date, parsed.data.endDate),
+    changeLine("Hourly rate", `${Number(currentAssignment.hourly_rate).toFixed(2)} EUR`, `${Number(parsed.data.hourlyRate).toFixed(2)} EUR`),
+  ].filter((line): line is string => Boolean(line));
+  const notified =
+    contractorResult.data && projectResult.data
+      ? await notifyAssignmentChange({
+          contractorEmail: contractorResult.data.email,
+          contractorName: contractorResult.data.legal_name,
+          subject: changes.some((line) => line.startsWith("* Hourly rate"))
+            ? "Your rate was updated"
+            : "Your project assignment was updated",
+          intro: `An ANVEL admin updated your assignment for ${projectResult.data.name}.`,
+          changes,
+        })
+      : false;
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/contractors/${parsed.data.contractorId}`);
   revalidatePath(`/contractors/${parsed.data.contractorId}/timesheets`);
@@ -779,7 +884,9 @@ export async function updateAssignmentStatusAction(
   revalidatePath("/");
 
   return {
-    message: "Assignment updated.",
+    message: notified
+      ? "Assignment updated."
+      : "Assignment updated, but the contractor notification email failed.",
     status: "success",
     fieldErrors: {},
   };
