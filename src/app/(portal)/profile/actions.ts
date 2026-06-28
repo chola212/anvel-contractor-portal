@@ -30,6 +30,8 @@ const contractorSelfUpdateSchema = z.object({
   vatNumber: optionalText,
   taxNumber: optionalText,
   fiscalAddress: optionalText,
+  fiscalAddressLine1: optionalText,
+  fiscalAddressLine2: optionalText,
   vatTreatment: z
     .enum([
       "eu_reverse_charge",
@@ -42,6 +44,14 @@ const contractorSelfUpdateSchema = z.object({
     .nullable()
     .or(z.literal("").transform(() => null)),
 });
+
+function cleanOptionalText(value: FormDataEntryValue | null) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function combineAddress(line1: string | null, line2: string | null) {
+  return [line1, line2].filter(Boolean).join("\n") || null;
+}
 
 export type ContractorSelfUpdateState = {
   message: string | null;
@@ -64,7 +74,13 @@ export async function updateOwnContractorProfileAction(
     companyRegistrationNumber: formData.get("companyRegistrationNumber"),
     vatNumber: formData.get("vatNumber"),
     taxNumber: formData.get("taxNumber"),
-    fiscalAddress: formData.get("fiscalAddress"),
+    fiscalAddress:
+      combineAddress(
+        cleanOptionalText(formData.get("fiscalAddressLine1")),
+        cleanOptionalText(formData.get("fiscalAddressLine2")),
+      ) ?? "",
+    fiscalAddressLine1: formData.get("fiscalAddressLine1"),
+    fiscalAddressLine2: formData.get("fiscalAddressLine2"),
     vatTreatment: formData.get("vatTreatment"),
   });
 

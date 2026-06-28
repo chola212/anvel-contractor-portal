@@ -46,6 +46,8 @@ const createContractorSchema = z.object({
   vatNumber: optionalText,
   taxNumber: optionalText,
   fiscalAddress: optionalText,
+  fiscalAddressLine1: optionalText,
+  fiscalAddressLine2: optionalText,
   vatTreatment: z
     .enum([
       "eu_reverse_charge",
@@ -124,6 +126,14 @@ function maskIbanForAudit(value: string | null) {
 
 function displayValue(value: string | number | null | undefined) {
   return value === null || value === undefined || value === "" ? "Not set" : String(value);
+}
+
+function combineAddress(line1: string | null, line2: string | null) {
+  return [line1, line2].filter(Boolean).join("\n") || null;
+}
+
+function cleanOptionalText(value: FormDataEntryValue | null) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function changeLine(label: string, before: string | number | null | undefined, after: string | number | null | undefined) {
@@ -212,7 +222,13 @@ export async function createContractorAction(
     companyRegistrationNumber: formData.get("companyRegistrationNumber"),
     vatNumber: formData.get("vatNumber"),
     taxNumber: formData.get("taxNumber"),
-    fiscalAddress: formData.get("fiscalAddress"),
+    fiscalAddress:
+      combineAddress(
+        cleanOptionalText(formData.get("fiscalAddressLine1")),
+        cleanOptionalText(formData.get("fiscalAddressLine2")),
+      ) ?? "",
+    fiscalAddressLine1: formData.get("fiscalAddressLine1"),
+    fiscalAddressLine2: formData.get("fiscalAddressLine2"),
     vatTreatment: formData.get("vatTreatment"),
     status: formData.get("status"),
   });
@@ -367,6 +383,8 @@ export async function createContractorAction(
     vat_number: parsed.data.vatNumber,
     tax_number: parsed.data.taxNumber,
     fiscal_address: parsed.data.fiscalAddress,
+    fiscal_address_line_1: parsed.data.fiscalAddressLine1,
+    fiscal_address_line_2: parsed.data.fiscalAddressLine2,
     vat_treatment: parsed.data.vatTreatment,
     bank_currency: "EUR",
     status: parsed.data.status,
@@ -482,7 +500,13 @@ export async function updateContractorAction(
     companyRegistrationNumber: formData.get("companyRegistrationNumber"),
     vatNumber: formData.get("vatNumber"),
     taxNumber: formData.get("taxNumber"),
-    fiscalAddress: formData.get("fiscalAddress"),
+    fiscalAddress:
+      combineAddress(
+        cleanOptionalText(formData.get("fiscalAddressLine1")),
+        cleanOptionalText(formData.get("fiscalAddressLine2")),
+      ) ?? "",
+    fiscalAddressLine1: formData.get("fiscalAddressLine1"),
+    fiscalAddressLine2: formData.get("fiscalAddressLine2"),
     vatTreatment: formData.get("vatTreatment"),
     status: formData.get("status"),
   });
@@ -512,6 +536,8 @@ export async function updateContractorAction(
         "vat_number",
         "tax_number",
         "fiscal_address",
+        "fiscal_address_line_1",
+        "fiscal_address_line_2",
         "vat_treatment",
         "status",
       ].join(","),
@@ -530,6 +556,8 @@ export async function updateContractorAction(
       vat_number: string | null;
       tax_number: string | null;
       fiscal_address: string | null;
+      fiscal_address_line_1: string | null;
+      fiscal_address_line_2: string | null;
       vat_treatment: string | null;
       status: string;
     }>();
@@ -553,6 +581,8 @@ export async function updateContractorAction(
     vat_number: parsed.data.vatNumber,
     tax_number: parsed.data.taxNumber,
     fiscal_address: parsed.data.fiscalAddress,
+    fiscal_address_line_1: parsed.data.fiscalAddressLine1,
+    fiscal_address_line_2: parsed.data.fiscalAddressLine2,
     vat_treatment: parsed.data.vatTreatment,
     status: parsed.data.status,
   };
@@ -632,6 +662,8 @@ export async function updateContractorAction(
         vat_number: currentContractor.vat_number,
         tax_number: currentContractor.tax_number,
         fiscal_address: currentContractor.fiscal_address,
+        fiscal_address_line_1: currentContractor.fiscal_address_line_1,
+        fiscal_address_line_2: currentContractor.fiscal_address_line_2,
         vat_treatment: currentContractor.vat_treatment,
         status: currentContractor.status,
       },

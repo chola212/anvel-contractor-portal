@@ -12,6 +12,10 @@ import {
 } from "@/lib/outgoing-invoices/queries";
 import { formatTimesheetMonth } from "@/lib/timesheets/format";
 
+function addressValue(line1: string | null, line2: string | null, fallback: string) {
+  return [line1 ?? fallback, line2].filter(Boolean).join("\n");
+}
+
 export default async function OutgoingInvoiceDetailPage({
   params,
 }: {
@@ -50,7 +54,14 @@ export default async function OutgoingInvoiceDetailPage({
             <DetailField label="Legal name" value={invoice.billing_legal_name} />
             <DetailField label="Email" value={invoice.billing_email} />
             <DetailField label="CC" value={invoice.billing_cc_emails.join(", ") || "None"} />
-            <DetailField label="Address" value={invoice.billing_address} />
+            <DetailField
+              label="Address"
+              value={addressValue(
+                invoice.billing_address_line_1,
+                invoice.billing_address_line_2,
+                invoice.billing_address,
+              )}
+            />
             <DetailField label="Country" value={invoice.billing_country} />
             <DetailField label="VAT number" value={invoice.billing_vat_number} />
             <DetailField label="PO reference" value={invoice.po_reference ?? "None"} />
@@ -60,7 +71,14 @@ export default async function OutgoingInvoiceDetailPage({
           <h2 className="font-semibold">Company sender snapshot</h2>
           <dl className="mt-2">
             <DetailField label="Legal name" value={invoice.company_legal_name} />
-            <DetailField label="Address" value={invoice.company_address} />
+            <DetailField
+              label="Address"
+              value={addressValue(
+                invoice.company_address_line_1,
+                invoice.company_address_line_2,
+                invoice.company_address,
+              )}
+            />
             <DetailField label="Country" value={invoice.company_country} />
             <DetailField label="VAT number" value={invoice.company_vat_number} />
             <DetailField label="Bank" value={invoice.company_bank_name} />
@@ -74,7 +92,6 @@ export default async function OutgoingInvoiceDetailPage({
         <dl className="mt-2 grid gap-x-6 md:grid-cols-2">
           <DetailField label="Project" value={invoice.project_name} />
           <DetailField label="Consultant" value={invoice.consultant_name} />
-          <DetailField label="Timesheet" value={invoice.timesheet_id} />
           <DetailField label="Approved hours" value={String(invoice.quantity)} />
           <DetailField label="Sales rate" value={formatCurrency(invoice.sales_rate)} />
           <DetailField label="VAT treatment" value={invoice.vat_treatment.replaceAll("_", " ")} />
@@ -84,7 +101,7 @@ export default async function OutgoingInvoiceDetailPage({
       <section className="rounded-md border border-neutral-200 bg-white p-5">
         <h2 className="font-semibold">PDF, email and payment</h2>
         <div className="mt-3 flex flex-wrap gap-3">
-          {invoice.pdf_file_path ? <Link href={`/outgoing-invoices/${invoice.id}/download`} className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium">Download PDF</Link> : <span className="text-sm text-amber-700">PDF not generated</span>}
+          {invoice.pdf_file_path ? <Link href={`/outgoing-invoices/${invoice.id}/download`} target="_blank" rel="noopener noreferrer" className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium">Download PDF</Link> : <span className="text-sm text-amber-700">PDF not generated</span>}
         </div>
         <dl className="mt-3 grid gap-x-6 md:grid-cols-2">
           <DetailField label="Email status" value={invoice.email_status.replace("_", " ")} />
@@ -93,9 +110,16 @@ export default async function OutgoingInvoiceDetailPage({
           <DetailField label="Paid amount" value={formatCurrency(invoice.paid_amount)} />
           <DetailField label="Payment reference" value={invoice.payment_reference ?? "Not set"} />
           <DetailField label="Internal note" value={invoice.internal_note ?? "Not set"} />
-          <DetailField label="Cancelled at" value={formatDateTime(invoice.cancelled_at)} />
           <DetailField label="Cancellation reason" value={invoice.cancellation_reason ?? "Not set"} />
           <DetailField label="Cancellation email" value={invoice.cancellation_email_status.replace("_", " ")} />
+        </dl>
+      </section>
+      <OutgoingInvoiceActions invoice={invoice} />
+      <section className="rounded-md border border-neutral-200 bg-white p-5">
+        <h2 className="font-semibold">Advanced details</h2>
+        <dl className="mt-3 grid gap-x-6 md:grid-cols-2">
+          <DetailField label="Timesheet ID" value={invoice.timesheet_id} />
+          <DetailField label="Cancelled at" value={formatDateTime(invoice.cancelled_at)} />
           <DetailField label="Cancellation emailed at" value={formatDateTime(invoice.cancellation_emailed_at)} />
           <DetailField label="Replaces invoice" value={invoice.replaces_invoice_id ?? "Not set"} />
           <DetailField label="Replaced by invoice" value={invoice.replaced_by_invoice_id ?? "Not set"} />
@@ -103,7 +127,6 @@ export default async function OutgoingInvoiceDetailPage({
           <DetailField label="Previous invoice number" value={invoice.previous_invoice_number ?? "Not set"} />
         </dl>
       </section>
-      <OutgoingInvoiceActions invoice={invoice} />
       <section className="rounded-md border border-neutral-200 bg-white p-5">
         <h2 className="font-semibold">Audit history</h2>
         {auditLogs.length === 0 ? (

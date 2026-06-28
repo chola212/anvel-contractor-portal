@@ -56,17 +56,9 @@ export function ContractorCreateForm() {
   return (
     <section className="rounded-md border border-neutral-200 bg-white p-5">
       <div className="max-w-3xl">
-        <p className="text-sm font-medium text-neutral-500">
-          Admin contractor setup
-        </p>
         <h2 className="mt-2 text-lg font-semibold text-neutral-950">
-          Create a contractor profile
+          Create contractor
         </h2>
-        <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Create an invite-only portal account and the linked contractor
-          business profile in one audited workflow. Bank details remain out of
-          this setup form.
-        </p>
       </div>
 
       <form action={formAction} className="mt-5 grid gap-5">
@@ -298,20 +290,37 @@ export function ContractorCreateForm() {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label
-            htmlFor="fiscalAddress"
-            className="block text-sm font-medium text-neutral-800"
-          >
-            Fiscal address
-          </label>
-          <textarea
-            id="fiscalAddress"
-            name="fiscalAddress"
-            rows={3}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-          />
-          <FieldError errors={state.fieldErrors.fiscalAddress} />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-2">
+            <label
+              htmlFor="fiscalAddressLine1"
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Fiscal address line 1
+            </label>
+            <input
+              id="fiscalAddressLine1"
+              name="fiscalAddressLine1"
+              type="text"
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.fiscalAddressLine1} />
+          </div>
+          <div className="space-y-2">
+            <label
+              htmlFor="fiscalAddressLine2"
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Fiscal address line 2
+            </label>
+            <input
+              id="fiscalAddressLine2"
+              name="fiscalAddressLine2"
+              type="text"
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.fiscalAddressLine2} />
+          </div>
         </div>
 
         <div className="flex justify-end">

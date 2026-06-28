@@ -86,7 +86,8 @@ const billingDetailsSchema = z.object({
       (emails) => emails.every((email) => z.string().email().safeParse(email).success),
       "Enter valid comma-separated CC email addresses.",
     ),
-  billingAddress: z.string().trim().min(1, "Billing address is required.").max(500),
+  billingAddressLine1: z.string().trim().min(1, "Billing address line 1 is required.").max(500),
+  billingAddressLine2: optionalText,
   billingCountry: z.string().trim().min(1, "Billing country is required.").max(120),
   billingVatNumber: z.string().trim().min(1, "Billing VAT number is required.").max(120),
   poReference: optionalText,
@@ -157,6 +158,10 @@ function displayValue(value: string | number | null | undefined) {
   return value === null || value === undefined || value === "" ? "Not set" : String(value);
 }
 
+function combineAddress(line1: string, line2: string | null) {
+  return [line1, line2].filter(Boolean).join("\n");
+}
+
 function changeLine(label: string, before: string | number | null | undefined, after: string | number | null | undefined) {
   if (displayValue(before) === displayValue(after)) return null;
   return `* ${label}: ${displayValue(before)} -> ${displayValue(after)}`;
@@ -203,7 +208,8 @@ export async function saveProjectBillingDetailsAction(
     billingLegalName: formData.get("billingLegalName"),
     billingEmail: formData.get("billingEmail"),
     billingCcEmails: formData.get("billingCcEmails"),
-    billingAddress: formData.get("billingAddress"),
+    billingAddressLine1: formData.get("billingAddressLine1"),
+    billingAddressLine2: formData.get("billingAddressLine2"),
     billingCountry: formData.get("billingCountry"),
     billingVatNumber: formData.get("billingVatNumber"),
     poReference: formData.get("poReference"),
@@ -229,7 +235,12 @@ export async function saveProjectBillingDetailsAction(
         billing_legal_name: parsed.data.billingLegalName,
         billing_email: parsed.data.billingEmail,
         billing_cc_emails: parsed.data.billingCcEmails,
-        billing_address: parsed.data.billingAddress,
+        billing_address: combineAddress(
+          parsed.data.billingAddressLine1,
+          parsed.data.billingAddressLine2,
+        ),
+        billing_address_line_1: parsed.data.billingAddressLine1,
+        billing_address_line_2: parsed.data.billingAddressLine2,
         billing_country: parsed.data.billingCountry,
         billing_vat_number: parsed.data.billingVatNumber,
         po_reference: parsed.data.poReference,

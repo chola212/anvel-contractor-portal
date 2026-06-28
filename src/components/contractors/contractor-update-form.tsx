@@ -72,16 +72,9 @@ export function ContractorUpdateForm({
   return (
     <section className="rounded-md border border-neutral-200 bg-white p-5">
       <div className="max-w-3xl">
-        <p className="text-sm font-medium text-neutral-500">
-          Admin contractor update
-        </p>
         <h2 className="mt-2 text-lg font-semibold text-neutral-950">
-          Edit contractor profile
+          Edit contractor
         </h2>
-        <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Update operational profile details only. Bank account editing stays
-          out of this form.
-        </p>
       </div>
 
       <form action={formAction} className="mt-5 grid gap-5">
@@ -327,21 +320,39 @@ export function ContractorUpdateForm({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label
-            htmlFor={`fiscal-address-${contractor.id}`}
-            className="block text-sm font-medium text-neutral-800"
-          >
-            Fiscal address
-          </label>
-          <textarea
-            id={`fiscal-address-${contractor.id}`}
-            name="fiscalAddress"
-            rows={3}
-            defaultValue={contractor.fiscal_address ?? ""}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-          />
-          <FieldError errors={state.fieldErrors.fiscalAddress} />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-2">
+            <label
+              htmlFor={`fiscal-address-line-1-${contractor.id}`}
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Fiscal address line 1
+            </label>
+            <input
+              id={`fiscal-address-line-1-${contractor.id}`}
+              name="fiscalAddressLine1"
+              type="text"
+              defaultValue={contractor.fiscal_address_line_1 ?? contractor.fiscal_address ?? ""}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.fiscalAddressLine1} />
+          </div>
+          <div className="space-y-2">
+            <label
+              htmlFor={`fiscal-address-line-2-${contractor.id}`}
+              className="block text-sm font-medium text-neutral-800"
+            >
+              Fiscal address line 2
+            </label>
+            <input
+              id={`fiscal-address-line-2-${contractor.id}`}
+              name="fiscalAddressLine2"
+              type="text"
+              defaultValue={contractor.fiscal_address_line_2 ?? ""}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-950 shadow-sm outline-none transition-colors focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            />
+            <FieldError errors={state.fieldErrors.fiscalAddressLine2} />
+          </div>
         </div>
 
         <div className="flex justify-end">

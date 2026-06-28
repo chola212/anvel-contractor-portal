@@ -17,9 +17,7 @@ export default async function CompanySettingsPage() {
         <h1 className="mt-4 text-3xl font-semibold text-neutral-950">
           Company invoice settings
         </h1>
-        <p className="mt-2 text-neutral-600">
-          Sender, VAT and bank details snapshotted into outgoing client invoices.
-        </p>
+        <p className="mt-2 text-neutral-600">Company, VAT and bank details.</p>
       </section>
       <CompanyInvoiceSettingsForm settings={settings} />
     </div>

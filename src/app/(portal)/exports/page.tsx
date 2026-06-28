@@ -48,8 +48,7 @@ export default async function ExportsPage({ searchParams }: ExportsPageProps) {
           Exports
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Download accountant-ready CSV files from uploaded invoice metadata,
-          payment statement values, project labels and manual payment status.
+          Download accountant CSV exports.
         </p>
       </section>
 
@@ -58,8 +57,7 @@ export default async function ExportsPage({ searchParams }: ExportsPageProps) {
           Accountant invoice export
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
-          This export does not include bank details or private document links.
-          Use it for accountant review and payment reconciliation.
+          Excludes bank details and private file links.
         </p>
 
         <form className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -112,6 +110,8 @@ export default async function ExportsPage({ searchParams }: ExportsPageProps) {
           <Link
             className="inline-flex justify-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
             href={`/exports/accountant?${exportParams.toString()}`}
+            target="_blank"
+            rel="noopener noreferrer"
           >
             Download CSV
           </Link>
@@ -124,8 +124,7 @@ export default async function ExportsPage({ searchParams }: ExportsPageProps) {
             Export preview
           </h2>
           <p className="mt-2 text-sm leading-6 text-neutral-600">
-            Preview shows the first invoice rows that will be included in the
-            CSV.
+            Preview of exported rows.
           </p>
         </div>
         <div className="overflow-x-auto">

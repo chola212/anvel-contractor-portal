@@ -43,9 +43,7 @@ export default async function PaymentsPage({
           Payments
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Manual payment status tracking for self-billing and optional manual
-          invoices. This screen does not process bank payments or collect
-          payment cards.
+          Track payment status.
         </p>
       </section>
 

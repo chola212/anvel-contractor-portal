@@ -48,8 +48,30 @@ function wrapDescription(value: string, maxLength = 54) {
   return lines.slice(0, 2);
 }
 
+function splitAddressLines(
+  line1: string | null | undefined,
+  line2: string | null | undefined,
+  fallback: string,
+) {
+  const fallbackLines = fallback.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return [
+    line1?.trim() || fallbackLines[0] || fallback,
+    line2?.trim() || fallbackLines.slice(1).join(", "),
+  ].filter(Boolean);
+}
+
 export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
   const line = invoice.lines[0];
+  const companyAddressLines = splitAddressLines(
+    invoice.company_address_line_1,
+    invoice.company_address_line_2,
+    invoice.company_address,
+  );
+  const billingAddressLines = splitAddressLines(
+    invoice.billing_address_line_1,
+    invoice.billing_address_line_2,
+    invoice.billing_address,
+  );
   const descriptionLines = wrapDescription(
     line?.description ?? "Consultancy fees",
   );
@@ -72,18 +94,20 @@ export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
     right(`Due date: ${invoice.due_date}`, 530, 746, 9),
     text("FROM", 55, 710, 9, true),
     text(invoice.company_legal_name, 55, 692, 10, true),
-    text(invoice.company_address, 55, 677),
+    text(companyAddressLines[0] ?? "", 55, 677),
+    ...(companyAddressLines[1] ? [text(companyAddressLines[1], 55, 663)] : []),
     text(
       [invoice.company_city_region, invoice.company_country].filter(Boolean).join(", "),
       55,
-      663,
+      companyAddressLines[1] ? 649 : 663,
     ),
-    text(`VAT No.: ${invoice.company_vat_number}`, 55, 649),
+    text(`VAT No.: ${invoice.company_vat_number}`, 55, companyAddressLines[1] ? 635 : 649),
     text("INVOICE TO", 320, 710, 9, true),
     text(invoice.billing_legal_name, 320, 692, 10, true),
-    text(invoice.billing_address, 320, 677),
-    text(invoice.billing_country, 320, 663),
-    text(`VAT No.: ${invoice.billing_vat_number}`, 320, 649),
+    text(billingAddressLines[0] ?? "", 320, 677),
+    ...(billingAddressLines[1] ? [text(billingAddressLines[1], 320, 663)] : []),
+    text(invoice.billing_country, 320, billingAddressLines[1] ? 649 : 663),
+    text(`VAT No.: ${invoice.billing_vat_number}`, 320, billingAddressLines[1] ? 635 : 649),
     rule(45, 630, 550, 630),
     box(45, 552, 505, 62, true),
     "0 0 0 rg",

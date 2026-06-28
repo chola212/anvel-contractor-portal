@@ -17,7 +17,8 @@ const optionalText = z
 const companySettingsSchema = z.object({
   companyLegalName: requiredText("Company legal name"),
   tradingName: optionalText,
-  companyAddress: requiredText("Company address"),
+  companyAddressLine1: requiredText("Company address line 1"),
+  companyAddressLine2: optionalText,
   companyCityRegion: optionalText,
   companyCountry: requiredText("Company country"),
   companyVatNumber: requiredText("Company VAT number"),
@@ -28,6 +29,10 @@ const companySettingsSchema = z.object({
   iban: requiredText("IBAN"),
   swiftBic: requiredText("SWIFT/BIC"),
 });
+
+function combineAddress(line1: string, line2: string | null) {
+  return [line1, line2].filter(Boolean).join("\n");
+}
 
 export type CompanySettingsState = {
   status: "idle" | "success" | "error";
@@ -43,7 +48,8 @@ export async function saveCompanyInvoiceSettingsAction(
   const parsed = companySettingsSchema.safeParse({
     companyLegalName: formData.get("companyLegalName"),
     tradingName: formData.get("tradingName"),
-    companyAddress: formData.get("companyAddress"),
+    companyAddressLine1: formData.get("companyAddressLine1"),
+    companyAddressLine2: formData.get("companyAddressLine2"),
     companyCityRegion: formData.get("companyCityRegion"),
     companyCountry: formData.get("companyCountry"),
     companyVatNumber: formData.get("companyVatNumber"),
@@ -68,7 +74,12 @@ export async function saveCompanyInvoiceSettingsAction(
     singleton_key: true,
     company_legal_name: parsed.data.companyLegalName,
     trading_name: parsed.data.tradingName,
-    company_address: parsed.data.companyAddress,
+    company_address: combineAddress(
+      parsed.data.companyAddressLine1,
+      parsed.data.companyAddressLine2,
+    ),
+    company_address_line_1: parsed.data.companyAddressLine1,
+    company_address_line_2: parsed.data.companyAddressLine2,
     company_city_region: parsed.data.companyCityRegion,
     company_country: parsed.data.companyCountry,
     company_vat_number: parsed.data.companyVatNumber,

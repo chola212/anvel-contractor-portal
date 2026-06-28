@@ -17,9 +17,7 @@ export default async function ContractorsPage() {
           Contractors
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Contractor profile overview for internal users. Admins can create
-          invite-only contractor accounts without public registration or
-          candidate data.
+          Manage contractor profiles.
         </p>
       </section>
 

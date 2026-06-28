@@ -135,6 +135,9 @@ export async function generateOutgoingInvoiceForTimesheet({
     company_legal_name: context.settings.company_legal_name,
     company_trading_name: context.settings.trading_name,
     company_address: context.settings.company_address,
+    company_address_line_1:
+      context.settings.company_address_line_1 ?? context.settings.company_address,
+    company_address_line_2: context.settings.company_address_line_2,
     company_city_region: context.settings.company_city_region,
     company_country: context.settings.company_country,
     company_vat_number: context.settings.company_vat_number,
@@ -147,6 +150,9 @@ export async function generateOutgoingInvoiceForTimesheet({
     billing_email: context.billing.billing_email,
     billing_cc_emails: context.billing.billing_cc_emails,
     billing_address: context.billing.billing_address,
+    billing_address_line_1:
+      context.billing.billing_address_line_1 ?? context.billing.billing_address,
+    billing_address_line_2: context.billing.billing_address_line_2,
     billing_country: context.billing.billing_country,
     billing_vat_number: context.billing.billing_vat_number,
     po_reference: context.billing.po_reference,

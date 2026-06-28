@@ -49,11 +49,6 @@ export function SideNavigation({ items }: SideNavigationProps) {
           })}
         </ul>
       </nav>
-      <div className="border-t border-neutral-200 px-6 py-4">
-        <p className="text-xs font-medium text-neutral-500">
-          Access model planned: admin, operations, contractor.
-        </p>
-      </div>
     </aside>
   );
 }

@@ -6,11 +6,15 @@ type SelfBillingPdfInput = {
   contractorLegalName: string;
   contractorEmail: string;
   contractorAddress: string | null;
+  contractorAddressLine1: string | null;
+  contractorAddressLine2: string | null;
   contractorCountry: string | null;
   contractorVatNumber: string | null;
   companyLegalName: string;
   companyTradingName: string | null;
   companyAddress: string;
+  companyAddressLine1: string | null;
+  companyAddressLine2: string | null;
   companyCityRegion: string | null;
   companyCountry: string;
   companyVatNumber: string;
@@ -90,6 +94,21 @@ function vatLabel(vatTreatment: VatTreatment) {
         : "VAT (accountant review required)";
 }
 
+function splitAddressLines(
+  line1: string | null | undefined,
+  line2: string | null | undefined,
+  fallback: string | null,
+) {
+  const fallbackLines = (fallback ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return [
+    line1?.trim() || fallbackLines[0] || null,
+    line2?.trim() || fallbackLines.slice(1).join(", ") || null,
+  ].filter(Boolean);
+}
+
 export function createSelfBillingInvoicePdf(input: SelfBillingPdfInput) {
   const descriptionLines = wrapText(
     `Consultancy services - ${input.contractorName} - ${input.projectName} - ${input.monthLabel}`,
@@ -102,6 +121,20 @@ export function createSelfBillingInvoicePdf(input: SelfBillingPdfInput) {
   const customerLocation = [input.companyCityRegion, input.companyCountry]
     .filter(Boolean)
     .join(", ");
+  const supplierAddressLines = splitAddressLines(
+    input.contractorAddressLine1,
+    input.contractorAddressLine2,
+    input.contractorAddress,
+  );
+  const customerAddressLines = splitAddressLines(
+    input.companyAddressLine1,
+    input.companyAddressLine2,
+    input.companyAddress,
+  );
+  const supplierCountryY = supplierAddressLines[1] ? 642 : 654;
+  const supplierVatY = input.contractorCountry
+    ? supplierCountryY - 12
+    : supplierCountryY;
   const supplierVat = input.contractorVatNumber
     ? [`VAT No.: ${input.contractorVatNumber}`]
     : [];
@@ -117,16 +150,18 @@ export function createSelfBillingInvoicePdf(input: SelfBillingPdfInput) {
     right(`Total due: ${money(input.grossAmount, input.currency)}`, 530, 746, 9, true),
     text("FROM / SUPPLIER", 55, 710, 9, true),
     text(input.contractorLegalName, 55, 692, 10, true),
-    text(`Email: ${input.contractorEmail}`, 55, 677),
-    ...(input.contractorAddress ? [text(input.contractorAddress, 55, 663)] : []),
-    ...(input.contractorCountry ? [text(input.contractorCountry, 55, 649)] : []),
-    ...supplierVat.map((value, index) => text(value, 55, 635 - index * 14)),
+    text(`Email: ${input.contractorEmail}`, 55, 678),
+    ...(supplierAddressLines[0] ? [text(supplierAddressLines[0], 55, 666)] : []),
+    ...(supplierAddressLines[1] ? [text(supplierAddressLines[1], 55, 654)] : []),
+    ...(input.contractorCountry ? [text(input.contractorCountry, 55, supplierCountryY)] : []),
+    ...supplierVat.map((value, index) => text(value, 55, supplierVatY - index * 14)),
     text("INVOICE TO / CUSTOMER", 320, 710, 9, true),
     text(input.companyLegalName, 320, 692, 10, true),
-    text(input.companyAddress, 320, 677),
-    text(customerLocation, 320, 663),
-    text(`VAT No.: ${input.companyVatNumber}`, 320, 649),
-    rule(45, 630, 550, 630),
+    text(customerAddressLines[0] ?? "", 320, 677),
+    ...(customerAddressLines[1] ? [text(customerAddressLines[1], 320, 663)] : []),
+    text(customerLocation, 320, customerAddressLines[1] ? 649 : 663),
+    text(`VAT No.: ${input.companyVatNumber}`, 320, customerAddressLines[1] ? 635 : 649),
+    rule(45, 618, 550, 618),
     box(45, 552, 505, 62, true),
     "0 0 0 rg",
     text("Project", 58, 596, 8, true),

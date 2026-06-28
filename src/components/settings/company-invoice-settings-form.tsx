@@ -39,7 +39,8 @@ export function CompanyInvoiceSettingsForm({
   const fields = [
     ["companyLegalName", "Company legal name", settings?.company_legal_name, true],
     ["tradingName", "Trading name / brand name", settings?.trading_name, false],
-    ["companyAddress", "Company address", settings?.company_address, true],
+    ["companyAddressLine1", "Company address line 1", settings?.company_address_line_1 ?? settings?.company_address, true],
+    ["companyAddressLine2", "Company address line 2", settings?.company_address_line_2, false],
     ["companyCityRegion", "City / region", settings?.company_city_region, false],
     ["companyCountry", "Country", settings?.company_country, true],
     ["companyVatNumber", "VAT number", settings?.company_vat_number, true],
@@ -88,8 +89,8 @@ export function CompanyInvoiceSettingsForm({
           ))}
         </div>
         <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm">
-          <p className="font-medium text-neutral-900">Fixed Phase 1 terms</p>
-          <p className="mt-2 text-neutral-600">Payment terms: 30 calendar days</p>
+          <p className="font-medium text-neutral-900">Invoice defaults</p>
+          <p className="mt-2 text-neutral-600">Payment terms: 30 days</p>
           <p className="mt-1 text-neutral-600">Currency: EUR</p>
         </div>
       </div>

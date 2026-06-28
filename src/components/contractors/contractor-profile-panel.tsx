@@ -17,6 +17,11 @@ export function ContractorProfilePanel({
   contractor,
   showSensitiveDetails,
 }: ContractorProfilePanelProps) {
+  const fiscalAddress = [
+    contractor.fiscal_address_line_1 ?? contractor.fiscal_address,
+    contractor.fiscal_address_line_2,
+  ].filter(Boolean).join("\n");
+
   return (
     <div className="grid gap-4 xl:grid-cols-3">
       <section className="rounded-md border border-neutral-200 bg-white p-5 xl:col-span-2">
@@ -81,7 +86,7 @@ export function ContractorProfilePanel({
             label="Fiscal address"
             value={
               showSensitiveDetails
-                ? formatOptional(contractor.fiscal_address)
+                ? formatOptional(fiscalAddress)
                 : "Hidden for this role"
             }
           />

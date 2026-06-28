@@ -17,9 +17,7 @@ export default async function ProjectsPage() {
           Projects
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Project records and contractor assignment overview for internal users.
-          Client labels should stay generic unless a real label is operationally
-          required.
+          Manage projects and assignments.
         </p>
       </section>
 

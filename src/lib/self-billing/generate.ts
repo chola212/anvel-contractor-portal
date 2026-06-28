@@ -19,6 +19,8 @@ type ContractorForSelfBilling = {
   vat_treatment: VatTreatment | null;
   vat_number: string | null;
   fiscal_address: string | null;
+  fiscal_address_line_1: string | null;
+  fiscal_address_line_2: string | null;
   country: string | null;
 };
 
@@ -212,7 +214,7 @@ export async function generateSelfBillingInvoiceForTimesheet({
       .maybeSingle<CompanyInvoiceSettings>(),
     supabase
       .from("contractors")
-      .select("id,legal_name,email,vat_treatment,vat_number,fiscal_address,country")
+      .select("id,legal_name,email,vat_treatment,vat_number,fiscal_address,fiscal_address_line_1,fiscal_address_line_2,country")
       .eq("id", timesheet.contractor_id)
       .maybeSingle<ContractorForSelfBilling>(),
     supabase
@@ -263,11 +265,15 @@ export async function generateSelfBillingInvoiceForTimesheet({
     contractorLegalName: contractor.legal_name,
     contractorEmail: contractor.email,
     contractorAddress: contractor.fiscal_address,
+    contractorAddressLine1: contractor.fiscal_address_line_1,
+    contractorAddressLine2: contractor.fiscal_address_line_2,
     contractorCountry: contractor.country,
     contractorVatNumber: contractor.vat_number,
     companyLegalName: settings.company_legal_name,
     companyTradingName: settings.trading_name,
     companyAddress: settings.company_address,
+    companyAddressLine1: settings.company_address_line_1,
+    companyAddressLine2: settings.company_address_line_2,
     companyCityRegion: settings.company_city_region,
     companyCountry: settings.company_country,
     companyVatNumber: settings.company_vat_number,

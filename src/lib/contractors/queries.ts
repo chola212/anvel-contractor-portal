@@ -15,6 +15,8 @@ const contractorColumns = `
   vat_number,
   tax_number,
   fiscal_address,
+  fiscal_address_line_1,
+  fiscal_address_line_2,
   vat_treatment,
   bank_account_holder,
   iban,

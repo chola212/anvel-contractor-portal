@@ -16,6 +16,8 @@ export type CompanyInvoiceSettings = {
   company_legal_name: string;
   trading_name: string | null;
   company_address: string;
+  company_address_line_1: string | null;
+  company_address_line_2: string | null;
   company_city_region: string | null;
   company_country: string;
   company_vat_number: string;
@@ -38,6 +40,8 @@ export type ProjectBillingDetails = {
   billing_email: string;
   billing_cc_emails: string[];
   billing_address: string;
+  billing_address_line_1: string | null;
+  billing_address_line_2: string | null;
   billing_country: string;
   billing_vat_number: string;
   po_reference: string | null;
@@ -69,6 +73,8 @@ export type OutgoingInvoice = {
   company_legal_name: string;
   company_trading_name: string | null;
   company_address: string;
+  company_address_line_1: string | null;
+  company_address_line_2: string | null;
   company_city_region: string | null;
   company_country: string;
   company_vat_number: string;
@@ -81,6 +87,8 @@ export type OutgoingInvoice = {
   billing_email: string;
   billing_cc_emails: string[];
   billing_address: string;
+  billing_address_line_1: string | null;
+  billing_address_line_2: string | null;
   billing_country: string;
   billing_vat_number: string;
   po_reference: string | null;

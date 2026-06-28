@@ -291,6 +291,22 @@ assert.match(
 );
 assert.match(
   contractorActions,
+  /fiscalAddressLine1[\s\S]*fiscal_address: parsed\.data\.fiscalAddress[\s\S]*fiscal_address_line_1[\s\S]*fiscal_address_line_2/,
+  "admin contractor updates should save split fiscal address lines and the legacy combined address",
+);
+for (const contractorForm of [
+  "src/components/contractors/contractor-create-form.tsx",
+  "src/components/contractors/contractor-update-form.tsx",
+  "src/components/contractors/contractor-self-update-form.tsx",
+]) {
+  assert.match(
+    read(contractorForm),
+    /Fiscal address line 1[\s\S]*Fiscal address line 2/,
+    `${contractorForm} should render fiscal address line 1 and line 2`,
+  );
+}
+assert.match(
+  contractorActions,
   /listUsers/,
   "contractor onboarding should detect existing auth users safely",
 );
@@ -528,6 +544,31 @@ assert.doesNotMatch(
   /buildDocumentUploadedAdminEmail/,
   "admin document uploads should not send contractor-upload notifications",
 );
+assert.match(
+  read("src/components/documents/document-list.tsx"),
+  /href=\{`\/documents\/\$\{document\.id\}\/download`\}[\s\S]*target="_blank"[\s\S]*rel="noopener noreferrer"/,
+  "document download links should open without replacing the portal tab",
+);
+assert.match(
+  read("src/app/(portal)/documents/[id]/download/route.ts"),
+  /createSignedUrl\(document\.file_path,[\s\S]*download: document\.file_name/,
+  "document download route should request a named private signed download",
+);
+assert.match(
+  read("src/components/invoices/invoice-list.tsx"),
+  /href=\{`\/invoices\/\$\{invoice\.id\}\/download`\}[\s\S]*target="_blank"[\s\S]*rel="noopener noreferrer"/,
+  "invoice download links should open without replacing the portal tab",
+);
+assert.match(
+  read("src/app/(portal)/outgoing-invoices/[id]/page.tsx"),
+  /href=\{`\/outgoing-invoices\/\$\{invoice\.id\}\/download`\}[\s\S]*target="_blank"[\s\S]*rel="noopener noreferrer"[\s\S]*Advanced details/,
+  "outgoing invoice download should open in a new tab and technical details should be secondary",
+);
+assert.match(
+  read("src/app/(portal)/exports/page.tsx"),
+  /href=\{`\/exports\/accountant\?\$\{exportParams\.toString\(\)\}`\}[\s\S]*target="_blank"[\s\S]*Preview of exported rows/,
+  "CSV export download should open without replacing the portal tab",
+);
 
 const assignmentList = read("src/components/projects/assignment-list.tsx");
 assert.doesNotMatch(
@@ -614,6 +655,12 @@ for (const rule of [
     `visible and enforced password policy should include: ${rule}`,
   );
 }
+
+assert.match(
+  read("src/app/(portal)/profile/actions.ts"),
+  /fiscalAddressLine1[\s\S]*p_fiscal_address: parsed\.data\.fiscalAddress/,
+  "contractor self-profile update should submit the split fiscal address as the legacy combined address for the RPC",
+);
 
 assert.match(
   portalEmail,
@@ -839,7 +886,7 @@ assert.match(
 );
 assert.match(
   selfBilling,
-  /select\("id,legal_name,email,vat_treatment,vat_number,fiscal_address,country"\)/,
+  /select\("id,legal_name,email,vat_treatment,vat_number,fiscal_address,fiscal_address_line_1,fiscal_address_line_2,country"\)/,
   "self-billing generation should load contractor supplier address fields",
 );
 assert.doesNotMatch(
@@ -876,6 +923,11 @@ assert.match(
   selfBillingPdf,
   /hourlyRate/,
   "self-billing PDF should render the contractor hourly rate",
+);
+assert.match(
+  selfBillingPdf,
+  /contractorAddressLine1[\s\S]*contractorAddressLine2[\s\S]*companyAddressLine1[\s\S]*companyAddressLine2/,
+  "self-billing PDF should render split supplier and customer address lines",
 );
 assert.doesNotMatch(
   selfBillingPdf,
@@ -955,13 +1007,23 @@ const visibleCopyFiles = [
   "src/components/timesheets/timesheet-list.tsx",
   "src/components/contractors/contractor-list.tsx",
   "src/components/projects/project-list.tsx",
+  "src/app/(portal)/page.tsx",
+  "src/app/(portal)/contractors/page.tsx",
+  "src/app/(portal)/projects/page.tsx",
+  "src/app/(portal)/documents/page.tsx",
+  "src/app/(portal)/timesheets/page.tsx",
+  "src/app/(portal)/invoices/page.tsx",
+  "src/app/(portal)/payments/page.tsx",
+  "src/app/(portal)/exports/page.tsx",
+  "src/app/(portal)/settings/page.tsx",
+  "src/components/layout/side-navigation.tsx",
 ];
 
 for (const file of visibleCopyFiles) {
   const content = read(file);
   assert.doesNotMatch(
     content,
-    /fake development|private .*bucket|MVP|later/,
+    /fake development|private .*bucket|MVP|Phase 1|scaffolding|\blater\b|internal users|access controlled|Operational overview|Portal state|Data source|Access model planned|Production boundaries|Operational checks|Manual payment status tracking/,
     `${file} should not contain production-facing scaffolding copy`,
   );
 }
@@ -1079,6 +1141,19 @@ assert.match(
   /default_payment_terms_days: 30[\s\S]*default_currency: "EUR"/,
   "company invoice settings should fix Phase 1 terms and currency",
 );
+assert.match(
+  companySettingsAction,
+  /companyAddressLine1[\s\S]*company_address: combineAddress[\s\S]*company_address_line_1[\s\S]*company_address_line_2/,
+  "company settings should save split address lines and the legacy combined address",
+);
+const companySettingsForm = read(
+  "src/components/settings/company-invoice-settings-form.tsx",
+);
+assert.match(
+  companySettingsForm,
+  /Company address line 1[\s\S]*Company address line 2/,
+  "company settings form should render address line 1 and line 2",
+);
 
 const projectBillingAction = read("src/app/(portal)/projects/actions.ts");
 assert.match(
@@ -1090,6 +1165,16 @@ assert.match(
   projectBillingAction,
   /saveProjectBillingDetailsAction[\s\S]*requireRole\(\["admin"\]\)/,
   "project billing updates should require admin",
+);
+assert.match(
+  projectBillingAction,
+  /billingAddressLine1[\s\S]*billing_address: combineAddress[\s\S]*billing_address_line_1[\s\S]*billing_address_line_2/,
+  "project billing details should save split address lines and the legacy combined address",
+);
+assert.match(
+  read("src/components/projects/project-billing-details-form.tsx"),
+  /Billing address line 1[\s\S]*Billing address line 2/,
+  "project billing form should render address line 1 and line 2",
 );
 
 const outgoingGenerator = read("src/lib/outgoing-invoices/generate.ts");
@@ -1165,6 +1250,11 @@ assert.match(
   outgoingPdf,
   /invoice\.consultant_name/,
   "outgoing PDF should include consultant name",
+);
+assert.match(
+  outgoingPdf,
+  /company_address_line_1[\s\S]*company_address_line_2[\s\S]*billing_address_line_1[\s\S]*billing_address_line_2/,
+  "outgoing PDF should render split company and billing address lines",
 );
 
 const outgoingActions = read(
@@ -1246,6 +1336,39 @@ assert.match(
   postTestMigration,
   /set name = 'Signed NDA'[\s\S]*where lower\(name\) = 'nda'/,
   "post-test migration should normalize old NDA rows to Signed NDA",
+);
+
+const addressMigration = read(
+  "supabase/migrations/202606280005_address_line_split.sql",
+);
+for (const expected of [
+  "company_address_line_1",
+  "company_address_line_2",
+  "billing_address_line_1",
+  "billing_address_line_2",
+  "fiscal_address_line_1",
+  "fiscal_address_line_2",
+]) {
+  assert.match(
+    addressMigration,
+    new RegExp(expected),
+    `address split migration should include ${expected}`,
+  );
+}
+assert.match(
+  addressMigration,
+  /set company_address_line_1 = company_address/,
+  "company address line 1 should backfill from the legacy address",
+);
+assert.match(
+  addressMigration,
+  /set billing_address_line_1 = billing_address/,
+  "project billing address line 1 should backfill from the legacy address",
+);
+assert.match(
+  addressMigration,
+  /set fiscal_address_line_1 = fiscal_address/,
+  "contractor fiscal address line 1 should backfill from the legacy address",
 );
 
 const outgoingRoute = read("src/app/(portal)/outgoing-invoices/page.tsx");

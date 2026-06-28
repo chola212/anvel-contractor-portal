@@ -60,8 +60,7 @@ export default async function InvoicesPage({
           Invoices
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Official contractor invoice upload and metadata tracking. Admins can
-          record manual review status before payment tracking.
+          Self-billing and contractor invoices.
         </p>
       </section>
 

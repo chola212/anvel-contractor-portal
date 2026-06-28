@@ -38,7 +38,8 @@ export function ProjectBillingDetailsForm({
     ["billingLegalName", "Billing legal name", details?.billing_legal_name, true, "text"],
     ["billingEmail", "Billing email", details?.billing_email, true, "email"],
     ["billingCcEmails", "Billing CC emails", details?.billing_cc_emails.join(", "), false, "text"],
-    ["billingAddress", "Billing address", details?.billing_address, true, "text"],
+    ["billingAddressLine1", "Billing address line 1", details?.billing_address_line_1 ?? details?.billing_address, true, "text"],
+    ["billingAddressLine2", "Billing address line 2", details?.billing_address_line_2, false, "text"],
     ["billingCountry", "Billing country", details?.billing_country, true, "text"],
     ["billingVatNumber", "Billing VAT number", details?.billing_vat_number, true, "text"],
     ["poReference", "PO reference", details?.po_reference, false, "text"],
@@ -48,7 +49,7 @@ export function ProjectBillingDetailsForm({
     <section className="rounded-md border border-neutral-200 bg-white p-5">
       <h2 className="text-lg font-semibold text-neutral-950">Billing details</h2>
       <p className="mt-2 text-sm text-neutral-600">
-        Invoice recipient details for this project. Contractors cannot access this information.
+        Invoice recipient for this project.
       </p>
       <form action={action} className="mt-5 grid gap-5">
         <input type="hidden" name="projectId" value={projectId} />

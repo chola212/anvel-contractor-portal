@@ -58,7 +58,7 @@ export default async function DocumentsPage({
           Documents
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Contractor document upload, secure downloads and admin review.
+          Upload and review documents.
         </p>
       </section>
 

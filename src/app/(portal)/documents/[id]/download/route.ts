@@ -15,6 +15,7 @@ type DownloadRouteContext = {
 type DocumentDownloadRecord = {
   id: string;
   file_path: string;
+  file_name: string;
 };
 
 export async function GET(request: NextRequest, { params }: DownloadRouteContext) {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest, { params }: DownloadRouteContext
   const supabase = await createClient();
   const { data: document, error: documentError } = await supabase
     .from("contractor_documents")
-    .select("id,file_path")
+    .select("id,file_path,file_name")
     .eq("id", id)
     .maybeSingle<DocumentDownloadRecord>();
 
@@ -55,7 +56,9 @@ export async function GET(request: NextRequest, { params }: DownloadRouteContext
 
   const { data, error } = await supabase.storage
     .from(documentBucket)
-    .createSignedUrl(document.file_path, signedUrlLifetimeSeconds);
+    .createSignedUrl(document.file_path, signedUrlLifetimeSeconds, {
+      download: document.file_name,
+    });
 
   if (error || !data?.signedUrl) {
     return new NextResponse("Signed download could not be created.", {

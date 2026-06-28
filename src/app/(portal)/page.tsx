@@ -17,32 +17,32 @@ export default async function Home() {
     const contractorItems = [
       {
         title: "My profile",
-        description: "Review and update your contractor profile.",
+        description: "Profile details.",
         href: "/profile",
       },
       {
         title: "My assignments",
-        description: "View assigned projects and rates visible to you.",
+        description: "Assigned projects.",
         href: "/profile",
       },
       {
         title: "My documents",
-        description: "Upload and download contractor documents.",
+        description: "Documents.",
         href: "/documents",
       },
       {
         title: "My timesheets",
-        description: "Enter monthly hours and submit timesheets.",
+        description: "Monthly hours.",
         href: "/timesheets",
       },
       {
         title: "My self-billing invoices",
-        description: "View invoices generated from approved timesheets.",
+        description: "Self-billing invoices.",
         href: "/invoices",
       },
       {
         title: "My payment status",
-        description: "Check payment status recorded by ANVEL.",
+        description: "Payment status.",
         href: "/payments",
       },
     ];
@@ -56,10 +56,6 @@ export default async function Home() {
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
             My contractor workspace
           </h1>
-          <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-            Manage your profile, documents, monthly timesheets, self-billing
-            invoices and payment status.
-          </p>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -95,36 +91,10 @@ export default async function Home() {
             <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">
               Contractor operations workspace
             </h1>
-            <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-              Operational overview for contractor profiles, assignments,
-              documents, timesheets, invoices and manual payment status. Counts
-              are loaded according to the signed-in user&apos;s access level.
-            </p>
           </div>
           <div className="rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
             Signed in as {roleLabels[profile.role]}
           </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-md border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Portal state</p>
-          <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Operational
-          </p>
-        </div>
-        <div className="rounded-md border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Data source</p>
-          <p className="mt-2 text-lg font-semibold text-neutral-950">
-            Access controlled
-          </p>
-        </div>
-        <div className="rounded-md border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Access model</p>
-          <p className="mt-2 text-lg font-semibold text-neutral-950">
-            {roleLabels[profile.role]} view
-          </p>
         </div>
       </section>
 

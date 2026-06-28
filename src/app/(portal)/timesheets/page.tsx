@@ -57,10 +57,7 @@ export default async function TimesheetsPage({
           Timesheets
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-neutral-600">
-          Monthly timesheet overview with daily hours entries. Contractors can
-          start draft timesheets, add worked days, and submit them for review.
-          Admin users can review, approve, reject, or reopen submitted
-          timesheets.
+          Submit and review monthly timesheets.
         </p>
       </section>
 

@@ -30,6 +30,8 @@ export type ContractorRecord = {
   vat_number: string | null;
   tax_number: string | null;
   fiscal_address: string | null;
+  fiscal_address_line_1: string | null;
+  fiscal_address_line_2: string | null;
   vat_treatment: VatTreatment | null;
   bank_account_holder: string | null;
   iban: string | null;

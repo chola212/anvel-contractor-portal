@@ -77,8 +77,7 @@ export function DocumentUploadForm({
           Upload a signed PDF document
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Upload a PDF document for review. Documents are available only to the
-          contractor and authorised internal users.
+          Upload a PDF document for review.
         </p>
       </div>
 
