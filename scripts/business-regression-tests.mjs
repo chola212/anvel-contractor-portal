@@ -1878,6 +1878,9 @@ const onboardingMigration = read(
 );
 const onboardingActions = read("src/app/(portal)/onboarding/actions.ts");
 const onboardingPage = read("src/app/(portal)/onboarding/page.tsx");
+const onboardingDetailsForm = read(
+  "src/components/onboarding/onboarding-details-request-form.tsx",
+);
 const onboardingDocumentsForm = read(
   "src/components/onboarding/onboarding-documents-form.tsx",
 );
@@ -1909,25 +1912,70 @@ assert.match(
   /sendOnboardingDetailsRequestAction[\s\S]*onboarding_details_request_sent/,
   "details request action should audit onboarding details emails",
 );
+assert.doesNotMatch(
+  onboardingActions.match(/const detailsRequestSchema[\s\S]*?\}\);/)?.[0] ?? "",
+  /contractorId/,
+  "onboarding details request schema should not require contractorId",
+);
+assert.match(
+  onboardingActions.match(/const onboardingDocumentsSchema[\s\S]*?\}\);/)?.[0] ?? "",
+  /contractorId: optionalText/,
+  "onboarding documents schema should treat contractorId as optional",
+);
 assert.match(
   onboardingActions,
   /sendOnboardingDocumentsEmailAction[\s\S]*generateOnboardingDocuments[\s\S]*attachments:[\s\S]*onboarding_documents_email_sent/,
   "documents action should generate PDFs, attach them to email and audit the send",
 );
+for (const actionName of [
+  "sendOnboardingDetailsRequestAction",
+  "sendOnboardingDocumentsEmailAction",
+]) {
+  const actionBody =
+    onboardingActions.match(new RegExp(`export async function ${actionName}[\\\\s\\\\S]*?(?=\\nexport async function|$)`))?.[0] ??
+    "";
+  assert.doesNotMatch(
+    actionBody,
+    /ensureContractorEmail/,
+    `${actionName} should not enforce contractor email matching`,
+  );
+}
 assert.doesNotMatch(
   onboardingActions,
   /sales_rate|project_billing_details|contractor_projects/,
   "onboarding document generation must not auto-pull assignment billing data",
+);
+assert.match(
+  onboardingActions,
+  /entity_type: "onboarding"[\s\S]*entity_id: null[\s\S]*contractor_name[\s\S]*internal_contractor_reference/,
+  "details request audit should allow free-text sends without linked contractor ids",
+);
+assert.match(
+  onboardingActions,
+  /contractor_id: parsed\.data\.contractorId[\s\S]*recipient_display_name[\s\S]*internal_contractor_reference[\s\S]*file_size_bytes/,
+  "onboarding archive rows should support null contractor_id and include free-text metadata",
 );
 assert.doesNotMatch(
   onboardingDocumentsForm,
   /projectId|assignmentId|Project selector|Assignment selector/,
   "onboarding document form should remain a manual form without project or assignment selectors",
 );
+for (const formSource of [onboardingDetailsForm, onboardingDocumentsForm]) {
+  assert.doesNotMatch(
+    formSource,
+    /name="contractorId"|Select contractor|selectedContractor|required[\s\S]*contractorId/,
+    "onboarding forms should not render a required contractor selector",
+  );
+  assert.match(
+    formSource,
+    /name="recipientEmail"[\s\S]*className=\{fieldClassName\(\)\}/,
+    "onboarding forms should use editable free-text recipient emails",
+  );
+}
 assert.doesNotMatch(
   onboardingPage,
-  /bank_account_holder|iban|swift_bic|fiscal_address|vat_number|tax_number/,
-  "onboarding page should not pass contractor bank, tax or address fields into the manual document form",
+  /getContractorsForStaff|bank_account_holder|iban|swift_bic|fiscal_address|vat_number|tax_number/,
+  "onboarding page should not load contractors or pass bank, tax or address fields into the manual document form",
 );
 for (const expected of [
   "Freelance Consultant Framework Agreement",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -19,11 +19,9 @@ import {
   FieldErrors,
   fieldClassName,
   statusClassName,
-  type OnboardingContractorOption,
 } from "./onboarding-form-shared";
 
 type OnboardingDocumentsFormProps = {
-  contractors: OnboardingContractorOption[];
   today: string;
 };
 
@@ -117,17 +115,12 @@ function TextAreaField({
 }
 
 export function OnboardingDocumentsForm({
-  contractors,
   today,
 }: OnboardingDocumentsFormProps) {
   const router = useRouter();
   const [state, formAction] = useActionState(
     sendOnboardingDocumentsEmailAction,
     initialState,
-  );
-  const [selectedContractorId, setSelectedContractorId] = useState("");
-  const selectedContractor = contractors.find(
-    (contractor) => contractor.id === selectedContractorId,
   );
 
   useEffect(() => {
@@ -146,36 +139,16 @@ export function OnboardingDocumentsForm({
           Generate and email onboarding PDFs
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Manual admin form only. Project, assignment and bank details are not
-          auto-pulled from operational records.
+          Fully manual form. No contractor, project or assignment data is
+          auto-pulled.
         </p>
       </div>
 
       <form
-        key={selectedContractorId || "empty"}
         action={formAction}
         className="mt-5 grid gap-5 lg:grid-cols-2"
       >
         <input type="hidden" name="currency" value={defaultOnboardingCurrency} />
-
-        <label className="space-y-2 text-sm font-medium text-neutral-800">
-          <span>Contractor</span>
-          <select
-            name="contractorId"
-            required
-            value={selectedContractorId}
-            onChange={(event) => setSelectedContractorId(event.target.value)}
-            className={fieldClassName()}
-          >
-            <option value="">Select contractor</option>
-            {contractors.map((contractor) => (
-              <option key={contractor.id} value={contractor.id}>
-                {contractor.legal_name} - {contractor.email}
-              </option>
-            ))}
-          </select>
-          <FieldErrors errors={state.fieldErrors.contractorId} />
-        </label>
 
         <label className="space-y-2 text-sm font-medium text-neutral-800">
           <span>Recipient email</span>
@@ -183,9 +156,7 @@ export function OnboardingDocumentsForm({
             name="recipientEmail"
             type="email"
             required
-            value={selectedContractor?.email ?? ""}
-            readOnly
-            className={`${fieldClassName()} bg-neutral-50`}
+            className={fieldClassName()}
           />
           <FieldErrors errors={state.fieldErrors.recipientEmail} />
         </label>
@@ -195,12 +166,18 @@ export function OnboardingDocumentsForm({
           <input
             name="recipientDisplayName"
             required
-            value={selectedContractor?.legal_name ?? ""}
-            readOnly
-            className={`${fieldClassName()} bg-neutral-50`}
+            className={fieldClassName()}
           />
           <FieldErrors errors={state.fieldErrors.recipientDisplayName} />
         </label>
+
+        <TextField
+          name="internalContractorReference"
+          label="Internal contractor reference (optional)"
+          required={false}
+          errors={state.fieldErrors.internalContractorReference}
+          maxLength={160}
+        />
 
         <TextField
           name="consultantLegalName"

@@ -2,7 +2,6 @@ import { OnboardingDetailsRequestForm } from "@/components/onboarding/onboarding
 import { OnboardingDocumentHistory } from "@/components/onboarding/onboarding-document-history";
 import { OnboardingDocumentsForm } from "@/components/onboarding/onboarding-documents-form";
 import { requireRole } from "@/lib/auth/profile";
-import { getContractorsForStaff } from "@/lib/contractors/queries";
 import { getContractorOnboardingDocumentsForAdmin } from "@/lib/onboarding/queries";
 
 function todayIsoDate() {
@@ -11,15 +10,7 @@ function todayIsoDate() {
 
 export default async function OnboardingPage() {
   await requireRole(["admin"]);
-  const [contractors, documents] = await Promise.all([
-    getContractorsForStaff(),
-    getContractorOnboardingDocumentsForAdmin(),
-  ]);
-  const contractorOptions = contractors.map((contractor) => ({
-    id: contractor.id,
-    legal_name: contractor.legal_name,
-    email: contractor.email,
-  }));
+  const documents = await getContractorOnboardingDocumentsForAdmin();
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -36,10 +27,9 @@ export default async function OnboardingPage() {
         </p>
       </section>
 
-      <OnboardingDetailsRequestForm contractors={contractorOptions} />
+      <OnboardingDetailsRequestForm />
 
       <OnboardingDocumentsForm
-        contractors={contractorOptions}
         today={todayIsoDate()}
       />
 

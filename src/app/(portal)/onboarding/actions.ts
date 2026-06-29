@@ -38,15 +38,18 @@ const optionalText = z.preprocess(
 );
 
 const detailsRequestSchema = z.object({
-  contractorId: z.string().uuid("Select a contractor."),
   recipientEmail: z.string().trim().email("Enter a valid recipient email."),
   contractorName: requiredText("Enter the contractor name.", 160),
+  internalContractorReference: optionalText,
 });
 
 const onboardingDocumentsSchema = z.object({
-  contractorId: z.string().uuid("Select a contractor."),
+  contractorId: optionalText.pipe(
+    z.string().uuid("Select a valid contractor.").nullable(),
+  ),
   recipientEmail: z.string().trim().email("Enter a valid recipient email."),
   recipientDisplayName: requiredText("Enter the recipient display name.", 160),
+  internalContractorReference: optionalText,
   consultantLegalName: requiredText("Enter the consultant legal name.", 160),
   consultantAddress: requiredText("Enter the consultant address.", 1000),
   consultantTaxVatNumber: requiredText("Enter the tax/VAT number or N/A.", 120),
@@ -92,50 +95,12 @@ export type OnboardingActionState = {
   fieldErrors: Record<string, string[] | undefined>;
 };
 
-type ContractorEmailLookup = {
-  id: string;
-  legal_name: string;
-  email: string;
-};
-
 const initialDefaults = {
   currency: defaultOnboardingCurrency,
   timesheetSubmissionInstructions: defaultTimesheetSubmissionInstructions,
   specialConditions: defaultOnboardingSpecialConditions,
   swiftBic: defaultOnboardingSwiftBic,
 };
-
-async function ensureContractorEmail(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  contractorId: string,
-  recipientEmail: string,
-) {
-  const { data: contractor, error } = await supabase
-    .from("contractors")
-    .select("id,legal_name,email")
-    .eq("id", contractorId)
-    .maybeSingle<ContractorEmailLookup>();
-
-  if (error || !contractor) {
-    return {
-      ok: false as const,
-      message: "This contractor could not be found.",
-    };
-  }
-
-  const normalizedRecipient = recipientEmail.trim().toLowerCase();
-  const normalizedContractor = contractor.email.trim().toLowerCase();
-
-  if (normalizedRecipient !== normalizedContractor) {
-    return {
-      ok: false as const,
-      message:
-        "Recipient email must match the selected contractor email for this admin-only onboarding flow.",
-    };
-  }
-
-  return { ok: true as const, contractor };
-}
 
 function safeArchiveFileName(value: string) {
   return value
@@ -154,9 +119,9 @@ export async function sendOnboardingDetailsRequestAction(
 ): Promise<OnboardingActionState> {
   const profile = await requireRole(["admin"]);
   const parsed = detailsRequestSchema.safeParse({
-    contractorId: formData.get("contractorId"),
     recipientEmail: formData.get("recipientEmail"),
     contractorName: formData.get("contractorName"),
+    internalContractorReference: formData.get("internalContractorReference"),
   });
 
   if (!parsed.success) {
@@ -176,19 +141,6 @@ export async function sendOnboardingDetailsRequestAction(
   }
 
   const supabase = await createClient();
-  const contractorResult = await ensureContractorEmail(
-    supabase,
-    parsed.data.contractorId,
-    parsed.data.recipientEmail,
-  );
-
-  if (!contractorResult.ok) {
-    return {
-      message: contractorResult.message,
-      status: "error",
-      fieldErrors: {},
-    };
-  }
 
   try {
     const email = buildOnboardingDetailsRequestEmail(parsed.data.contractorName);
@@ -208,10 +160,12 @@ export async function sendOnboardingDetailsRequestAction(
   const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_profile_id: profile.id,
     action: "onboarding_details_request_sent",
-    entity_type: "contractor",
-    entity_id: contractorResult.contractor.id,
+    entity_type: "onboarding",
+    entity_id: null,
     metadata: {
       email: parsed.data.recipientEmail,
+      contractor_name: parsed.data.contractorName,
+      internal_contractor_reference: parsed.data.internalContractorReference,
     },
   });
 
@@ -242,6 +196,7 @@ export async function sendOnboardingDocumentsEmailAction(
     contractorId: formData.get("contractorId"),
     recipientEmail: formData.get("recipientEmail"),
     recipientDisplayName: formData.get("recipientDisplayName"),
+    internalContractorReference: formData.get("internalContractorReference"),
     consultantLegalName: formData.get("consultantLegalName"),
     consultantAddress: formData.get("consultantAddress"),
     consultantTaxVatNumber: formData.get("consultantTaxVatNumber"),
@@ -288,19 +243,6 @@ export async function sendOnboardingDocumentsEmailAction(
   }
 
   const supabase = await createClient();
-  const contractorResult = await ensureContractorEmail(
-    supabase,
-    parsed.data.contractorId,
-    parsed.data.recipientEmail,
-  );
-
-  if (!contractorResult.ok) {
-    return {
-      message: contractorResult.message,
-      status: "error",
-      fieldErrors: {},
-    };
-  }
 
   let generatedDocuments;
 
@@ -329,7 +271,8 @@ export async function sendOnboardingDocumentsEmailAction(
   for (const document of generatedDocuments) {
     const documentId = crypto.randomUUID();
     const fileName = safeArchiveFileName(document.fileName);
-    const filePath = `contractors/${parsed.data.contractorId}/onboarding/${documentId}-${fileName}`;
+    const archiveOwner = parsed.data.contractorId ?? "unlinked";
+    const filePath = `onboarding/${archiveOwner}/${documentId}-${fileName}`;
     const { error: uploadError } = await supabase.storage
       .from(onboardingDocumentBucket)
       .upload(filePath, Buffer.from(document.pdf), {
@@ -396,10 +339,13 @@ export async function sendOnboardingDocumentsEmailAction(
         sent_at: sentAt,
         created_by: profile.id,
         metadata: {
+          recipient_display_name: parsed.data.recipientDisplayName,
           consultant_legal_name: parsed.data.consultantLegalName,
           client_project_reference: parsed.data.clientProjectReference,
           role_assignment_title: parsed.data.roleAssignmentTitle,
           document_date: parsed.data.documentDate,
+          internal_contractor_reference:
+            parsed.data.internalContractorReference,
           file_size_bytes: document.size,
         },
       })),
@@ -416,13 +362,16 @@ export async function sendOnboardingDocumentsEmailAction(
   const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_profile_id: profile.id,
     action: "onboarding_documents_email_sent",
-    entity_type: "contractor",
+    entity_type: "onboarding",
     entity_id: parsed.data.contractorId,
     metadata: {
       email: parsed.data.recipientEmail,
+      recipient_display_name: parsed.data.recipientDisplayName,
+      consultant_legal_name: parsed.data.consultantLegalName,
       document_types: generatedDocuments.map((document) => document.documentType),
       client_project_reference: parsed.data.clientProjectReference,
       role_assignment_title: parsed.data.roleAssignmentTitle,
+      internal_contractor_reference: parsed.data.internalContractorReference,
     },
   });
 

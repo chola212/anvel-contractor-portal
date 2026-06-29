@@ -1,11 +1,3 @@
-"use client";
-
-export type OnboardingContractorOption = {
-  id: string;
-  legal_name: string;
-  email: string;
-};
-
 export function FieldErrors({ errors }: { errors?: string[] }) {
   return errors?.map((error) => (
     <p key={error} className="text-sm text-red-700">

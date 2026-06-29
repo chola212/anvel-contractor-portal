@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -13,12 +13,7 @@ import {
   FieldErrors,
   fieldClassName,
   statusClassName,
-  type OnboardingContractorOption,
 } from "./onboarding-form-shared";
-
-type OnboardingDetailsRequestFormProps = {
-  contractors: OnboardingContractorOption[];
-};
 
 const initialState: OnboardingActionState = {
   message: null,
@@ -40,17 +35,11 @@ function SubmitButton() {
   );
 }
 
-export function OnboardingDetailsRequestForm({
-  contractors,
-}: OnboardingDetailsRequestFormProps) {
+export function OnboardingDetailsRequestForm() {
   const router = useRouter();
   const [state, formAction] = useActionState(
     sendOnboardingDetailsRequestAction,
     initialState,
-  );
-  const [selectedContractorId, setSelectedContractorId] = useState("");
-  const selectedContractor = contractors.find(
-    (contractor) => contractor.id === selectedContractorId,
   );
 
   useEffect(() => {
@@ -67,40 +56,19 @@ export function OnboardingDetailsRequestForm({
           Request contractor onboarding details
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Sends the standard details request email. It does not change the
-          contractor record or create a workflow status.
+          Free-text email request. Use this before the contractor exists in the
+          portal.
         </p>
       </div>
 
       <form action={formAction} className="mt-5 grid gap-5 lg:grid-cols-3">
-        <label className="space-y-2 text-sm font-medium text-neutral-800">
-          <span>Contractor</span>
-          <select
-            name="contractorId"
-            required
-            value={selectedContractorId}
-            onChange={(event) => setSelectedContractorId(event.target.value)}
-            className={fieldClassName()}
-          >
-            <option value="">Select contractor</option>
-            {contractors.map((contractor) => (
-              <option key={contractor.id} value={contractor.id}>
-                {contractor.legal_name} - {contractor.email}
-              </option>
-            ))}
-          </select>
-          <FieldErrors errors={state.fieldErrors.contractorId} />
-        </label>
-
         <label className="space-y-2 text-sm font-medium text-neutral-800">
           <span>Recipient email</span>
           <input
             name="recipientEmail"
             type="email"
             required
-            value={selectedContractor?.email ?? ""}
-            readOnly
-            className={`${fieldClassName()} bg-neutral-50`}
+            className={fieldClassName()}
           />
           <FieldErrors errors={state.fieldErrors.recipientEmail} />
         </label>
@@ -110,11 +78,19 @@ export function OnboardingDetailsRequestForm({
           <input
             name="contractorName"
             required
-            value={selectedContractor?.legal_name ?? ""}
-            readOnly
-            className={`${fieldClassName()} bg-neutral-50`}
+            className={fieldClassName()}
           />
           <FieldErrors errors={state.fieldErrors.contractorName} />
+        </label>
+
+        <label className="space-y-2 text-sm font-medium text-neutral-800">
+          <span>Internal contractor reference (optional)</span>
+          <input
+            name="internalContractorReference"
+            maxLength={160}
+            className={fieldClassName()}
+          />
+          <FieldErrors errors={state.fieldErrors.internalContractorReference} />
         </label>
 
         <div className="flex items-end">
