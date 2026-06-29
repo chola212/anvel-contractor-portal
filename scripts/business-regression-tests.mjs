@@ -284,6 +284,65 @@ assert.match(
   /resendContractorInviteAction/,
   "contractor onboarding should support invite resends",
 );
+const resendContractorInviteSection =
+  contractorActions.match(
+    /export async function resendContractorInviteAction[\s\S]*?export async function updateContractorBankDetailsAction/,
+  )?.[0] ?? "";
+assert.match(
+  resendContractorInviteSection,
+  /requireRole\(\["admin"\]\)/,
+  "resending contractor invitations should be admin-only",
+);
+assert.match(
+  resendContractorInviteSection,
+  /contractorId: formData\.get\("contractorId"\)/,
+  "resending contractor invitations should require a contractor id",
+);
+assert.match(
+  resendContractorInviteSection,
+  /This contractor could not be found\./,
+  "resending contractor invitations should return a safe missing-contractor error",
+);
+assert.match(
+  resendContractorInviteSection,
+  /Contractor email is missing\./,
+  "resending contractor invitations should reject missing or invalid contractor emails",
+);
+assert.match(
+  resendContractorInviteSection,
+  /contractor\.profile_id[\s\S]*"recovery"[\s\S]*"invite"/,
+  "resending contractor invitations should use recovery links for existing contractor auth accounts and invite links only for missing auth users",
+);
+assert.match(
+  resendContractorInviteSection,
+  /findAuthUserByEmail[\s\S]*from\("profiles"\)\.upsert[\s\S]*from\("contractors"\)[\s\S]*update\(\{ profile_id: linkedAuthUser\.id \}\)/,
+  "resending contractor invitations should link existing auth users without creating duplicate contractor rows",
+);
+assert.match(
+  resendContractorInviteSection,
+  /buildInviteEmail\(contractorName, inviteLink\)[\s\S]*sendPortalEmail/,
+  "resending contractor invitations should reuse the existing invitation email template",
+);
+assert.match(
+  resendContractorInviteSection,
+  /contractor_invitation_resent[\s\S]*link_type: linkType/,
+  "resending contractor invitations should audit the requested action name and link type",
+);
+assert.doesNotMatch(
+  resendContractorInviteSection,
+  /console\.(log|info|error)\([^)]*inviteLink/,
+  "resending contractor invitations must not log the generated link",
+);
+assert.doesNotMatch(
+  resendContractorInviteSection,
+  /message:\s*inviteLink|fieldErrors:\s*inviteLink/,
+  "resending contractor invitations must not expose the generated link in action state",
+);
+assert.match(
+  read("src/components/contractors/contractor-resend-invite-form.tsx"),
+  /Resend invitation email/,
+  "contractor detail should render the requested resend invitation button label",
+);
 assert.match(
   contractorActions,
   /contractor_offboarded/,

@@ -74,6 +74,11 @@ const contractorIdSchema = z.object({
   contractorId: z.string().uuid("Contractor is missing."),
 });
 
+const contractorEmailSchema = z
+  .string()
+  .trim()
+  .email("Contractor email is missing.");
+
 const bankText = z
   .string()
   .trim()
@@ -848,7 +853,8 @@ export async function resendContractorInviteAction(
 
   if (!process.env.RESEND_API_KEY) {
     return {
-      message: "Branded email is not configured. Set RESEND_API_KEY before resending invites.",
+      message:
+        "Invitation email could not be sent. Check email configuration.",
       status: "error",
       fieldErrors: {},
     };
@@ -861,7 +867,7 @@ export async function resendContractorInviteAction(
   } catch (error) {
     console.error("Resend invite service-role configuration is missing", error);
     return {
-      message: "Invite links are not configured. Set the server-only service-role key.",
+      message: "Could not generate a new invitation link.",
       status: "error",
       fieldErrors: {},
     };
@@ -870,10 +876,11 @@ export async function resendContractorInviteAction(
   const supabase = await createClient();
   const { data: contractor, error: contractorError } = await supabase
     .from("contractors")
-    .select("id,legal_name,email,status")
+    .select("id,profile_id,legal_name,email,status")
     .eq("id", parsed.data.contractorId)
     .maybeSingle<{
       id: string;
+      profile_id: string | null;
       legal_name: string;
       email: string;
       status: string;
@@ -887,54 +894,183 @@ export async function resendContractorInviteAction(
     };
   }
 
-  const requestHeaders = await headers();
-  const { data, error } = await adminSupabase.auth.admin.generateLink({
-    type: "recovery",
-    email: contractor.email,
-    options: {
-      redirectTo: buildAuthCallbackUrl(requestHeaders.get("origin")),
-    },
-  });
+  const parsedEmail = contractorEmailSchema.safeParse(contractor.email);
 
-  const inviteLink = buildGeneratedAuthLink(
-    data.properties,
-    "recovery",
-    requestHeaders.get("origin"),
-  );
-
-  if (error || !inviteLink) {
+  if (!parsedEmail.success) {
     return {
-      message: error?.message ?? "Could not prepare the invite link.",
+      message: "Contractor email is missing.",
       status: "error",
       fieldErrors: {},
     };
   }
 
+  const profileResult = contractor.profile_id
+    ? await supabase
+        .from("profiles")
+        .select("id,email,full_name")
+        .eq("id", contractor.profile_id)
+        .maybeSingle<{
+          id: string;
+          email: string;
+          full_name: string | null;
+        }>()
+    : { data: null, error: null };
+
+  if (profileResult.error) {
+    return {
+      message: `Could not load the contractor login profile: ${profileResult.error.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const requestHeaders = await headers();
+  const requestOrigin = requestHeaders.get("origin");
+  const redirectTo = buildAuthCallbackUrl(requestOrigin);
+  const contractorName =
+    profileResult.data?.full_name?.trim() || contractor.legal_name;
+  let existingAuthUser: Awaited<ReturnType<typeof findAuthUserByEmail>> = null;
+
   try {
-    const email = buildInviteEmail(contractor.legal_name, inviteLink);
+    existingAuthUser = contractor.profile_id
+      ? null
+      : await findAuthUserByEmail(adminSupabase, parsedEmail.data);
+  } catch (error) {
+    console.error("Could not check existing auth user before resending invite", error);
+    return {
+      message: "Could not generate a new invitation link.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const linkType = contractor.profile_id || existingAuthUser ? "recovery" : "invite";
+  const linkResult =
+    linkType === "recovery"
+      ? await adminSupabase.auth.admin.generateLink({
+          type: "recovery",
+          email: parsedEmail.data,
+          options: {
+            redirectTo,
+          },
+        })
+      : await adminSupabase.auth.admin.generateLink({
+          type: "invite",
+          email: parsedEmail.data,
+          options: {
+            data: {
+              full_name: contractorName,
+              role: "contractor",
+            },
+            redirectTo,
+          },
+        });
+
+  if (linkResult.error) {
+    return {
+      message: "Could not generate a new invitation link.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const inviteLink = buildGeneratedAuthLink(
+    linkResult.data.properties,
+    linkType,
+    requestOrigin,
+  );
+
+  if (!inviteLink) {
+    return {
+      message: "Could not generate a new invitation link.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  const linkedAuthUser = contractor.profile_id
+    ? { id: contractor.profile_id }
+    : linkResult.data.user ?? existingAuthUser;
+
+  if (!linkedAuthUser) {
+    return {
+      message: "Could not generate a new invitation link.",
+      status: "error",
+      fieldErrors: {},
+    };
+  }
+
+  if (!contractor.profile_id) {
+    const { error: profileUpsertError } = await supabase.from("profiles").upsert(
+      {
+        id: linkedAuthUser.id,
+        email: parsedEmail.data,
+        full_name: contractorName,
+        role: "contractor",
+        is_active: contractor.status !== "offboarded",
+      },
+      {
+        onConflict: "id",
+      },
+    );
+
+    if (profileUpsertError) {
+      return {
+        message: `Could not link the contractor login profile: ${profileUpsertError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+
+    const { error: contractorLinkError } = await supabase
+      .from("contractors")
+      .update({ profile_id: linkedAuthUser.id })
+      .eq("id", contractor.id);
+
+    if (contractorLinkError) {
+      return {
+        message: `Could not link the contractor login profile: ${contractorLinkError.message}`,
+        status: "error",
+        fieldErrors: {},
+      };
+    }
+  }
+
+  try {
+    const email = buildInviteEmail(contractorName, inviteLink);
     await sendPortalEmail({
-      to: contractor.email,
+      to: parsedEmail.data,
       ...email,
     });
   } catch (error) {
     console.error("Resend invite email failed", error);
     return {
       message:
-        "The invite link was prepared, but Resend could not send the email. Check RESEND_API_KEY, PORTAL_EMAIL_FROM and Resend domain verification.",
+        "Invitation email could not be sent. Check email configuration.",
       status: "error",
       fieldErrors: {},
     };
   }
 
-  await supabase.from("audit_logs").insert({
+  const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_profile_id: profile.id,
-    action: "contractor_invite_resent",
+    action: "contractor_invitation_resent",
     entity_type: "contractor",
     entity_id: contractor.id,
     metadata: {
-      email: contractor.email,
+      email: parsedEmail.data,
+      profile_id: linkedAuthUser.id,
+      link_type: linkType,
     },
   });
+
+  if (auditError) {
+    return {
+      message: `Invitation email sent, but audit logging failed: ${auditError.message}`,
+      status: "error",
+      fieldErrors: {},
+    };
+  }
 
   revalidatePath(`/contractors/${contractor.id}`);
 
