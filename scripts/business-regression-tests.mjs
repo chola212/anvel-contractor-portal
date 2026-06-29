@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -1885,6 +1887,7 @@ const onboardingDocumentsForm = read(
   "src/components/onboarding/onboarding-documents-form.tsx",
 );
 const onboardingPdf = read("src/lib/onboarding/pdf.ts");
+const onboardingSignature = read("src/lib/onboarding/signature.ts");
 const onboardingEmailTemplates = read("src/lib/email/portal-email.ts");
 
 assert.match(
@@ -1926,6 +1929,11 @@ assert.match(
   onboardingActions,
   /sendOnboardingDocumentsEmailAction[\s\S]*generateOnboardingDocuments[\s\S]*attachments:[\s\S]*onboarding_documents_email_sent/,
   "documents action should generate PDFs, attach them to email and audit the send",
+);
+assert.match(
+  onboardingActions,
+  /generationErrorMessage[\s\S]*Could not generate the onboarding PDFs: \$\{message\}/,
+  "PDF generation errors should return the underlying safe error message to admins",
 );
 for (const actionName of [
   "sendOnboardingDetailsRequestAction",
@@ -1996,6 +2004,16 @@ assert.match(
   /forbiddenGeneratedTokens[\s\S]*XXXXX[\s\S]*XX\.XX[\s\S]*undefined[\s\S]*null[\s\S]*Name client/,
   "onboarding PDF generation should reject raw placeholder tokens",
 );
+assert.match(
+  onboardingPdf,
+  /Generated onboarding document still contains forbidden token: \$\{found\}/,
+  "onboarding PDF generation should report the exact forbidden token",
+);
+assert.doesNotMatch(
+  onboardingPdf.match(/const forbiddenGeneratedTokens = \[[\s\S]*?\];/)?.[0] ?? "",
+  /placeholder/,
+  "the generic word placeholder should not be a forbidden PDF token",
+);
 for (const expected of [
   "buildOnboardingDetailsRequestEmail",
   "Contract details required for onboarding",
@@ -2013,5 +2031,91 @@ assert.match(
   /buildOnboardingDocumentsEmail[\s\S]*Onboarding documents for review and signature[\s\S]*complete only the missing consultant date\/signature fields/,
   "onboarding documents email should ask for review, consultant date and signature only",
 );
+
+const pdfRuntimeTempDir = mkdtempSync(join(tmpdir(), "anvel-onboarding-pdf-"));
+try {
+  const pdfRuntimeSource = onboardingPdf
+    .replace(
+      'import { anvelSignaturePngBase64 } from "./signature";',
+      'import { anvelSignaturePngBase64 } from "./signature.mts";',
+    )
+    .replace(
+      /import type \{[\s\S]*?\} from "\.\/types";/,
+      "type GeneratedOnboardingDocument = any;\ntype OnboardingDocumentFormData = any;",
+    );
+  writeFileSync(join(pdfRuntimeTempDir, "pdf-under-test.mts"), pdfRuntimeSource);
+  writeFileSync(join(pdfRuntimeTempDir, "signature.mts"), onboardingSignature);
+  writeFileSync(
+    join(pdfRuntimeTempDir, "run.mjs"),
+    `
+      import assert from "node:assert/strict";
+      import { generateOnboardingDocuments } from "./pdf-under-test.mts";
+
+      const validInput = {
+        contractorId: null,
+        recipientEmail: "consultant@example.com",
+        recipientDisplayName: "Example Consultant",
+        consultantLegalName: "Example Consultant Ltd",
+        consultantAddress: "1 Example Street\\nNicosia, Cyprus",
+        consultantTaxVatNumber: "CY12345678X",
+        consultantTitleStatus: "Freelance Consultant",
+        effectiveDate: "2026-06-30",
+        documentDate: "2026-06-30",
+        clientProjectReference: "CSO Wesel SAP Support",
+        roleAssignmentTitle: "SAP Consultant",
+        startDate: "2026-07-01",
+        expectedEndDate: "2026-12-31",
+        initialDuration: "6 months",
+        workLocation: "Remote",
+        expectedWorkload: "Up to 40 hours per week",
+        workingTimeZone: "Europe/Nicosia / CET project hours as required",
+        specificResponsibilities: "SAP consulting and support services.",
+        agreedRateAmount: "85.00",
+        currency: "EUR",
+        rateUnit: "hour",
+        paymentTerm: "30 calendar days",
+        timesheetSubmissionInstructions: "Submit timesheets through the approved client process.",
+        specialConditions: "N/A",
+        bankAccountHolder: "Example Consultant Ltd",
+        ibanOrAccountNumber: "CY17002001280000001200527600",
+        swiftBic: "N/A",
+        bankName: "Example Bank",
+        bankCountryAddress: "Cyprus",
+        additionalBankDetails: null,
+      };
+
+      const documents = generateOnboardingDocuments(validInput);
+      assert.equal(documents.length, 3, "valid manual data should generate three onboarding PDFs");
+      for (const document of documents) {
+        assert.equal(
+          Buffer.from(document.pdf).subarray(0, 8).toString("utf8"),
+          "%PDF-1.4",
+          "generated onboarding file should be a PDF",
+        );
+      }
+
+      assert.throws(
+        () => generateOnboardingDocuments({ ...validInput, clientProjectReference: "XXXXX" }),
+        /forbidden token: XXXXX/,
+        "real placeholder values should be rejected with the token in the error",
+      );
+
+      assert.doesNotThrow(
+        () => generateOnboardingDocuments({
+          ...validInput,
+          specialConditions: "Use this as placeholder wording during internal review.",
+        }),
+        "ordinary text containing the word placeholder should not be rejected",
+      );
+    `,
+  );
+  execFileSync(
+    process.execPath,
+    ["--experimental-strip-types", join(pdfRuntimeTempDir, "run.mjs")],
+    { stdio: "pipe" },
+  );
+} finally {
+  rmSync(pdfRuntimeTempDir, { recursive: true, force: true });
+}
 
 console.log("Business regression checks passed.");

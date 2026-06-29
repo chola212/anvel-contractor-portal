@@ -113,6 +113,18 @@ function safeArchiveFileName(value: string) {
     .concat(".pdf");
 }
 
+function generationErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  return "Unknown PDF generation error.";
+}
+
 export async function sendOnboardingDetailsRequestAction(
   _previousState: OnboardingActionState,
   formData: FormData,
@@ -252,9 +264,9 @@ export async function sendOnboardingDocumentsEmailAction(
     );
   } catch (error) {
     console.error("Onboarding PDF generation failed", error);
+    const message = generationErrorMessage(error);
     return {
-      message:
-        "Could not generate the onboarding PDFs. Check that no placeholder values remain.",
+      message: `Could not generate the onboarding PDFs: ${message}`,
       status: "error",
       fieldErrors: {},
     };

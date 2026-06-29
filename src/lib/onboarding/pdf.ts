@@ -21,7 +21,6 @@ const forbiddenGeneratedTokens = [
   "undefined",
   "null",
   "Name client",
-  "placeholder",
 ];
 
 type PdfLine =
@@ -120,7 +119,7 @@ function assertNoForbiddenTokens(lines: PdfLine[]) {
   );
 
   if (found) {
-    throw new Error(`Generated onboarding document still contains placeholder token: ${found}`);
+    throw new Error(`Generated onboarding document still contains forbidden token: ${found}`);
   }
 }
 
