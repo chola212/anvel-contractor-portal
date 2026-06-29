@@ -42,6 +42,12 @@ export const primaryNavigation: NavigationItem[] = [
     allowedRoles: ["admin"],
   },
   {
+    label: "Onboarding",
+    description: "Contract setup",
+    href: "/onboarding",
+    allowedRoles: ["admin"],
+  },
+  {
     label: "Documents",
     description: "Documents",
     href: "/documents",

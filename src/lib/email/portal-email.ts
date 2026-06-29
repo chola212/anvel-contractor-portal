@@ -553,3 +553,86 @@ Project: ${projectName ?? "Not set"}
 Review link: ${reviewLink}`,
   };
 }
+
+export function buildOnboardingDetailsRequestEmail(contractorName: string) {
+  const safeContractorName = escapeEmailHtml(contractorName);
+  const requestedDetails = [
+    "Full legal name",
+    "Date of birth",
+    "Nationality",
+    "Passport or ID number",
+    "Personal address",
+    "Tax address",
+    "Tax residence",
+    "Email address",
+    "Phone number",
+    "Invoicing status, for example freelancer or company",
+    "Invoice legal name",
+    "Tax ID",
+    "VAT number, if applicable",
+    "Company or freelancer registration number, if applicable",
+    "Registered company address, if applicable",
+    "Country of establishment",
+    "Bank account holder",
+    "IBAN or account number",
+    "BIC/SWIFT",
+    "Bank name",
+    "Bank country/address",
+    "Confirmation or proof that the bank account belongs to the same person or company",
+  ];
+  const htmlDetails = requestedDetails
+    .map((detail) => `<li>${escapeEmailHtml(detail)}</li>`)
+    .join("");
+
+  return {
+    subject: "Contract details required for onboarding",
+    html: wrapEmailHtml(
+      "Contract details required for onboarding",
+      `
+        <p>Hello ${safeContractorName},</p>
+        <p>To prepare your ANVEL onboarding documents, please reply to this email with the details below.</p>
+        <ul>${htmlDetails}</ul>
+        <p>Please do not send unnecessary personal documents unless ANVEL specifically requests them.</p>
+        <p>Kind regards,<br />ANVEL Consulting</p>
+      `,
+    ),
+    text: `Hello ${contractorName},
+
+To prepare your ANVEL onboarding documents, please reply to this email with the details below:
+
+${requestedDetails.map((detail) => `- ${detail}`).join("\n")}
+
+Please do not send unnecessary personal documents unless ANVEL specifically requests them.
+
+Kind regards,
+ANVEL Consulting`,
+  };
+}
+
+export function buildOnboardingDocumentsEmail(contractorName: string) {
+  const safeContractorName = escapeEmailHtml(contractorName);
+
+  return {
+    subject: "Onboarding documents for review and signature",
+    html: wrapEmailHtml(
+      "Onboarding documents for review and signature",
+      `
+        <p>Hello ${safeContractorName},</p>
+        <p>Please find attached your ANVEL onboarding documents for review and signature.</p>
+        <p>The ANVEL details and signature have already been completed. Please review the documents carefully, complete only the missing consultant date/signature fields, sign where indicated, and return the signed copies by email.</p>
+        <p>If any personal or commercial detail is incorrect, please reply before signing so we can regenerate the documents.</p>
+        <p>Kind regards,<br />ANVEL Consulting</p>
+      `,
+    ),
+    text: `Hello ${contractorName},
+
+Please find attached your ANVEL onboarding documents for review and signature.
+
+The ANVEL details and signature have already been completed. Please review the documents carefully, complete only the missing consultant date/signature fields, sign where indicated, and return the signed copies by email.
+
+If any personal or commercial detail is incorrect, please reply before signing so we can regenerate the documents.
+
+Kind regards,
+ANVEL Consulting`,
+  };
+}

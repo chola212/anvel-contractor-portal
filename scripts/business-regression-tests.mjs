@@ -1873,4 +1873,97 @@ assert.match(
   "Outgoing Invoices navigation should be admin-only",
 );
 
+const onboardingMigration = read(
+  "supabase/migrations/202606290001_contractor_onboarding_documents.sql",
+);
+const onboardingActions = read("src/app/(portal)/onboarding/actions.ts");
+const onboardingPage = read("src/app/(portal)/onboarding/page.tsx");
+const onboardingDocumentsForm = read(
+  "src/components/onboarding/onboarding-documents-form.tsx",
+);
+const onboardingPdf = read("src/lib/onboarding/pdf.ts");
+const onboardingEmailTemplates = read("src/lib/email/portal-email.ts");
+
+assert.match(
+  onboardingMigration,
+  /contractor_onboarding_documents[\s\S]*enable row level security[\s\S]*public\.is_admin\(\)/,
+  "onboarding document archive should be an admin-only RLS table",
+);
+assert.match(
+  onboardingMigration,
+  /contractor-onboarding-documents[\s\S]*public = false[\s\S]*array\['application\/pdf'\]/,
+  "onboarding PDFs should use a private PDF-only storage bucket",
+);
+assert.match(
+  onboardingPage,
+  /requireRole\(\["admin"\]\)/,
+  "onboarding page should require admin access",
+);
+assert.match(
+  read("src/constants/navigation.ts"),
+  /label: "Onboarding"[\s\S]*href: "\/onboarding"[\s\S]*allowedRoles: \["admin"\]/,
+  "Onboarding navigation should be admin-only",
+);
+assert.match(
+  onboardingActions,
+  /sendOnboardingDetailsRequestAction[\s\S]*onboarding_details_request_sent/,
+  "details request action should audit onboarding details emails",
+);
+assert.match(
+  onboardingActions,
+  /sendOnboardingDocumentsEmailAction[\s\S]*generateOnboardingDocuments[\s\S]*attachments:[\s\S]*onboarding_documents_email_sent/,
+  "documents action should generate PDFs, attach them to email and audit the send",
+);
+assert.doesNotMatch(
+  onboardingActions,
+  /sales_rate|project_billing_details|contractor_projects/,
+  "onboarding document generation must not auto-pull assignment billing data",
+);
+assert.doesNotMatch(
+  onboardingDocumentsForm,
+  /projectId|assignmentId|Project selector|Assignment selector/,
+  "onboarding document form should remain a manual form without project or assignment selectors",
+);
+assert.doesNotMatch(
+  onboardingPage,
+  /bank_account_holder|iban|swift_bic|fiscal_address|vat_number|tax_number/,
+  "onboarding page should not pass contractor bank, tax or address fields into the manual document form",
+);
+for (const expected of [
+  "Freelance Consultant Framework Agreement",
+  "Assignment Schedule",
+  "NDA and Data Protection Undertaking",
+  "Name: Andres Velasco Fernandez",
+  "Title: Director",
+  "Signature: _______________________",
+]) {
+  assert.match(
+    onboardingPdf,
+    new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `onboarding PDF generator should include ${expected}`,
+  );
+}
+assert.match(
+  onboardingPdf,
+  /forbiddenGeneratedTokens[\s\S]*XXXXX[\s\S]*XX\.XX[\s\S]*undefined[\s\S]*null[\s\S]*Name client/,
+  "onboarding PDF generation should reject raw placeholder tokens",
+);
+for (const expected of [
+  "buildOnboardingDetailsRequestEmail",
+  "Contract details required for onboarding",
+  "Passport or ID number",
+  "Bank account holder",
+]) {
+  assert.match(
+    onboardingEmailTemplates,
+    new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `onboarding details request email should include ${expected}`,
+  );
+}
+assert.match(
+  onboardingEmailTemplates,
+  /buildOnboardingDocumentsEmail[\s\S]*Onboarding documents for review and signature[\s\S]*complete only the missing consultant date\/signature fields/,
+  "onboarding documents email should ask for review, consultant date and signature only",
+);
+
 console.log("Business regression checks passed.");
