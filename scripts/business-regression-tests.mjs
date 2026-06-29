@@ -1926,6 +1926,11 @@ assert.match(
   "onboarding documents schema should treat contractorId as optional",
 );
 assert.match(
+  onboardingActions.match(/const onboardingDocumentsSchema[\s\S]*?\}\);/)?.[0] ?? "",
+  /projectClientLabel: requiredText/,
+  "onboarding documents schema should require projectClientLabel",
+);
+assert.match(
   onboardingActions,
   /sendOnboardingDocumentsEmailAction[\s\S]*generateOnboardingDocuments[\s\S]*attachments:[\s\S]*onboarding_documents_email_sent/,
   "documents action should generate PDFs, attach them to email and audit the send",
@@ -1963,10 +1968,20 @@ assert.match(
   /contractor_id: parsed\.data\.contractorId[\s\S]*recipient_display_name[\s\S]*internal_contractor_reference[\s\S]*file_size_bytes/,
   "onboarding archive rows should support null contractor_id and include free-text metadata",
 );
+assert.match(
+  onboardingActions,
+  /metadata:[\s\S]*project_client_label: parsed\.data\.projectClientLabel[\s\S]*metadata:[\s\S]*project_client_label: parsed\.data\.projectClientLabel/,
+  "onboarding archive and audit metadata should include project_client_label",
+);
 assert.doesNotMatch(
   onboardingDocumentsForm,
   /projectId|assignmentId|Project selector|Assignment selector/,
   "onboarding document form should remain a manual form without project or assignment selectors",
+);
+assert.match(
+  onboardingDocumentsForm,
+  /name="projectClientLabel"[\s\S]*Project \/ client label used in clauses/,
+  "onboarding document form should include the project/client label used in clauses",
 );
 for (const formSource of [onboardingDetailsForm, onboardingDocumentsForm]) {
   assert.doesNotMatch(
@@ -2003,6 +2018,31 @@ assert.match(
   onboardingPdf,
   /forbiddenGeneratedTokens[\s\S]*XXXXX[\s\S]*XX\.XX[\s\S]*undefined[\s\S]*null[\s\S]*Name client/,
   "onboarding PDF generation should reject raw placeholder tokens",
+);
+assert.doesNotMatch(
+  onboardingPdf,
+  /CSO Wesel/,
+  "onboarding PDF source should not hardcode CSO Wesel",
+);
+assert.match(
+  onboardingPdf,
+  /input\.projectClientLabel/,
+  "onboarding PDF clauses should use the manually entered project/client label",
+);
+assert.match(
+  onboardingPdf,
+  /Consultant address: \$\{input\.consultantAddress\}/,
+  "framework agreement should label the consultant address",
+);
+assert.match(
+  onboardingPdf,
+  /Consultant: \$\{input\.consultantLegalName\}/,
+  "NDA should label the consultant field",
+);
+assert.match(
+  onboardingPdf,
+  /Project \/ client reference: \$\{input\.clientProjectReference\}/,
+  "NDA should label the project/client reference field",
 );
 assert.match(
   onboardingPdf,
@@ -2061,7 +2101,8 @@ try {
         consultantTitleStatus: "Freelance Consultant",
         effectiveDate: "2026-06-30",
         documentDate: "2026-06-30",
-        clientProjectReference: "CSO Wesel SAP Support",
+        clientProjectReference: "HERON SAP Support",
+        projectClientLabel: "HERON",
         roleAssignmentTitle: "SAP Consultant",
         startDate: "2026-07-01",
         expectedEndDate: "2026-12-31",
@@ -2086,6 +2127,34 @@ try {
 
       const documents = generateOnboardingDocuments(validInput);
       assert.equal(documents.length, 3, "valid manual data should generate three onboarding PDFs");
+      const generatedText = documents
+        .map((document) => Buffer.from(document.pdf).toString("latin1"))
+        .join("\\n");
+      assert.match(
+        generatedText,
+        /HERON/,
+        "generated onboarding PDFs should contain the manually entered project/client label",
+      );
+      assert.doesNotMatch(
+        generatedText,
+        /CSO Wesel/,
+        "generated onboarding PDFs should not contain CSO Wesel unless manually entered",
+      );
+      assert.match(
+        generatedText,
+        /Consultant address:/,
+        "framework agreement PDF should label the consultant address",
+      );
+      assert.match(
+        generatedText,
+        /Consultant:/,
+        "NDA PDF should label the consultant field",
+      );
+      assert.match(
+        generatedText,
+        /Project \\/ client reference:/,
+        "NDA PDF should label the project/client reference field",
+      );
       for (const document of documents) {
         assert.equal(
           Buffer.from(document.pdf).subarray(0, 8).toString("utf8"),

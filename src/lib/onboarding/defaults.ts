@@ -1,7 +1,7 @@
 export const onboardingDocumentBucket = "contractor-onboarding-documents";
 
 export const defaultTimesheetSubmissionInstructions =
-  "The Consultant shall submit timesheets to CSO Wesel or the end client through the channels, format and frequency required by CSO Wesel or the end client.";
+  "The Consultant shall submit timesheets through the channels, format and frequency required for the assignment.";
 
 export const defaultOnboardingSpecialConditions = "N/A";
 

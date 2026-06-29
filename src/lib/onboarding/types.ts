@@ -14,6 +14,7 @@ export type OnboardingDocumentFormData = {
   effectiveDate: string;
   documentDate: string;
   clientProjectReference: string;
+  projectClientLabel: string;
   roleAssignmentTitle: string;
   startDate: string;
   expectedEndDate: string;

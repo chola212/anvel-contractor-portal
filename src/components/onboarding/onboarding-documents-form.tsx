@@ -234,6 +234,14 @@ export function OnboardingDocumentsForm({
         />
 
         <TextField
+          name="projectClientLabel"
+          label="Project / client label used in clauses"
+          errors={state.fieldErrors.projectClientLabel}
+          maxLength={200}
+          placeholder="For example: IBM Greece / HERON"
+        />
+
+        <TextField
           name="roleAssignmentTitle"
           label="Role/assignment title"
           errors={state.fieldErrors.roleAssignmentTitle}
