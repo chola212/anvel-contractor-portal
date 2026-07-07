@@ -1430,6 +1430,9 @@ details into snapshots. Later settings changes therefore do not rewrite issued
 invoice history. Client billing remains admin-only and has no automated payment
 integration. Manual outgoing invoices use `invoice_source = 'manual'`, keep
 `project_id` required, and leave `timesheet_id` and `contractor_id` empty.
+Manual outgoing invoice concepts are stored as one row per concept in
+`outgoing_invoice_lines`; the invoice header quantity, unit label, sales rate,
+net, VAT and gross amounts are derived summaries of those rows.
 
 The security hardening migration stores assignment sales rates in
 `contractor_project_commercials`, which is protected by admin-only RLS.

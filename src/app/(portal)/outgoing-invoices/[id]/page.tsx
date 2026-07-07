@@ -110,7 +110,30 @@ export default async function OutgoingInvoiceDetailPage({
           <DetailField label={invoice.invoice_source === "manual" ? "Unit rate" : "Sales rate"} value={formatCurrency(invoice.sales_rate)} />
           <DetailField label="VAT treatment" value={invoice.vat_treatment.replaceAll("_", " ")} />
         </dl>
-        {invoice.lines.map((line) => <p key={line.id} className="mt-3 rounded-md bg-neutral-50 p-3 text-sm">{line.description}</p>)}
+        <div className="mt-4 overflow-x-auto rounded-md border border-neutral-200">
+          <table className="min-w-full divide-y divide-neutral-200 text-sm">
+            <thead className="bg-neutral-50 text-left text-neutral-600">
+              <tr>
+                <th className="px-3 py-2 font-medium">Description / concept</th>
+                <th className="px-3 py-2 font-medium">Quantity</th>
+                <th className="px-3 py-2 font-medium">Unit</th>
+                <th className="px-3 py-2 font-medium">Rate</th>
+                <th className="px-3 py-2 font-medium">Net</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {invoice.lines.map((line) => (
+                <tr key={line.id}>
+                  <td className="px-3 py-2">{line.description}</td>
+                  <td className="px-3 py-2">{Number(line.quantity).toFixed(2)}</td>
+                  <td className="px-3 py-2">{line.unit_label}</td>
+                  <td className="px-3 py-2">{formatCurrency(line.unit_rate)}</td>
+                  <td className="px-3 py-2 font-medium">{formatCurrency(line.net_amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
       <ManualOutgoingInvoiceDraftForm invoice={invoice} />
       <section className="rounded-md border border-neutral-200 bg-white p-5">

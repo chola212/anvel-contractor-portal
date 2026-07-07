@@ -48,6 +48,20 @@ function wrapDescription(value: string, maxLength = 54) {
   return lines.slice(0, 2);
 }
 
+function chunkInvoiceLines<T>(lines: T[]) {
+  const chunks: T[][] = [lines.slice(0, 10)];
+  let remaining = lines.slice(10);
+
+  while (remaining.length > 16) {
+    const lineCount = Math.min(28, remaining.length - 16);
+    chunks.push(remaining.slice(0, lineCount));
+    remaining = remaining.slice(lineCount);
+  }
+
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
+}
+
 function cleanAddressLine(value: string | null | undefined) {
   const cleaned = (value ?? "").replace(/\s+/g, " ").trim();
   return cleaned || null;
@@ -157,8 +171,143 @@ function periodLabel(invoice: OutgoingInvoiceDetail) {
   return "";
 }
 
+function renderLineTable({
+  lines,
+  tableTopY,
+  firstRowY,
+}: {
+  lines: OutgoingInvoiceDetail["lines"];
+  tableTopY: number;
+  firstRowY: number;
+}) {
+  const rowHeight = 18;
+  const tableBottomY = firstRowY - lines.length * rowHeight - 8;
+  const commands = [
+    box(45, tableBottomY, 505, tableTopY - tableBottomY),
+    "0.09 0.35 0.33 rg",
+    box(45, tableTopY - 24, 505, 24, true),
+    "0 0 0 rg",
+    text("Description", 55, tableTopY - 16, 8, true),
+    right("Quantity", 375, tableTopY - 16, 8, true),
+    right("Unit", 425, tableTopY - 16, 8, true),
+    right("Rate", 482, tableTopY - 16, 8, true),
+    right("Net", 540, tableTopY - 16, 8, true),
+  ];
+
+  lines.forEach((line, index) => {
+    const rowY = firstRowY - index * rowHeight;
+    const descriptionLines = wrapDescription(line.description, 46);
+    descriptionLines.forEach((value, descriptionIndex) => {
+      commands.push(text(value, 55, rowY - descriptionIndex * 8, 7));
+    });
+    commands.push(
+      right(Number(line.quantity).toFixed(2), 375, rowY, 8),
+      right(line.unit_label, 425, rowY, 8),
+      right(Number(line.unit_rate).toFixed(2), 482, rowY, 8),
+      right(money(line.net_amount), 540, rowY, 8),
+    );
+  });
+
+  return { commands, tableBottomY };
+}
+
+function vatLabel(invoice: OutgoingInvoiceDetail) {
+  return invoice.vat_treatment === "cyprus_vat_19"
+    ? "VAT (19%)"
+    : invoice.vat_treatment === "eu_reverse_charge_0"
+      ? "VAT (0% - reverse charge)"
+      : invoice.vat_treatment === "non_eu_outside_scope"
+        ? "VAT (outside scope)"
+        : "VAT (manual review)";
+}
+
+function renderTotals(invoice: OutgoingInvoiceDetail, lineSubtotal: number, boxY: number) {
+  const vatAmount = Number(invoice.vat_rate) > 0
+    ? Math.round(lineSubtotal * Number(invoice.vat_rate)) / 100
+    : 0;
+  const grossAmount = lineSubtotal + vatAmount;
+  return [
+    box(330, boxY, 220, 105, true),
+    "0 0 0 rg",
+    text("Subtotal", 345, boxY + 80, 9),
+    right(money(lineSubtotal), 535, boxY + 80, 9),
+    text(vatLabel(invoice), 345, boxY + 56, 9),
+    right(money(vatAmount), 535, boxY + 56, 9),
+    rule(345, boxY + 41, 535, boxY + 41),
+    text("TOTAL DUE", 345, boxY + 16, 11, true),
+    right(money(grossAmount), 535, boxY + 16, 11, true),
+  ];
+}
+
+function renderPaymentDetails(invoice: OutgoingInvoiceDetail, startY: number) {
+  return [
+    text("NOTES", 55, startY, 9, true),
+    text(
+      invoice.billing_invoice_notes ??
+        invoice.company_invoice_notes ??
+        "Payment is due within 30 calendar days.",
+      55,
+      startY - 18,
+      8,
+    ),
+    text("BANK DETAILS", 55, startY - 60, 9, true),
+    text(`Bank: ${invoice.company_bank_name}`, 55, startY - 78, 8),
+    text(`Account name: ${invoice.company_bank_account_name}`, 55, startY - 94, 8),
+    text(`IBAN: ${invoice.company_iban}`, 55, startY - 110, 8),
+    text(`SWIFT/BIC: ${invoice.company_swift_bic}`, 55, startY - 126, 8),
+  ];
+}
+
+function buildPdf(pages: string[][]) {
+  const pageCount = pages.length;
+  const fontRegularId = 3 + pageCount;
+  const fontBoldId = 4 + pageCount;
+  const firstContentId = 5 + pageCount;
+  const pageIds = Array.from({ length: pageCount }, (_, index) => 3 + index);
+  const objects = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    `2 0 obj << /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageCount} >> endobj`,
+    ...pageIds.map((pageId, index) =>
+      `${pageId} 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >> >> /Contents ${firstContentId + index} 0 R >> endobj`
+    ),
+    `${fontRegularId} 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj`,
+    `${fontBoldId} 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj`,
+    ...pages.map((commands, index) => {
+      const stream = commands.join("\n");
+      return `${firstContentId + index} 0 obj << /Length ${Buffer.byteLength(stream)} >> stream\n${stream}\nendstream endobj`;
+    }),
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${object}\n`;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  }
+  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Uint8Array(Buffer.from(pdf, "binary"));
+}
+
 export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
-  const line = invoice.lines[0];
+  const invoiceLines = invoice.lines.length > 0
+    ? invoice.lines
+    : [{
+      id: "missing-line",
+      outgoing_invoice_id: invoice.id,
+      description: "Consultancy fees",
+      quantity: invoice.quantity,
+      unit_label: invoice.unit_label,
+      unit_rate: invoice.sales_rate,
+      net_amount: invoice.net_amount,
+      sort_order: 1,
+      created_at: invoice.created_at,
+    }];
   const invoicePeriodLabel = periodLabel(invoice);
   const companyAddressLines = addressBlockLines(
     addressLines(
@@ -178,18 +327,17 @@ export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
   );
   const companyVatY = 677 - companyAddressLines.length * 14;
   const billingVatY = 677 - billingAddressLines.length * 14;
-  const descriptionLines = wrapDescription(
-    line?.description ?? "Consultancy fees",
+  const lineSubtotal = invoiceLines.reduce(
+    (total, line) => total + Number(line.net_amount),
+    0,
   );
-  const vatLabel =
-    invoice.vat_treatment === "cyprus_vat_19"
-      ? "VAT (19%)"
-      : invoice.vat_treatment === "eu_reverse_charge_0"
-        ? "VAT (0% - reverse charge)"
-        : invoice.vat_treatment === "non_eu_outside_scope"
-          ? "VAT (outside scope)"
-          : "VAT (manual review)";
-  const commands = [
+  const chunks = chunkInvoiceLines(invoiceLines);
+  const firstTable = renderLineTable({
+    lines: chunks[0],
+    tableTopY: 534,
+    firstRowY: 492,
+  });
+  const firstPage = [
     "0.09 0.35 0.33 rg",
     box(45, 742, 505, 65, true),
     "0 0 0 rg",
@@ -220,77 +368,52 @@ export function createOutgoingInvoicePdf(invoice: OutgoingInvoiceDetail) {
     ...(invoice.po_reference
       ? [text(`PO reference: ${invoice.po_reference}`, 58, 560, 8)]
       : []),
-    box(45, 428, 505, 106),
-    "0.09 0.35 0.33 rg",
-    box(45, 510, 505, 24, true),
-    "0 0 0 rg",
-    text("Description", 55, 518, 8, true),
-    right("Quantity", 375, 518, 8, true),
-    right("Unit", 425, 518, 8, true),
-    right("Rate", 482, 518, 8, true),
-    right("Net", 540, 518, 8, true),
-    ...descriptionLines.map((value, index) =>
-      text(value, 55, 492 - index * 16, 7.5),
-    ),
-    right(Number(invoice.quantity).toFixed(2), 375, 486, 8),
-    right(invoice.unit_label, 425, 486, 8),
-    right(Number(invoice.sales_rate).toFixed(2), 482, 486, 8),
-    right(money(invoice.net_amount), 540, 486, 8),
-    rule(45, 465, 550, 465),
-    box(330, 320, 220, 105, true),
-    "0 0 0 rg",
-    text("Subtotal", 345, 400, 9),
-    right(money(invoice.net_amount), 535, 400, 9),
-    text(vatLabel, 345, 376, 9),
-    right(money(invoice.vat_amount), 535, 376, 9),
-    rule(345, 361, 535, 361),
-    text("TOTAL DUE", 345, 336, 11, true),
-    right(money(invoice.gross_amount), 535, 336, 11, true),
-    text("NOTES", 55, 295, 9, true),
-    text(
-      invoice.billing_invoice_notes ??
-        invoice.company_invoice_notes ??
-        "Payment is due within 30 calendar days.",
-      55,
-      277,
-      8,
-    ),
-    text("BANK DETAILS", 55, 235, 9, true),
-    text(`Bank: ${invoice.company_bank_name}`, 55, 217, 8),
-    text(`Account name: ${invoice.company_bank_account_name}`, 55, 201, 8),
-    text(`IBAN: ${invoice.company_iban}`, 55, 185, 8),
-    text(`SWIFT/BIC: ${invoice.company_swift_bic}`, 55, 169, 8),
-    rule(45, 145, 550, 145),
+    ...firstTable.commands,
+    ...(chunks.length === 1
+      ? [
+        ...renderTotals(invoice, lineSubtotal, Math.min(320, firstTable.tableBottomY - 113)),
+        ...renderPaymentDetails(invoice, Math.min(295, firstTable.tableBottomY - 138)),
+      ]
+      : [text("Continued on next page", 55, firstTable.tableBottomY - 24, 8, true)]),
+    rule(45, 28, 550, 28),
     text(
       `${invoice.company_legal_name} | VAT No. ${invoice.company_vat_number}`,
       55,
-      127,
+      12,
       8,
     ),
-    right(`Total due: ${money(invoice.gross_amount)}`, 540, 127, 9, true),
+    right(`Total due: ${money(lineSubtotal + (Number(invoice.vat_rate) > 0 ? Math.round(lineSubtotal * Number(invoice.vat_rate)) / 100 : 0))}`, 540, 12, 9, true),
   ];
-  const stream = commands.join("\n");
-  const objects = [
-    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >> endobj",
-    "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
-    "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj",
-    `6 0 obj << /Length ${Buffer.byteLength(stream)} >> stream\n${stream}\nendstream endobj`,
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
+  const pages = [firstPage];
 
-  for (const object of objects) {
-    offsets.push(Buffer.byteLength(pdf));
-    pdf += `${object}\n`;
-  }
+  chunks.slice(1).forEach((chunk, chunkIndex) => {
+    const isLastPage = chunkIndex === chunks.length - 2;
+    const table = renderLineTable({
+      lines: chunk,
+      tableTopY: 700,
+      firstRowY: 658,
+    });
+    pages.push([
+      text("INVOICE CONTINUED", 55, 780, 18, true),
+      right(invoice.invoice_number, 540, 784, 12, true),
+      text(invoice.billing_legal_name, 55, 755, 9),
+      ...table.commands,
+      ...(isLastPage
+        ? [
+          ...renderTotals(invoice, lineSubtotal, Math.min(245, table.tableBottomY - 113)),
+          ...renderPaymentDetails(invoice, Math.min(220, table.tableBottomY - 138)),
+        ]
+        : [text("Continued on next page", 55, table.tableBottomY - 24, 8, true)]),
+      rule(45, 28, 550, 28),
+      text(
+        `${invoice.company_legal_name} | VAT No. ${invoice.company_vat_number}`,
+        55,
+        12,
+        8,
+      ),
+      right(`Total due: ${money(lineSubtotal + (Number(invoice.vat_rate) > 0 ? Math.round(lineSubtotal * Number(invoice.vat_rate)) / 100 : 0))}`, 540, 12, 9, true),
+    ]);
+  });
 
-  const xrefOffset = Buffer.byteLength(pdf);
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets.slice(1)) {
-    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  }
-  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return new Uint8Array(Buffer.from(pdf, "binary"));
+  return buildPdf(pages);
 }

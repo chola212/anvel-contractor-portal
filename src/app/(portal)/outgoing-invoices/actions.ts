@@ -24,15 +24,44 @@ const invoiceIdSchema = z.object({
 });
 const optionalText = z.string().trim().max(1000).transform((value) => value || null);
 const DEFAULT_MANUAL_CONSULTANT_NAME = "Andres Velasco";
+const manualInvoiceLineSchema = z.object({
+  description: z.string().trim().min(1, "Enter a line description.").max(500),
+  quantity: z.coerce.number().gt(0, "Quantity must be greater than 0."),
+  unitLabel: z.string().trim().min(1, "Enter a unit.").max(40),
+  unitRate: z.coerce.number().nonnegative("Rate cannot be negative."),
+});
+const manualInvoiceLinesSchema = z.string().transform((value, context) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    context.addIssue({
+      code: "custom",
+      message: "Invoice lines could not be read.",
+    });
+    return z.NEVER;
+  }
+}).pipe(
+  z.array(manualInvoiceLineSchema)
+    .min(1, "Add at least one invoice line.")
+    .superRefine((lines, context) => {
+      const totalNetAmount = lines.reduce(
+        (total, line) => total + line.quantity * line.unitRate,
+        0,
+      );
+      if (totalNetAmount <= 0) {
+        context.addIssue({
+          code: "custom",
+          message: "Total net amount must be greater than 0.",
+        });
+      }
+    }),
+);
 const manualInvoiceDraftSchema = z.object({
   projectId: z.string().uuid("Select a project."),
   consultantName: z.string().trim().min(1, "Enter a consultant name.").max(160),
   invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter an invoice date."),
   periodLabel: z.string().trim().max(80, "Keep the period label under 80 characters.").transform((value) => value || null),
-  description: z.string().trim().min(1, "Enter an invoice description.").max(500),
-  quantity: z.coerce.number().nonnegative("Quantity cannot be negative."),
-  unitLabel: z.string().trim().min(1, "Enter a unit.").max(40),
-  unitRate: z.coerce.number().nonnegative("Rate cannot be negative."),
+  linesJson: manualInvoiceLinesSchema,
   invoiceNotes: optionalText,
 });
 const updateManualInvoiceDraftSchema = manualInvoiceDraftSchema
@@ -74,6 +103,44 @@ function roundMoney(value: number) {
 
 function vatRateForTreatment(vatTreatment: string) {
   return vatTreatment === "cyprus_vat_19" ? 19 : 0;
+}
+
+function calculateManualInvoiceTotals(lines: z.infer<typeof manualInvoiceLineSchema>[]) {
+  const invoiceLines = lines.map((line, index) => {
+    const quantity = roundMoney(line.quantity);
+    const unitRate = roundMoney(line.unitRate);
+    return {
+      description: line.description,
+      quantity,
+      unitLabel: line.unitLabel,
+      unitRate,
+      netAmount: roundMoney(quantity * unitRate),
+      sortOrder: index + 1,
+    };
+  });
+  const quantity = roundMoney(
+    invoiceLines.reduce((total, line) => total + line.quantity, 0),
+  );
+  const netAmount = roundMoney(
+    invoiceLines.reduce((total, line) => total + line.netAmount, 0),
+  );
+  const firstUnitLabel = invoiceLines[0]?.unitLabel ?? "mixed";
+  const unitLabel = invoiceLines.every((line) => line.unitLabel === firstUnitLabel)
+    ? firstUnitLabel
+    : "mixed";
+  const salesRate = invoiceLines.length === 1
+    ? invoiceLines[0].unitRate
+    : quantity > 0
+      ? roundMoney(netAmount / quantity)
+      : 0;
+
+  return {
+    invoiceLines,
+    quantity,
+    unitLabel,
+    salesRate,
+    netAmount,
+  };
 }
 
 function isProjectInForce(project: {
@@ -224,10 +291,7 @@ export async function createManualOutgoingInvoiceAction(
     consultantName: formData.get("consultantName") || DEFAULT_MANUAL_CONSULTANT_NAME,
     invoiceDate: formData.get("invoiceDate"),
     periodLabel: formData.get("periodLabel"),
-    description: formData.get("description"),
-    quantity: formData.get("quantity"),
-    unitLabel: formData.get("unitLabel"),
-    unitRate: formData.get("unitRate"),
+    linesJson: formData.get("linesJson"),
     invoiceNotes: formData.get("invoiceNotes"),
   });
   if (!parsed.success) {
@@ -258,12 +322,10 @@ export async function createManualOutgoingInvoiceAction(
     return errorState(`Could not allocate outgoing invoice number: ${numberError?.message ?? "Unknown error"}`);
   }
 
-  const quantity = roundMoney(parsed.data.quantity);
-  const unitRate = roundMoney(parsed.data.unitRate);
-  const netAmount = roundMoney(quantity * unitRate);
+  const totals = calculateManualInvoiceTotals(parsed.data.linesJson);
   const vatRate = vatRateForTreatment(context.billing.vat_treatment);
-  const vatAmount = roundMoney(netAmount * (vatRate / 100));
-  const grossAmount = roundMoney(netAmount + vatAmount);
+  const vatAmount = roundMoney(totals.netAmount * (vatRate / 100));
+  const grossAmount = roundMoney(totals.netAmount + vatAmount);
   const invoiceId = crypto.randomUUID();
   const payload = {
     id: invoiceId,
@@ -313,10 +375,10 @@ export async function createManualOutgoingInvoiceAction(
     project_name: context.project.name,
     consultant_name: parsed.data.consultantName,
     consultant_email: null,
-    quantity,
-    unit_label: parsed.data.unitLabel,
-    sales_rate: unitRate,
-    net_amount: netAmount,
+    quantity: totals.quantity,
+    unit_label: totals.unitLabel,
+    sales_rate: totals.salesRate,
+    net_amount: totals.netAmount,
     vat_treatment: context.billing.vat_treatment,
     vat_rate: vatRate,
     vat_amount: vatAmount,
@@ -333,16 +395,18 @@ export async function createManualOutgoingInvoiceAction(
   const { error: insertError } = await supabase.from("outgoing_invoices").insert(payload);
   if (insertError) return errorState(`Could not create manual invoice: ${insertError.message}`);
 
-  const { error: lineError } = await supabase.from("outgoing_invoice_lines").insert({
-    outgoing_invoice_id: invoiceId,
-    description: parsed.data.description,
-    quantity,
-    unit_label: parsed.data.unitLabel,
-    unit_rate: unitRate,
-    net_amount: netAmount,
-    sort_order: 1,
-  });
-  if (lineError) return errorState(`Manual invoice was created, but its line could not be saved: ${lineError.message}`);
+  const { error: lineError } = await supabase.from("outgoing_invoice_lines").insert(
+    totals.invoiceLines.map((line) => ({
+      outgoing_invoice_id: invoiceId,
+      description: line.description,
+      quantity: line.quantity,
+      unit_label: line.unitLabel,
+      unit_rate: line.unitRate,
+      net_amount: line.netAmount,
+      sort_order: line.sortOrder,
+    })),
+  );
+  if (lineError) return errorState(`Manual invoice was created, but its lines could not be saved: ${lineError.message}`);
 
   try {
     await uploadOutgoingInvoicePdf(supabase, invoiceId);
@@ -386,10 +450,7 @@ export async function updateManualOutgoingInvoiceDraftAction(
     invoiceId: formData.get("invoiceId"),
     consultantName: formData.get("consultantName") || DEFAULT_MANUAL_CONSULTANT_NAME,
     periodLabel: formData.get("periodLabel"),
-    description: formData.get("description"),
-    quantity: formData.get("quantity"),
-    unitLabel: formData.get("unitLabel"),
-    unitRate: formData.get("unitRate"),
+    linesJson: formData.get("linesJson"),
     invoiceNotes: formData.get("invoiceNotes"),
   });
   if (!parsed.success) {
@@ -406,20 +467,18 @@ export async function updateManualOutgoingInvoiceDraftAction(
   if (invoice.status !== "draft") return errorState("Only draft manual invoices can be edited.");
 
   const supabase = await createClient();
-  const quantity = roundMoney(parsed.data.quantity);
-  const unitRate = roundMoney(parsed.data.unitRate);
-  const netAmount = roundMoney(quantity * unitRate);
+  const totals = calculateManualInvoiceTotals(parsed.data.linesJson);
   const vatRate = vatRateForTreatment(invoice.vat_treatment);
-  const vatAmount = roundMoney(netAmount * (vatRate / 100));
-  const grossAmount = roundMoney(netAmount + vatAmount);
+  const vatAmount = roundMoney(totals.netAmount * (vatRate / 100));
+  const grossAmount = roundMoney(totals.netAmount + vatAmount);
 
   const { error: updateError } = await supabase.from("outgoing_invoices").update({
     consultant_name: parsed.data.consultantName,
     period_label: parsed.data.periodLabel,
-    quantity,
-    unit_label: parsed.data.unitLabel,
-    sales_rate: unitRate,
-    net_amount: netAmount,
+    quantity: totals.quantity,
+    unit_label: totals.unitLabel,
+    sales_rate: totals.salesRate,
+    net_amount: totals.netAmount,
     vat_rate: vatRate,
     vat_amount: vatAmount,
     gross_amount: grossAmount,
@@ -427,18 +486,24 @@ export async function updateManualOutgoingInvoiceDraftAction(
   }).eq("id", invoice.id);
   if (updateError) return errorState(`Could not update manual invoice: ${updateError.message}`);
 
-  const { error: lineError } = await supabase
+  const { error: deleteLinesError } = await supabase
     .from("outgoing_invoice_lines")
-    .update({
-      description: parsed.data.description,
-      quantity,
-      unit_label: parsed.data.unitLabel,
-      unit_rate: unitRate,
-      net_amount: netAmount,
-    })
-    .eq("outgoing_invoice_id", invoice.id)
-    .eq("sort_order", 1);
-  if (lineError) return errorState(`Manual invoice updated, but its line could not be saved: ${lineError.message}`);
+    .delete()
+    .eq("outgoing_invoice_id", invoice.id);
+  if (deleteLinesError) return errorState(`Manual invoice updated, but old lines could not be replaced: ${deleteLinesError.message}`);
+
+  const { error: lineError } = await supabase.from("outgoing_invoice_lines").insert(
+    totals.invoiceLines.map((line) => ({
+      outgoing_invoice_id: invoice.id,
+      description: line.description,
+      quantity: line.quantity,
+      unit_label: line.unitLabel,
+      unit_rate: line.unitRate,
+      net_amount: line.netAmount,
+      sort_order: line.sortOrder,
+    })),
+  );
+  if (lineError) return errorState(`Manual invoice updated, but its lines could not be saved: ${lineError.message}`);
 
   try {
     await uploadOutgoingInvoicePdf(supabase, invoice.id);
@@ -458,7 +523,7 @@ export async function updateManualOutgoingInvoiceDraftAction(
     metadata: {
       invoice_number: invoice.invoice_number,
       consultant_name: parsed.data.consultantName,
-      net_amount: netAmount,
+      net_amount: totals.netAmount,
     },
   });
   revalidatePath("/outgoing-invoices");

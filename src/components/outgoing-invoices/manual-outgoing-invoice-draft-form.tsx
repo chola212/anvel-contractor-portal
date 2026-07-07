@@ -8,6 +8,7 @@ import {
   type OutgoingInvoiceActionState,
 } from "@/app/(portal)/outgoing-invoices/actions";
 import type { OutgoingInvoiceDetail } from "@/lib/outgoing-invoices/types";
+import { ManualOutgoingInvoiceLinesEditor } from "./manual-outgoing-invoice-lines-editor";
 
 const initialState: OutgoingInvoiceActionState = {
   status: "idle",
@@ -31,7 +32,6 @@ export function ManualOutgoingInvoiceDraftForm({
     updateManualOutgoingInvoiceDraftAction,
     initialState,
   );
-  const line = invoice.lines[0];
 
   useEffect(() => {
     if (state.status === "success") router.refresh();
@@ -46,9 +46,9 @@ export function ManualOutgoingInvoiceDraftForm({
       <input type="hidden" name="invoiceId" value={invoice.id} />
       <h2 className="font-semibold">Manual draft details</h2>
       <p className="mt-1 text-sm text-neutral-600">
-        Edit the consultant, concept, quantity, rate and notes before sending.
+        Edit the consultant, invoice lines and notes before sending.
       </p>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
         <div>
           <label htmlFor="manual-edit-consultant" className="block text-sm font-medium text-neutral-800">Consultant</label>
           <input
@@ -71,59 +71,17 @@ export function ManualOutgoingInvoiceDraftForm({
           />
           <FieldError errors={state.fieldErrors.periodLabel} />
         </div>
-        <div>
-          <label htmlFor="manual-edit-quantity" className="block text-sm font-medium text-neutral-800">Quantity</label>
-          <input
-            id="manual-edit-quantity"
-            name="quantity"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={Number(invoice.quantity).toFixed(2)}
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.quantity} />
-        </div>
-        <div>
-          <label htmlFor="manual-edit-unit" className="block text-sm font-medium text-neutral-800">Unit</label>
-          <input
-            id="manual-edit-unit"
-            name="unitLabel"
-            defaultValue={invoice.unit_label}
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.unitLabel} />
-        </div>
-        <div>
-          <label htmlFor="manual-edit-rate" className="block text-sm font-medium text-neutral-800">Rate</label>
-          <input
-            id="manual-edit-rate"
-            name="unitRate"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={Number(invoice.sales_rate).toFixed(2)}
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.unitRate} />
-        </div>
       </div>
+      <ManualOutgoingInvoiceLinesEditor
+        initialLines={invoice.lines.map((line) => ({
+          description: line.description,
+          quantity: Number(line.quantity).toFixed(2),
+          unitLabel: line.unit_label,
+          unitRate: Number(line.unit_rate).toFixed(2),
+        }))}
+        errors={state.fieldErrors.linesJson}
+      />
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <div>
-          <label htmlFor="manual-edit-description" className="block text-sm font-medium text-neutral-800">Description / concept</label>
-          <textarea
-            id="manual-edit-description"
-            name="description"
-            rows={3}
-            defaultValue={line?.description ?? ""}
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.description} />
-        </div>
         <div>
           <label htmlFor="manual-edit-notes" className="block text-sm font-medium text-neutral-800">Invoice notes</label>
           <textarea

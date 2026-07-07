@@ -8,6 +8,7 @@ import {
   type OutgoingInvoiceActionState,
 } from "@/app/(portal)/outgoing-invoices/actions";
 import type { ManualOutgoingInvoiceProjectOption } from "@/lib/outgoing-invoices/queries";
+import { ManualOutgoingInvoiceLinesEditor } from "./manual-outgoing-invoice-lines-editor";
 
 const initialState: OutgoingInvoiceActionState = {
   status: "idle",
@@ -50,7 +51,7 @@ export function ManualOutgoingInvoiceCreateForm({
           Create a project-based outgoing invoice using the selected project billing snapshot.
         </p>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
         <div>
           <label htmlFor="manual-project" className="block text-sm font-medium text-neutral-800">Project</label>
           <select
@@ -101,58 +102,9 @@ export function ManualOutgoingInvoiceCreateForm({
           />
           <FieldError errors={state.fieldErrors.periodLabel} />
         </div>
-        <div>
-          <label htmlFor="manual-quantity" className="block text-sm font-medium text-neutral-800">Quantity</label>
-          <input
-            id="manual-quantity"
-            name="quantity"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue="1"
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.quantity} />
-        </div>
-        <div>
-          <label htmlFor="manual-unit" className="block text-sm font-medium text-neutral-800">Unit</label>
-          <input
-            id="manual-unit"
-            name="unitLabel"
-            defaultValue="service"
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.unitLabel} />
-        </div>
-        <div>
-          <label htmlFor="manual-rate" className="block text-sm font-medium text-neutral-800">Rate</label>
-          <input
-            id="manual-rate"
-            name="unitRate"
-            type="number"
-            min="0"
-            step="0.01"
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.unitRate} />
-        </div>
       </div>
+      <ManualOutgoingInvoiceLinesEditor errors={state.fieldErrors.linesJson} />
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <div>
-          <label htmlFor="manual-description" className="block text-sm font-medium text-neutral-800">Description / concept</label>
-          <textarea
-            id="manual-description"
-            name="description"
-            rows={3}
-            required
-            placeholder="Consulting services"
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <FieldError errors={state.fieldErrors.description} />
-        </div>
         <div>
           <label htmlFor="manual-notes" className="block text-sm font-medium text-neutral-800">Invoice notes</label>
           <textarea

@@ -197,7 +197,9 @@ notification's sender in `updateUser`.
   workflow.
 - Admin can also create a manual project-based outgoing invoice from an active
   in-force project. The invoice snapshots that project's billing details and
-  defaults the consultant name to Andres Velasco.
+  defaults the consultant name to Andres Velasco. Manual outgoing invoices can
+  contain multiple concept lines; totals, quantity and weighted sales rate are
+  calculated from those stored lines.
 - Admin reviews, downloads, manually sends and manually marks outgoing invoices
   paid under `/outgoing-invoices`.
 - Outgoing invoices use EUR and a due date exactly 30 calendar days after the

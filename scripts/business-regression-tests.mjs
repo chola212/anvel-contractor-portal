@@ -1622,6 +1622,16 @@ assert.match(
   /renderLines\(companyAddressLines, 55, 677\)[\s\S]*renderLines\(billingAddressLines, 320, 677\)/,
   "outgoing PDF should render company and billing address line 2 blocks without fixed blank rows",
 );
+assert.doesNotMatch(
+  outgoingPdf,
+  /const line = invoice\.lines\[0\]/,
+  "outgoing PDF must not render only the first invoice line",
+);
+assert.match(
+  outgoingPdf,
+  /chunkInvoiceLines[\s\S]*renderLineTable[\s\S]*invoiceLines\.reduce/,
+  "outgoing PDF should render all invoice lines and total from line net amounts",
+);
 
 const outgoingActions = read(
   "src/app/(portal)/outgoing-invoices/actions.ts",
@@ -1658,8 +1668,28 @@ assert.match(
 );
 assert.match(
   outgoingActions,
-  /updateManualOutgoingInvoiceDraftAction[\s\S]*invoice\.invoice_source !== "manual"[\s\S]*invoice\.status !== "draft"[\s\S]*consultant_name[\s\S]*period_label[\s\S]*quantity[\s\S]*unit_label[\s\S]*sales_rate[\s\S]*billing_invoice_notes/,
-  "manual outgoing invoice drafts should allow editing consultant, concept, quantity, unit, rate and notes only while draft",
+  /manualInvoiceLineSchema[\s\S]*description[\s\S]*quantity[\s\S]*gt\(0[\s\S]*unitLabel[\s\S]*unitRate[\s\S]*nonnegative/,
+  "manual outgoing invoice lines should validate description, positive quantity, unit and non-negative rate",
+);
+assert.match(
+  outgoingActions,
+  /manualInvoiceLinesSchema[\s\S]*min\(1[\s\S]*Total net amount must be greater than 0/,
+  "manual outgoing invoice actions should require at least one positive-value line",
+);
+assert.match(
+  outgoingActions,
+  /calculateManualInvoiceTotals[\s\S]*quantity = roundMoney[\s\S]*unitLabel[\s\S]*"mixed"[\s\S]*salesRate[\s\S]*netAmount \/ quantity/,
+  "manual outgoing invoice header totals should summarize all submitted line items",
+);
+assert.match(
+  outgoingActions,
+  /createManualOutgoingInvoiceAction[\s\S]*linesJson: formData\.get\("linesJson"\)[\s\S]*totals\.invoiceLines\.map[\s\S]*sort_order: line\.sortOrder/,
+  "manual outgoing invoice creation should insert one outgoing_invoice_lines row per concept",
+);
+assert.match(
+  outgoingActions,
+  /updateManualOutgoingInvoiceDraftAction[\s\S]*linesJson: formData\.get\("linesJson"\)[\s\S]*invoice\.invoice_source !== "manual"[\s\S]*invoice\.status !== "draft"[\s\S]*delete\(\)[\s\S]*totals\.invoiceLines\.map[\s\S]*uploadOutgoingInvoicePdf/,
+  "manual outgoing invoice drafts should replace multiple line items and regenerate the PDF while draft only",
 );
 assert.match(
   outgoingActions,
@@ -1833,6 +1863,11 @@ assert.match(
   /billing incomplete/,
   "manual invoice form should flag incomplete billing projects",
 );
+assert.match(
+  manualCreateForm,
+  /ManualOutgoingInvoiceLinesEditor/,
+  "manual invoice create form should use the multiple-line editor",
+);
 
 const manualDraftForm = read(
   "src/components/outgoing-invoices/manual-outgoing-invoice-draft-form.tsx",
@@ -1841,6 +1876,25 @@ assert.match(
   manualDraftForm,
   /invoice\.invoice_source !== "manual"[\s\S]*invoice\.status !== "draft"[\s\S]*Save manual draft/,
   "manual invoice draft form should only render for manual draft invoices",
+);
+assert.match(
+  manualDraftForm,
+  /ManualOutgoingInvoiceLinesEditor[\s\S]*invoice\.lines\.map/,
+  "manual invoice draft form should edit all existing invoice lines",
+);
+
+const manualLinesEditor = read(
+  "src/components/outgoing-invoices/manual-outgoing-invoice-lines-editor.tsx",
+);
+assert.match(
+  manualLinesEditor,
+  /name="linesJson"[\s\S]*Add line[\s\S]*Remove line/,
+  "manual invoice line editor should submit line JSON and expose add/remove controls",
+);
+assert.match(
+  manualLinesEditor,
+  /disabled=\{lines\.length === 1\}/,
+  "manual invoice line editor should not allow removing the last line",
 );
 
 const outgoingFiles = [
