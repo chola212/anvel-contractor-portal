@@ -50,7 +50,7 @@ export function OutgoingInvoiceActions({ invoice }: { invoice: OutgoingInvoice }
             <input type="hidden" name="invoiceId" value={invoice.id} />
             <h3 className="font-semibold">Draft invoice number</h3>
             <p className="mt-1 text-sm text-neutral-600">
-              Changing this number affects future generated numbering. Entering 33 will be normalised to ANVEL-{invoice.year}-0033.
+              Save the exact invoice number to show on the PDF. Surrounding spaces are trimmed, and duplicates are rejected.
             </p>
             <input
               name="invoiceNumber"

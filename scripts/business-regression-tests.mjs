@@ -1658,8 +1658,22 @@ assert.match(
 );
 assert.match(
   outgoingActions,
-  /createManualOutgoingInvoiceAction[\s\S]*next_outgoing_invoice_number[\s\S]*invoice_source: "manual"[\s\S]*timesheet_id: null[\s\S]*project_id: context\.project\.id[\s\S]*contractor_id: null/,
-  "manual outgoing invoices should use the shared number sequence and store manual source links",
+  /createManualOutgoingInvoiceAction[\s\S]*invoiceNumber: formData\.get\("invoiceNumber"\)[\s\S]*invoice_source: "manual"[\s\S]*timesheet_id: null[\s\S]*project_id: context\.project\.id[\s\S]*contractor_id: null[\s\S]*invoice_number: parsed\.data\.invoiceNumber/,
+  "manual outgoing invoices should store the exact admin-submitted invoice number and source links",
+);
+const createManualOutgoingInvoiceSection =
+  outgoingActions.match(
+    /export async function createManualOutgoingInvoiceAction[\s\S]*?export async function updateManualOutgoingInvoiceDraftAction/,
+  )?.[0] ?? "";
+assert.doesNotMatch(
+  createManualOutgoingInvoiceSection,
+  /next_outgoing_invoice_number|parseSequenceInvoiceNumber|syncOutgoingInvoiceSequence/,
+  "manual outgoing invoice creation must not allocate or normalize ANVEL sequence numbers",
+);
+assert.match(
+  createManualOutgoingInvoiceSection,
+  /\.eq\("invoice_number", parsed\.data\.invoiceNumber\)[\s\S]*This invoice number is already used/,
+  "manual outgoing invoice creation should reject duplicate submitted invoice numbers",
 );
 assert.match(
   outgoingActions,
@@ -1698,13 +1712,13 @@ assert.match(
 );
 assert.match(
   outgoingActions,
-  /parseSequenceInvoiceNumber[\s\S]*ANVEL-\$\{fallbackYear\}-\$\{String\(sequenceNumber\)\.padStart\(4, "0"\)\}/,
-  "plain manual invoice numbers should normalize to ANVEL-YYYY-0001 format",
+  /updateOutgoingInvoiceNumberAction[\s\S]*invoice_number: parsed\.data\.invoiceNumber[\s\S]*message: "Invoice number saved\."/,
+  "admin invoice number edits should store the exact submitted invoice number",
 );
-assert.match(
+assert.doesNotMatch(
   outgoingActions,
-  /sync_outgoing_invoice_sequence/,
-  "manual outgoing invoice number edits should sync the generated sequence upward",
+  /parseSequenceInvoiceNumber|syncOutgoingInvoiceSequence/,
+  "manual invoice number create and edit actions must not normalize or sync generated sequences",
 );
 assert.match(
   outgoingActions,
@@ -1834,8 +1848,8 @@ for (const route of [outgoingRoute, outgoingDetailRoute]) {
 }
 assert.match(
   outgoingRoute,
-  /ManualOutgoingInvoiceCreateForm[\s\S]*getManualOutgoingInvoiceProjectOptions/,
-  "outgoing invoice list should expose manual invoice creation from active project options",
+  /getManualOutgoingInvoiceProjectOptions[\s\S]*getSuggestedManualOutgoingInvoiceNumber[\s\S]*ManualOutgoingInvoiceCreateForm[\s\S]*suggestedInvoiceNumber=\{suggestedInvoiceNumber\}/,
+  "outgoing invoice list should expose manual invoice creation with active projects and a suggested invoice number",
 );
 assert.match(
   outgoingDetailRoute,
@@ -1849,6 +1863,44 @@ assert.match(
   /getManualOutgoingInvoiceProjectOptions[\s\S]*eq\("status", "active"\)[\s\S]*isProjectInForce[\s\S]*hasCompleteBillingDetails/,
   "manual invoice project selector should only load active in-force projects and prefer complete billing details",
 );
+assert.match(
+  outgoingQueries,
+  /export function suggestNextNumericInvoiceNumber[\s\S]*\/\^\\d\+\$\/[\s\S]*Math\.max\(\.\.\.numericInvoiceNumbers\) \+ 1/,
+  "manual invoice number suggestion should use only existing plain numeric invoice numbers",
+);
+assert.match(
+  outgoingQueries,
+  /getSuggestedManualOutgoingInvoiceNumber[\s\S]*from\("outgoing_invoices"\)[\s\S]*select\("invoice_number"\)[\s\S]*suggestNextNumericInvoiceNumber/,
+  "manual invoice page should load the suggested invoice number from existing outgoing invoices",
+);
+function suggestNextNumericInvoiceNumberForRegression(invoiceNumbers) {
+  const numericInvoiceNumbers = invoiceNumbers
+    .filter((invoiceNumber) => /^\d+$/.test(invoiceNumber))
+    .map((invoiceNumber) => Number(invoiceNumber))
+    .filter(Number.isSafeInteger);
+  if (numericInvoiceNumbers.length === 0) return "1";
+  return String(Math.max(...numericInvoiceNumbers) + 1);
+}
+assert.equal(
+  suggestNextNumericInvoiceNumberForRegression([]),
+  "1",
+  "manual invoice suggestion should be 1 when no numeric invoices exist",
+);
+assert.equal(
+  suggestNextNumericInvoiceNumberForRegression(["35"]),
+  "36",
+  "manual invoice suggestion should increment the highest numeric invoice number",
+);
+assert.equal(
+  suggestNextNumericInvoiceNumberForRegression(["ANVEL-2026-0001", "A-001", "2026/001"]),
+  "1",
+  "manual invoice suggestion should ignore old non-numeric invoice formats",
+);
+assert.equal(
+  suggestNextNumericInvoiceNumberForRegression(["1", "7", "0007", "35"]),
+  "36",
+  "manual invoice suggestion may drop padding and should use the highest numeric value",
+);
 
 const manualCreateForm = read(
   "src/components/outgoing-invoices/manual-outgoing-invoice-create-form.tsx",
@@ -1857,6 +1909,16 @@ assert.match(
   manualCreateForm,
   /Create manual invoice[\s\S]*defaultValue="Andres Velasco"/,
   "manual invoice form should default Andres Velasco",
+);
+assert.match(
+  manualCreateForm,
+  /name="invoiceNumber"[\s\S]*defaultValue=\{suggestedInvoiceNumber\}/,
+  "manual invoice form should prefill an editable invoice number suggestion",
+);
+assert.doesNotMatch(
+  manualCreateForm.match(/name="invoiceNumber"[\s\S]*?<FieldError/)?.[0] ?? "",
+  /readOnly|type="hidden"/,
+  "manual invoice number suggestion should remain visible and editable",
 );
 assert.match(
   manualCreateForm,

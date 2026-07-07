@@ -199,7 +199,9 @@ notification's sender in `updateUser`.
   in-force project. The invoice snapshots that project's billing details and
   defaults the consultant name to Andres Velasco. Manual outgoing invoices can
   contain multiple concept lines; totals, quantity and weighted sales rate are
-  calculated from those stored lines.
+  calculated from those stored lines. The create form suggests the next plain
+  numeric invoice number from existing numeric invoice numbers, but the admin
+  can overwrite it and the submitted number is stored exactly after trimming.
 - Admin reviews, downloads, manually sends and manually marks outgoing invoices
   paid under `/outgoing-invoices`.
 - Outgoing invoices use EUR and a due date exactly 30 calendar days after the

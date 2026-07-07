@@ -57,6 +57,7 @@ const manualInvoiceLinesSchema = z.string().transform((value, context) => {
     }),
 );
 const manualInvoiceDraftSchema = z.object({
+  invoiceNumber: z.string().trim().min(1, "Enter an invoice number.").max(80, "Keep the invoice number under 80 characters."),
   projectId: z.string().uuid("Select a project."),
   consultantName: z.string().trim().min(1, "Enter a consultant name.").max(160),
   invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter an invoice date."),
@@ -65,7 +66,7 @@ const manualInvoiceDraftSchema = z.object({
   invoiceNotes: optionalText,
 });
 const updateManualInvoiceDraftSchema = manualInvoiceDraftSchema
-  .omit({ projectId: true, invoiceDate: true })
+  .omit({ invoiceNumber: true, projectId: true, invoiceDate: true })
   .extend(invoiceIdSchema.shape);
 const paidSchema = invoiceIdSchema.extend({
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a paid date."),
@@ -216,51 +217,6 @@ async function loadManualInvoiceContext(
   };
 }
 
-function parseSequenceInvoiceNumber(value: string, fallbackYear: number) {
-  const formatted = value.match(/^ANVEL-(\d{4})-(\d{1,10})$/i);
-  if (formatted) {
-    return {
-      invoiceNumber: `ANVEL-${formatted[1]}-${String(Number(formatted[2])).padStart(4, "0")}`,
-      sequenceYear: Number(formatted[1]),
-      sequenceNumber: Number(formatted[2]),
-      normalized: true,
-    };
-  }
-
-  const plainNumber = value.match(/^\d{1,10}$/);
-  if (plainNumber) {
-    const sequenceNumber = Number(plainNumber[0]);
-    return {
-      invoiceNumber: `ANVEL-${fallbackYear}-${String(sequenceNumber).padStart(4, "0")}`,
-      sequenceYear: fallbackYear,
-      sequenceNumber,
-      normalized: true,
-    };
-  }
-
-  return {
-    invoiceNumber: value,
-    sequenceYear: null,
-    sequenceNumber: null,
-    normalized: false,
-  };
-}
-
-async function syncOutgoingInvoiceSequence(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  sequenceYear: number | null,
-  sequenceNumber: number | null,
-) {
-  if (!sequenceYear || !sequenceNumber) return;
-  const { error } = await supabase.rpc("sync_outgoing_invoice_sequence", {
-    invoice_year: sequenceYear,
-    used_number: sequenceNumber,
-  });
-  if (error) {
-    throw new Error(`Could not update outgoing invoice sequence: ${error.message}`);
-  }
-}
-
 async function uploadOutgoingInvoicePdf(
   supabase: Awaited<ReturnType<typeof createClient>>,
   invoiceId: string,
@@ -287,6 +243,7 @@ export async function createManualOutgoingInvoiceAction(
 ): Promise<OutgoingInvoiceActionState> {
   const profile = await requireRole(["admin"]);
   const parsed = manualInvoiceDraftSchema.safeParse({
+    invoiceNumber: formData.get("invoiceNumber"),
     projectId: formData.get("projectId"),
     consultantName: formData.get("consultantName") || DEFAULT_MANUAL_CONSULTANT_NAME,
     invoiceDate: formData.get("invoiceDate"),
@@ -303,6 +260,14 @@ export async function createManualOutgoingInvoiceAction(
   }
 
   const supabase = await createClient();
+  const { data: duplicate, error: duplicateError } = await supabase
+    .from("outgoing_invoices")
+    .select("id")
+    .eq("invoice_number", parsed.data.invoiceNumber)
+    .maybeSingle<{ id: string }>();
+  if (duplicateError) return errorState(`Could not check invoice number uniqueness: ${duplicateError.message}`);
+  if (duplicate) return errorState("This invoice number is already used.");
+
   let context: Awaited<ReturnType<typeof loadManualInvoiceContext>>;
   try {
     context = await loadManualInvoiceContext(supabase, parsed.data.projectId);
@@ -314,13 +279,6 @@ export async function createManualOutgoingInvoiceAction(
   const dueDate = addThirtyDays(invoiceDate);
   const year = Number(invoiceDate.slice(0, 4));
   const month = Number(invoiceDate.slice(5, 7));
-  const { data: invoiceNumber, error: numberError } = await supabase.rpc(
-    "next_outgoing_invoice_number",
-    { invoice_year: year },
-  );
-  if (numberError || !invoiceNumber) {
-    return errorState(`Could not allocate outgoing invoice number: ${numberError?.message ?? "Unknown error"}`);
-  }
 
   const totals = calculateManualInvoiceTotals(parsed.data.linesJson);
   const vatRate = vatRateForTreatment(context.billing.vat_treatment);
@@ -334,8 +292,8 @@ export async function createManualOutgoingInvoiceAction(
     timesheet_id: null,
     project_id: context.project.id,
     contractor_id: null,
-    invoice_number: String(invoiceNumber),
-    invoice_number_manually_edited: false,
+    invoice_number: parsed.data.invoiceNumber,
+    invoice_number_manually_edited: true,
     invoice_number_edited_at: null,
     invoice_number_edited_by: null,
     previous_invoice_number: null,
@@ -393,7 +351,13 @@ export async function createManualOutgoingInvoiceAction(
   };
 
   const { error: insertError } = await supabase.from("outgoing_invoices").insert(payload);
-  if (insertError) return errorState(`Could not create manual invoice: ${insertError.message}`);
+  if (insertError) {
+    return errorState(
+      insertError.code === "23505"
+        ? "This invoice number is already used."
+        : `Could not create manual invoice: ${insertError.message}`,
+    );
+  }
 
   const { error: lineError } = await supabase.from("outgoing_invoice_lines").insert(
     totals.invoiceLines.map((line) => ({
@@ -427,7 +391,7 @@ export async function createManualOutgoingInvoiceAction(
     entity_type: "outgoing_invoice",
     entity_id: invoiceId,
     metadata: {
-      invoice_number: invoiceNumber,
+      invoice_number: parsed.data.invoiceNumber,
       project_id: context.project.id,
       consultant_name: parsed.data.consultantName,
     },
@@ -435,7 +399,7 @@ export async function createManualOutgoingInvoiceAction(
   revalidatePath("/outgoing-invoices");
   return {
     status: "success",
-    message: `Manual invoice draft ${invoiceNumber} created.`,
+    message: `Manual invoice draft ${parsed.data.invoiceNumber} created.`,
     fieldErrors: {},
     invoiceId,
   };
@@ -572,41 +536,30 @@ export async function updateOutgoingInvoiceNumberAction(
   const supabase = await createClient();
   const { data: invoice, error: loadError } = await supabase
     .from("outgoing_invoices")
-    .select("id,invoice_number,status,year")
+    .select("id,invoice_number,status")
     .eq("id", parsed.data.invoiceId)
-    .maybeSingle<{ id: string; invoice_number: string; status: string; year: number }>();
+    .maybeSingle<{ id: string; invoice_number: string; status: string }>();
   if (loadError || !invoice) return errorState("Outgoing invoice not found.");
   if (invoice.status !== "draft") return errorState("Only draft invoice numbers can be edited.");
 
-  const parsedNumber = parseSequenceInvoiceNumber(parsed.data.invoiceNumber, invoice.year);
-  if (parsedNumber.invoiceNumber === invoice.invoice_number) {
+  if (parsed.data.invoiceNumber === invoice.invoice_number) {
     return { status: "success", message: "Invoice number unchanged.", fieldErrors: {} };
   }
 
   const { data: duplicate, error: duplicateError } = await supabase
     .from("outgoing_invoices")
     .select("id")
-    .eq("invoice_number", parsedNumber.invoiceNumber)
+    .eq("invoice_number", parsed.data.invoiceNumber)
     .neq("id", invoice.id)
     .maybeSingle<{ id: string }>();
   if (duplicateError) return errorState(`Could not check invoice number uniqueness: ${duplicateError.message}`);
   if (duplicate) return errorState("This invoice number is already used.");
 
-  try {
-    await syncOutgoingInvoiceSequence(
-      supabase,
-      parsedNumber.sequenceYear,
-      parsedNumber.sequenceNumber,
-    );
-  } catch (error) {
-    return errorState(error instanceof Error ? error.message : "Could not update outgoing invoice sequence.");
-  }
-
   const editedAt = new Date().toISOString();
   const { error: updateError } = await supabase
     .from("outgoing_invoices")
     .update({
-      invoice_number: parsedNumber.invoiceNumber,
+      invoice_number: parsed.data.invoiceNumber,
       invoice_number_manually_edited: true,
       invoice_number_edited_at: editedAt,
       invoice_number_edited_by: profile.id,
@@ -638,17 +591,14 @@ export async function updateOutgoingInvoiceNumberAction(
     entity_id: invoice.id,
     metadata: {
       previous_invoice_number: invoice.invoice_number,
-      new_invoice_number: parsedNumber.invoiceNumber,
-      normalized: parsedNumber.normalized,
+      new_invoice_number: parsed.data.invoiceNumber,
     },
   });
   revalidatePath("/outgoing-invoices");
   revalidatePath(`/outgoing-invoices/${invoice.id}`);
   return {
     status: "success",
-    message: parsedNumber.normalized
-      ? `Invoice number updated to ${parsedNumber.invoiceNumber}. Future generated numbers for that year will be higher.`
-      : "Legacy invoice number saved. The generated sequence was not lowered.",
+    message: "Invoice number saved.",
     fieldErrors: {},
   };
 }

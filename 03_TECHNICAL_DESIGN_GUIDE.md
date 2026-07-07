@@ -1433,6 +1433,10 @@ integration. Manual outgoing invoices use `invoice_source = 'manual'`, keep
 Manual outgoing invoice concepts are stored as one row per concept in
 `outgoing_invoice_lines`; the invoice header quantity, unit label, sales rate,
 net, VAT and gross amounts are derived summaries of those rows.
+The create form suggests the next plain numeric invoice number by scanning
+existing numeric `outgoing_invoices.invoice_number` values, but this is only a
+default. Admins can overwrite it, and manual invoice creation stores the
+submitted number exactly after trimming surrounding whitespace.
 
 The security hardening migration stores assignment sales rates in
 `contractor_project_commercials`, which is protected by admin-only RLS.

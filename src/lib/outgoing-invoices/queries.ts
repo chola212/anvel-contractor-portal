@@ -28,6 +28,17 @@ export type ManualOutgoingInvoiceProjectOption = {
   hasCompleteBillingDetails: boolean;
 };
 
+export function suggestNextNumericInvoiceNumber(invoiceNumbers: string[]) {
+  const numericInvoiceNumbers = invoiceNumbers
+    .filter((invoiceNumber) => /^\d+$/.test(invoiceNumber))
+    .map((invoiceNumber) => Number(invoiceNumber))
+    .filter(Number.isSafeInteger);
+
+  if (numericInvoiceNumbers.length === 0) return "1";
+
+  return String(Math.max(...numericInvoiceNumbers) + 1);
+}
+
 function hasCompleteProjectBillingDetails(
   billing: Pick<
     ProjectBillingDetails,
@@ -141,6 +152,22 @@ export async function getManualOutgoingInvoiceProjectOptions() {
       }
       return left.name.localeCompare(right.name);
     });
+}
+
+export async function getSuggestedManualOutgoingInvoiceNumber() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("outgoing_invoices")
+    .select("invoice_number")
+    .returns<{ invoice_number: string }[]>();
+
+  if (error) {
+    throw new Error(`Could not suggest the next manual invoice number: ${error.message}`);
+  }
+
+  return suggestNextNumericInvoiceNumber(
+    data.map((invoice) => invoice.invoice_number),
+  );
 }
 
 export async function getProjectBillingDetails(projectId: string) {

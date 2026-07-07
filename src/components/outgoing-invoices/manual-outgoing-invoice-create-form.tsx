@@ -28,8 +28,10 @@ function FieldError({ errors }: { errors: string[] | undefined }) {
 
 export function ManualOutgoingInvoiceCreateForm({
   projects,
+  suggestedInvoiceNumber,
 }: {
   projects: ManualOutgoingInvoiceProjectOption[];
+  suggestedInvoiceNumber: string;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
@@ -52,6 +54,17 @@ export function ManualOutgoingInvoiceCreateForm({
         </p>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div>
+          <label htmlFor="manual-invoice-number" className="block text-sm font-medium text-neutral-800">Invoice number</label>
+          <input
+            id="manual-invoice-number"
+            name="invoiceNumber"
+            defaultValue={suggestedInvoiceNumber}
+            required
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <FieldError errors={state.fieldErrors.invoiceNumber} />
+        </div>
         <div>
           <label htmlFor="manual-project" className="block text-sm font-medium text-neutral-800">Project</label>
           <select

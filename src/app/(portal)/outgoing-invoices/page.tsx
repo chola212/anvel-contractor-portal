@@ -8,6 +8,7 @@ import { formatCurrency, formatDate } from "@/lib/invoices/format";
 import {
   getManualOutgoingInvoiceProjectOptions,
   getOutgoingInvoices,
+  getSuggestedManualOutgoingInvoiceNumber,
 } from "@/lib/outgoing-invoices/queries";
 import { getProjectsForStaff } from "@/lib/projects/queries";
 import { formatTimesheetMonth } from "@/lib/timesheets/format";
@@ -45,11 +46,18 @@ export default async function OutgoingInvoicesPage({
     billingLegalName: value(params, "billingLegalName"),
     invoiceNumber: value(params, "invoiceNumber"),
   };
-  const [invoices, projects, contractors, manualProjectOptions] = await Promise.all([
+  const [
+    invoices,
+    projects,
+    contractors,
+    manualProjectOptions,
+    suggestedInvoiceNumber,
+  ] = await Promise.all([
     getOutgoingInvoices(filters),
     getProjectsForStaff(),
     getContractorsForStaff(),
     getManualOutgoingInvoiceProjectOptions(),
+    getSuggestedManualOutgoingInvoiceNumber(),
   ]);
 
   return (
@@ -58,7 +66,10 @@ export default async function OutgoingInvoicesPage({
         <h1 className="text-3xl font-semibold text-neutral-950">Outgoing Invoices</h1>
         <p className="mt-2 text-neutral-600">Admin review, manual sending and payment tracking for client billing.</p>
       </section>
-      <ManualOutgoingInvoiceCreateForm projects={manualProjectOptions} />
+      <ManualOutgoingInvoiceCreateForm
+        projects={manualProjectOptions}
+        suggestedInvoiceNumber={suggestedInvoiceNumber}
+      />
       <form className="grid gap-3 rounded-md border border-neutral-200 bg-white p-4 md:grid-cols-4">
         <select name="status" defaultValue={filters.status} className="rounded-md border border-neutral-300 px-3 py-2 text-sm">
           <option value="">All statuses</option>
